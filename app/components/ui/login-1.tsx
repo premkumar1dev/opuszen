@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { FcGoogle } from "react-icons/fc";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,7 +13,6 @@ interface Login1Props {
     title?: string;
   };
   buttonText?: string;
-  googleText?: string;
   signupText?: string;
   signupUrl?: string;
 }
@@ -28,7 +26,6 @@ const Login1 = ({
     title: "Opuszen",
   },
   buttonText = "Login",
-  googleText = "Sign in with Google",
   signupText = "Don't have an account?",
   signupUrl = "/auth/signup",
 }: Login1Props) => {
@@ -57,23 +54,6 @@ const Login1 = ({
       setError(err?.message || "An unexpected error occurred.");
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleGoogleLogin = async () => {
-    setError(null);
-    try {
-      const { error: authError } = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: {
-          redirectTo: window.location.origin + "/key-status",
-        },
-      });
-      if (authError) {
-        setError(authError.message);
-      }
-    } catch (err: any) {
-      setError(err?.message || "An unexpected error occurred.");
     }
   };
 
@@ -131,16 +111,6 @@ const Login1 = ({
               <div className="flex flex-col gap-4">
                 <Button type="submit" className="mt-2 w-full" disabled={loading}>
                   {loading ? "Logging in..." : buttonText}
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full"
-                  onClick={handleGoogleLogin}
-                  disabled={loading}
-                >
-                  <FcGoogle className="mr-2 size-5" />
-                  {googleText}
                 </Button>
               </div>
             </div>

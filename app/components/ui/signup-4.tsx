@@ -1,8 +1,6 @@
 import { useState } from "react";
-import { FcGoogle } from "react-icons/fc";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
 import { supabase } from "../../../utils/supabase";
 
 interface Signup4Props {
@@ -14,7 +12,6 @@ interface Signup4Props {
     title?: string;
   };
   buttonText?: string;
-  googleText?: string;
   loginText?: string;
   loginUrl?: string;
   testimonial?: {
@@ -34,7 +31,6 @@ const Signup4 = ({
     title: "Opuszen",
   },
   buttonText = "Sign Up",
-  googleText = "Sign up with Google",
   loginText = "Already have an account?",
   loginUrl = "/auth/login",
   testimonial = {
@@ -74,23 +70,6 @@ const Signup4 = ({
       setError(err?.message || "An unexpected error occurred.");
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleGoogleSignup = async () => {
-    setError(null);
-    try {
-      const { error: authError } = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: {
-          redirectTo: window.location.origin + "/key-status",
-        },
-      });
-      if (authError) {
-        setError(authError.message);
-      }
-    } catch (err: any) {
-      setError(err?.message || "An unexpected error occurred.");
     }
   };
 
@@ -196,29 +175,6 @@ const Signup4 = ({
               {loading ? "Signing Up..." : buttonText}
             </Button>
           </form>
-
-          {/* Social Sign Up */}
-          <div className="mt-6">
-            <div className="relative mb-6">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-muted"></div>
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-background px-2 text-muted-foreground">Or continue with</span>
-              </div>
-            </div>
-
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full"
-              onClick={handleGoogleSignup}
-              disabled={loading}
-            >
-              <FcGoogle className="mr-2 size-5" />
-              {googleText}
-            </Button>
-          </div>
 
           {/* Footer Link */}
           <div className="mt-8 text-center text-sm text-muted-foreground">
