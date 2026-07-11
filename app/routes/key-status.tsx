@@ -55,10 +55,15 @@ export async function loader({ request }: LoaderFunctionArgs) {
   }
 
   try {
+    const isLocalhost = url.hostname === "localhost" || url.hostname === "127.0.0.1";
+    const defaultGateway = isLocalhost
+      ? 'http://localhost:3000/api'
+      : 'https://api.opuszen.shop/api';
+
     const gatewayUrl =
       import.meta.env.VITE_API_URL ||
       process.env.API_URL ||
-      'http://localhost:3000/api';
+      defaultGateway;
     const apiResponse = await fetch(
       `${gatewayUrl}/key-status?key=${encodeURIComponent(key)}`
     );
