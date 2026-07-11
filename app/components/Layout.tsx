@@ -13,10 +13,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
  })
  const mobileNavRef = useRef<HTMLElement>(null)
  const location = useLocation()
-
- const loginUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost'
- ? 'http://localhost:5173/'
- : '/auth/login';
+ const loginUrl = '/auth/login';
 
  // Apply dark mode class to html element
  useEffect(() => {

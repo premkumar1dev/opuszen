@@ -28,7 +28,7 @@ const Login1 = ({
     title: "Opuszen",
   },
   buttonText = "Login",
-  googleText = "Sign up with Google",
+  googleText = "Sign in with Google",
   signupText = "Don't have an account?",
   signupUrl = "/auth/signup",
 }: Login1Props) => {
