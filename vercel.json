@@ -1,3 +1,7 @@
 {
-  "framework": "react-router"
+  "framework": "react-router",
+  "redirects": [
+    { "source": "/admin", "destination": "/auth/admin", "permanent": true },
+    { "source": "/auyh/admin", "destination": "/auth/admin", "permanent": true }
+  ]
 }
