@@ -42,4 +42,8 @@ export default [
     path: "/privacy",
     file: "routes/privacy.tsx",
   },
+  {
+    path: "/dashboard/*",
+    file: "routes/dashboard.tsx",
+  },
 ] satisfies RouteConfig;

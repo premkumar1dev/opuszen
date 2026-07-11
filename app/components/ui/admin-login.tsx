@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router";
 import { FiMail, FiLock, FiShield, FiEye, FiEyeOff, FiTerminal, FiDatabase, FiAlertTriangle, FiCheckCircle } from "react-icons/fi";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,6 +31,7 @@ export function AdminLoginForm({
   
   // Console logs simulator
   const [logs, setLogs] = useState<string[]>([]);
+ const navigate = useNavigate();
 
   useEffect(() => {
     const rawLogs = [
@@ -57,7 +59,7 @@ export function AdminLoginForm({
     e.preventDefault();
     setLoading(true);
     setError(null);
-    setLogs((prev) => [...prev, `AUTH: Verifying credentials for user [${email}]...`]);
+    setLogs((prev) => [...prev, "AUTH: Verifying credentials..."]);
     
     try {
       const { data, error: authError } = await supabase.auth.signInWithPassword({
@@ -81,7 +83,7 @@ export function AdminLoginForm({
         setLogs((prev) => [...prev, "AUTH: Privilege check PASSED.", "SYS: Granting session tokens...", "SYS: Redirecting to admin core dashboard..."]);
         setSuccess(true);
         setTimeout(() => {
-          window.location.href = "/key-status";
+          navigate("/auth/admin/dashboard", { replace: true });
         }, 1200);
       } else {
         // Sign user back out so they don't persist an unauthorized session

@@ -9,6 +9,7 @@ import {
 
 import type { Route } from "./+types/root";
 import "./app.css";
+import { WhatsAppWidget } from "./components/WhatsAppWidget";
 
 export const links: Route.LinksFunction = () => [
   { rel: "preconnect", href: "https://fonts.googleapis.com" },
@@ -36,6 +37,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       </head>
       <body>
         {children}
+        <WhatsAppWidget phoneNumber="8098830937" />
         <ScrollRestoration />
         <Scripts />
       </body>
