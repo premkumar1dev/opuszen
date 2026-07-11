@@ -1,0 +1,207 @@
+@import "tailwindcss";
+
+@theme {
+ /* Fonts */
+ --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif,
+ "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+ --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+ "Liberation Mono", "Courier New", monospace;
+
+ /* Light mode colors */
+ --color-background: #ffffff;
+ --color-foreground: #1a1a2e;
+ --color-card: #ffffff;
+ --color-card-foreground: #1a1a2e;
+ --color-popover: #ffffff;
+ --color-popover-foreground: #1a1a2e;
+ --color-primary: #7c3aed;
+ --color-primary-foreground: #ffffff;
+ --color-secondary: #f3f0ff;
+ --color-secondary-foreground: #5b21b6;
+ --color-muted: #f9f7ff;
+ --color-muted-foreground: #6b7280;
+ --color-accent: #ede9fe;
+ --color-accent-foreground: #4c1d95;
+ --color-destructive: #dc2626;
+ --color-destructive-foreground: #ffffff;
+ --color-border: #e5e7eb;
+ --color-input: #e5e7eb;
+ --color-ring: #7c3aed;
+
+ /* Spacing */
+ --spacing: 0.25rem;
+
+ /* Shadows */
+ --shadow-2xs: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+ --shadow-xs: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
+ --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
+ --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
+ --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+ --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+ --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+ --shadow-2xl: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+
+ /* Radius */
+ --radius: 0.5rem;
+}
+
+/* Base styles */
+html,
+body {
+ @apply bg-background text-foreground antialiased;
+ font-family: var(--font-sans);
+}
+
+/* Smooth transitions for theme switching */
+html {
+ transition: background-color 0.3s ease, color 0.3s ease;
+ scroll-behavior: smooth;
+}
+
+body {
+ @apply bg-background text-foreground;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+ width: 8px;
+}
+::-webkit-scrollbar-track {
+ @apply bg-background;
+}
+::-webkit-scrollbar-thumb {
+ @apply bg-border rounded-full;
+}
+::-webkit-scrollbar-thumb:hover {
+ @apply bg-muted-foreground;
+}
+
+/* ─── Dark Mode ─────────────────────────────────────────── */
+
+/* Apply dark mode colors when .dark class is present */
+.dark {
+ --color-background: #09090b;
+ --color-foreground: #fafafa;
+ --color-card: #18181b;
+ --color-card-foreground: #fafafa;
+ --color-popover: #18181b;
+ --color-popover-foreground: #fafafa;
+ --color-primary: #a78bfa;
+ --color-primary-foreground: #18181b;
+ --color-secondary: #27272a;
+ --color-secondary-foreground: #a78bfa;
+ --color-muted: #18181b;
+ --color-muted-foreground: #71717a;
+ --color-accent: #27272a;
+ --color-accent-foreground: #a78bfa;
+ --color-destructive: #ef4444;
+ --color-destructive-foreground: #ffffff;
+ --color-border: #27272a;
+ --color-input: #27272a;
+ --color-ring: #a78bfa;
+
+ --shadow-2xs: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+ --shadow-xs: 0 1px 3px 0 rgba(0, 0, 0, 0.4), 0 1px 2px -1px rgba(0, 0, 0, 0.4);
+ --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.4), 0 1px 2px -1px rgba(0, 0, 0, 0.4);
+ --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.4), 0 1px 2px -1px rgba(0, 0, 0, 0.4);
+ --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -2px rgba(0, 0, 0, 0.4);
+ --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -4px rgba(0, 0, 0, 0.4);
+ --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.4), 0 8px 10px -6px rgba(0, 0, 0, 0.4);
+ --shadow-2xl: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+}
+
+/* Ensure dark mode backgrounds apply */
+.dark body,
+.dark #root {
+ background-color: var(--color-background);
+ color: var(--color-foreground);
+}
+
+/* Grid pattern - adapts to theme */
+.bg-grid-pattern {
+ background-image: linear-gradient(
+ rgba(124, 58, 237, 0.05) 1px,
+ transparent 1px
+ ),
+ linear-gradient(90deg, rgba(124, 58, 237, 0.05) 1px, transparent 1px);
+ background-size: 40px 40px;
+}
+
+.dark .bg-grid-pattern {
+ background-image: linear-gradient(
+ rgba(167, 139, 250, 0.08) 1px,
+ transparent 1px
+ ),
+ linear-gradient(90deg, rgba(167, 139, 250, 0.08) 1px, transparent 1px);
+ background-size: 40px 40px;
+}
+
+/* ─── Animations ─────────────────────────────────────────── */
+
+@keyframes float {
+ 0%, 100% { transform: translateY(0px); }
+ 50% { transform: translateY(-10px); }
+}
+
+.animate-float {
+ animation: float 6s ease-in-out infinite;
+}
+
+@keyframes pulse-ring {
+ 0%, 100% { opacity: 1; }
+ 50% { opacity: 0.5; }
+}
+
+.animate-pulse-ring {
+ animation: pulse-ring 2s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+ 0% { transform: translateX(-100%); }
+ 100% { transform: translateX(400%); }
+}
+
+.animate-shimmer {
+ animation: shimmer 3s ease-in-out infinite;
+}
+
+/* Toggle sun/moon animation */
+@keyframes icon-swap {
+ 0% { transform: rotate(0deg) scale(1); opacity: 1; }
+ 50% { transform: rotate(180deg) scale(0.5); opacity: 0; }
+ 100% { transform: rotate(360deg) scale(1); opacity: 1; }
+}
+
+.animate-icon {
+ animation: icon-swap 0.4s ease-in-out forwards;
+}
+
+/* ─── Component-specific overrides ───────────────────────── */
+
+/* Hero section gradient text */
+.text-gradient {
+ @apply bg-clip-text text-transparent bg-gradient-to-r from-primary via-violet-500 to-fuchsia-500;
+}
+
+/* Card hover effect */
+.card-hover {
+ @apply transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5;
+}
+
+/* Glow effects */
+.glow-primary {
+ box-shadow: 0 0 20px rgba(124, 58, 237, 0.3);
+}
+
+.dark .glow-primary {
+ box-shadow: 0 0 20px rgba(167, 139, 250, 0.3);
+}
+
+/* Selection colors */
+::selection {
+ @apply bg-primary/30 text-foreground;
+}
+
+.dark ::selection {
+ @apply bg-primary/40 text-foreground;
+}
