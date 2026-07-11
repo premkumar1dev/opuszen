@@ -2,14 +2,7 @@
 
 import * as React from "react";
 import { useEffect, useRef } from "react";
-import { gsap } from "gsap";
-import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { cn } from "@/lib/utils";
-
-// Register ScrollTrigger safely for React
-if (typeof window !== "undefined") {
-  gsap.registerPlugin(ScrollTrigger);
-}
 
 // -------------------------------------------------------------------------
 // 1. THEME-ADAPTIVE INLINE STYLES
@@ -146,47 +139,53 @@ export const MagneticButton = React.forwardRef<HTMLElement, MagneticButtonProps>
       const element = localRef.current;
       if (!element) return;
 
-      const ctx = gsap.context(() => {
-        const handleMouseMove = (e: MouseEvent) => {
-          const rect = element.getBoundingClientRect();
-          const w = rect.width / 2;
-          const h = rect.height / 2;
-          const x = e.clientX - rect.left - h;
-          const y = e.clientY - rect.top - w;
+      let ctx: any;
 
-          gsap.to(element, {
-            x: x * 0.4,
-            y: y * 0.4,
-            rotationX: -y * 0.15,
-            rotationY: x * 0.15,
-            scale: 1.05,
-            ease: "power2.out",
-            duration: 0.4,
-          });
-        };
+      (async () => {
+        const { gsap } = await import("gsap");
 
-        const handleMouseLeave = () => {
-          gsap.to(element, {
-            x: 0,
-            y: 0,
-            rotationX: 0,
-            rotationY: 0,
-            scale: 1,
-            ease: "elastic.out(1, 0.3)",
-            duration: 1.2,
-          });
-        };
+        ctx = gsap.context(() => {
+          const handleMouseMove = (e: MouseEvent) => {
+            const rect = element.getBoundingClientRect();
+            const w = rect.width / 2;
+            const h = rect.height / 2;
+            const x = e.clientX - rect.left - h;
+            const y = e.clientY - rect.top - w;
 
-        element.addEventListener("mousemove", handleMouseMove as any);
-        element.addEventListener("mouseleave", handleMouseLeave);
+            gsap.to(element, {
+              x: x * 0.4,
+              y: y * 0.4,
+              rotationX: -y * 0.15,
+              rotationY: x * 0.15,
+              scale: 1.05,
+              ease: "power2.out",
+              duration: 0.4,
+            });
+          };
 
-        return () => {
-          element.removeEventListener("mousemove", handleMouseMove as any);
-          element.removeEventListener("mouseleave", handleMouseLeave);
-        };
-      }, element);
+          const handleMouseLeave = () => {
+            gsap.to(element, {
+              x: 0,
+              y: 0,
+              rotationX: 0,
+              rotationY: 0,
+              scale: 1,
+              ease: "elastic.out(1, 0.3)",
+              duration: 1.2,
+            });
+          };
 
-      return () => ctx.revert();
+          element.addEventListener("mousemove", handleMouseMove as any);
+          element.addEventListener("mouseleave", handleMouseLeave);
+
+          return () => {
+            element.removeEventListener("mousemove", handleMouseMove as any);
+            element.removeEventListener("mouseleave", handleMouseLeave);
+          };
+        }, element);
+      })();
+
+      return () => { if (ctx) ctx.revert(); };
     }, []);
 
     return (
@@ -229,46 +228,54 @@ export function CinematicFooter() {
     if (typeof window === "undefined") return;
     if (!wrapperRef.current) return;
 
-    // React strict mode compatible GSAP context cleanup
-    const ctx = gsap.context(() => {
-      // Background Parallax
-      gsap.fromTo(
-        giantTextRef.current,
-        { y: "10vh", scale: 0.8, opacity: 0 },
-        {
-          y: "0vh",
-          scale: 1,
-          opacity: 1,
-          ease: "power1.out",
-          scrollTrigger: {
-            trigger: wrapperRef.current,
-            start: "top 80%",
-            end: "bottom bottom",
-            scrub: 1,
-          },
-        }
-      );
+    let ctx: any;
 
-      // Staggered Content Reveal
-      gsap.fromTo(
-        [headingRef.current, linksRef.current],
-        { y: 50, opacity: 0 },
-        {
-          y: 0,
-          opacity: 1,
-          stagger: 0.15,
-          ease: "power3.out",
-          scrollTrigger: {
-            trigger: wrapperRef.current,
-            start: "top 40%",
-            end: "bottom bottom",
-            scrub: 1,
-          },
-        }
-      );
-    }, wrapperRef);
+    (async () => {
+      const { gsap } = await import("gsap");
+      const { ScrollTrigger } = await import("gsap/ScrollTrigger");
+      gsap.registerPlugin(ScrollTrigger);
 
-    return () => ctx.revert();
+      // React strict mode compatible GSAP context cleanup
+      ctx = gsap.context(() => {
+        // Background Parallax
+        gsap.fromTo(
+          giantTextRef.current,
+          { y: "10vh", scale: 0.8, opacity: 0 },
+          {
+            y: "0vh",
+            scale: 1,
+            opacity: 1,
+            ease: "power1.out",
+            scrollTrigger: {
+              trigger: wrapperRef.current,
+              start: "top 80%",
+              end: "bottom bottom",
+              scrub: 1,
+            },
+          }
+        );
+
+        // Staggered Content Reveal
+        gsap.fromTo(
+          [headingRef.current, linksRef.current],
+          { y: 50, opacity: 0 },
+          {
+            y: 0,
+            opacity: 1,
+            stagger: 0.15,
+            ease: "power3.out",
+            scrollTrigger: {
+              trigger: wrapperRef.current,
+              start: "top 40%",
+              end: "bottom bottom",
+              scrub: 1,
+            },
+          }
+        );
+      }, wrapperRef);
+    })();
+
+    return () => { if (ctx) ctx.revert(); };
   }, []);
 
   const scrollToTop = () => {

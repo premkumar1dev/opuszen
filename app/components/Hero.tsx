@@ -1,12 +1,6 @@
 import React, { useEffect, useRef } from "react";
 import { Link } from "react-router";
-import { gsap } from "gsap";
-import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { MagneticButton } from "@/components/ui/motion-footer";
-
-if (typeof window !== "undefined") {
- gsap.registerPlugin(ScrollTrigger);
-}
 
 const STYLES = `
 .hero-aurora {
@@ -63,83 +57,89 @@ export default function Hero() {
  useEffect(() => {
  if (typeof window === "undefined") return;
 
- const ctx = gsap.context(() => {
- // 1. Entrance Stagger Animation
- gsap.fromTo(
- [
- badgeRef.current,
- headingRef.current,
- subheadlineRef.current,
- buttonsRef.current,
- codeRef.current
- ],
- { y: 40, opacity: 0 },
- {
- y: 0,
- opacity: 1,
- duration: 0.8,
- stagger: 0.12,
- ease: "power3.out",
- }
- );
+ let ctx: any;
 
- // 2. Parallax Animations on Scroll (only if wrapper and giant text exist)
- if (giantTextRef.current && wrapperRef.current) {
- gsap.fromTo(
- giantTextRef.current,
- { y: "5vh", scale: 0.95 },
- {
- y: "-15vh",
- scale: 1.05,
- scrollTrigger: {
- trigger: wrapperRef.current,
- start: "top top",
- end: "bottom top",
- scrub: true,
- }
- }
- );
- }
+ (async () => {
+  const { gsap } = await import("gsap");
+  const { ScrollTrigger } = await import("gsap/ScrollTrigger");
+  gsap.registerPlugin(ScrollTrigger);
 
- if (auroraRef.current && wrapperRef.current) {
- gsap.fromTo(
- auroraRef.current,
- { y: 0, scale: 1 },
- {
- y: "8vh",
- scale: 1.1,
- scrollTrigger: {
- trigger: wrapperRef.current,
- start: "top top",
- end: "bottom top",
- scrub: true,
- }
- }
- );
- }
+  ctx = gsap.context(() => {
+  // 1. Entrance Stagger Animation
+  gsap.fromTo(
+  [
+  badgeRef.current,
+  headingRef.current,
+  subheadlineRef.current,
+  buttonsRef.current,
+  codeRef.current
+  ],
+  { y: 40, opacity: 0 },
+  {
+  y: 0,
+  opacity: 1,
+  duration: 0.8,
+  stagger: 0.12,
+  ease: "power3.out",
+  }
+  );
 
- if (gridRef.current && wrapperRef.current) {
- gsap.fromTo(
- gridRef.current,
- { y: 0 },
- {
- y: "5vh",
- scrollTrigger: {
- trigger: wrapperRef.current,
- start: "top top",
- end: "bottom top",
- scrub: true,
- }
- }
- );
- }
- }, wrapperRef);
+  // 2. Parallax Animations on Scroll (only if wrapper and giant text exist)
+  if (giantTextRef.current && wrapperRef.current) {
+  gsap.fromTo(
+  giantTextRef.current,
+  { y: "5vh", scale: 0.95 },
+  {
+  y: "-15vh",
+  scale: 1.05,
+  scrollTrigger: {
+  trigger: wrapperRef.current,
+  start: "top top",
+  end: "bottom top",
+  scrub: true,
+  }
+  }
+  );
+  }
 
- return () => ctx.revert();
+  if (auroraRef.current && wrapperRef.current) {
+  gsap.fromTo(
+  auroraRef.current,
+  { y: 0, scale: 1 },
+  {
+  y: "8vh",
+  scale: 1.1,
+  scrollTrigger: {
+  trigger: wrapperRef.current,
+  start: "top top",
+  end: "bottom top",
+  scrub: true,
+  }
+  }
+  );
+  }
 
- if (typeof window !== "undefined") {
- requestAnimationFrame(() => ScrollTrigger.refresh());
- }
+  if (gridRef.current && wrapperRef.current) {
+  gsap.fromTo(
+  gridRef.current,
+  { y: 0 },
+  {
+  y: "5vh",
+  scrollTrigger: {
+  trigger: wrapperRef.current,
+  start: "top top",
+  end: "bottom top",
+  scrub: true,
+  }
+  }
+  );
+  }
+  }, wrapperRef);
+
+  requestAnimationFrame(() => ScrollTrigger.refresh());
+ })();
+
+ return () => { if (ctx) ctx.revert(); };
  }, []);
 
  return (
