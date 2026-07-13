@@ -1,0 +1,9 @@
+[33mThe `envFile` option is deprecated, please use `envDir: false` instead.[39m
+[33mThe `envFile` option is deprecated, please use `envDir: false` instead.[39m
+[33mThe `envFile` option is deprecated, please use `envDir: false` instead.[39m
+[33mThe `envFile` option is deprecated, please use `envDir: false` instead.[39m
+[33mThe `envFile` option is deprecated, please use `envDir: false` instead.[39m
+[33mThe `envFile` option is deprecated, please use `envDir: false` instead.[39m
+[33mThe `envFile` option is deprecated, please use `envDir: false` instead.[39m
+[36mvite v8.1.3 [32mbuilding client environment for production...[36m[39m
+[2Ktransforming...

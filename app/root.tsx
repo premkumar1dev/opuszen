@@ -5,6 +5,8 @@ import {
   Outlet,
   Scripts,
   ScrollRestoration,
+  useLocation,
+  useNavigation,
 } from "react-router";
 
 import type { Route } from "./+types/root";
@@ -17,7 +19,7 @@ export const links: Route.LinksFunction = () => [
     rel: "preconnect",
     href: "https://fonts.gstatic.com",
     crossOrigin: "anonymous",
-  },
+    },
   {
     rel: "stylesheet",
     href: "https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap",
@@ -27,6 +29,18 @@ export const links: Route.LinksFunction = () => [
 ];
 
 export function Layout({ children }: { children: React.ReactNode }) {
+  let location;
+  let navigationState = "idle";
+  try {
+    location = useLocation();
+    const navigation = useNavigation();
+    navigationState = navigation.state;
+  } catch (e) {
+    // Fallback if accessed outside RouterProvider context
+  }
+  const pathname = location?.pathname || "";
+  const isAdminPath = pathname.startsWith("/dashboard") || pathname.startsWith("/auth/admin");
+
   return (
     <html lang="en">
       <head>
@@ -36,8 +50,25 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <Links />
       </head>
       <body>
+        {navigationState === "loading" && (
+          <div className="fixed top-0 left-0 right-0 h-1 z-[9999] bg-primary/20">
+            <div 
+              className="h-full bg-gradient-to-r from-sky-400 via-violet-500 to-indigo-600 transition-all duration-300 ease-out" 
+              style={{
+                width: "90%",
+                animation: "pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite, load 10s cubic-bezier(0.1, 0.8, 0.1, 1) forwards"
+              }}
+            />
+            <style dangerouslySetInnerHTML={{__html: `
+              @keyframes load {
+                0% { width: 0%; }
+                100% { width: 90%; }
+              }
+            `}} />
+          </div>
+        )}
         {children}
-        <WhatsAppWidget phoneNumber="8098830937" />
+        {!isAdminPath && <WhatsAppWidget phoneNumber="8098830937" />}
         <ScrollRestoration />
         <Scripts />
       </body>

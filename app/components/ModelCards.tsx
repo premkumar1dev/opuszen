@@ -1,47 +1,40 @@
 
 const models = [
- {
- name: 'Opus 4.8',
- id: 'claude-opus-4-8',
- description: 'Flagship — 1M context, long-horizon agentic coding',
- gradient: 'from-violet-500 to-purple-600 dark:from-violet-400 dark:to-purple-500',
- icon: '🧠',
- },
- {
- name: 'Opus 4.7',
- id: 'claude-opus-4-7',
- description: 'Previous flagship — 1M context, agentic coding',
- gradient: 'from-violet-500 to-purple-600 dark:from-violet-400 dark:to-purple-500',
- icon: '🧠',
- },
- {
- name: 'Sonnet 4.6',
- id: 'claude-sonnet-4-6',
- description: 'Speed meets intelligence',
- gradient: 'from-primary to-indigo-500 dark:from-primary dark:to-indigo-400',
- icon: '⚡',
- },
- {
- name: 'Haiku 4.5',
- id: 'claude-haiku-4-5-20251001',
- description: 'Fastest for high throughput',
- gradient: 'from-emerald-500 to-teal-500 dark:from-emerald-400 dark:to-teal-400',
- icon: '🚀',
- },
+  {
+  name: 'OpusLive Premium',
+  id: 'opuslive-premium',
+  description: 'Flagship — 1M context, long-horizon agentic coding',
+  gradient: 'from-violet-500 to-purple-600 dark:from-violet-400 dark:to-purple-500',
+  icon: '🧠',
+  },
+  {
+  name: 'OpusLive Chat',
+  id: 'opuslive-chat',
+  description: 'Speed meets intelligence',
+  gradient: 'from-primary to-indigo-500 dark:from-primary dark:to-indigo-400',
+  icon: '⚡',
+  },
+  {
+  name: 'OpusLive Fast',
+  id: 'opuslive-fast',
+  description: 'Fastest for high throughput',
+  gradient: 'from-emerald-500 to-teal-500 dark:from-emerald-400 dark:to-teal-400',
+  icon: '🚀',
+  },
 ]
 
 export default function ModelCards() {
- return (
- <section className="relative py-24 px-4">
- <div className="max-w-7xl mx-auto">
- <div className="text-center mb-16">
- <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-foreground mb-4">
- The full Claude lineup
- </h2>
- <p className="text-muted-foreground max-w-lg mx-auto">
- Every model, one endpoint. Use the model that fits your task.
- </p>
- </div>
+  return (
+  <section className="relative py-24 px-4">
+  <div className="max-w-7xl mx-auto">
+  <div className="text-center mb-16">
+  <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-foreground mb-4">
+  The full OpusLive lineup
+  </h2>
+  <p className="text-muted-foreground max-w-lg mx-auto">
+  Use the model that fits your task.
+  </p>
+  </div>
 
  <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
  {models.map((model, index) => (

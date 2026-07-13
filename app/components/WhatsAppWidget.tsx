@@ -82,7 +82,7 @@ export function WhatsAppWidget({
                 {/* Avatar with logo image */}
                 <div className="w-10 h-10 rounded-full bg-white dark:bg-zinc-800 flex items-center justify-center p-1.5 border border-white/20 shadow-md">
                   <img
-                    src="/logo.png"
+                    src="/logo-blue.png"
                     alt="OpusZen"
                     className="w-full h-full object-contain"
                   />

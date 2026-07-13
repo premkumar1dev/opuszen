@@ -14,19 +14,19 @@
  --color-card-foreground: #1a1a2e;
  --color-popover: #ffffff;
  --color-popover-foreground: #1a1a2e;
- --color-primary: #7c3aed;
+ --color-primary: #2563eb;
  --color-primary-foreground: #ffffff;
- --color-secondary: #f3f0ff;
- --color-secondary-foreground: #5b21b6;
- --color-muted: #f9f7ff;
+ --color-secondary: #eff6ff;
+ --color-secondary-foreground: #1e40af;
+ --color-muted: #f0f4ff;
  --color-muted-foreground: #6b7280;
- --color-accent: #ede9fe;
- --color-accent-foreground: #4c1d95;
+ --color-accent: #dbeafe;
+ --color-accent-foreground: #1e3a8a;
  --color-destructive: #dc2626;
  --color-destructive-foreground: #ffffff;
  --color-border: #e5e7eb;
  --color-input: #e5e7eb;
- --color-ring: #7c3aed;
+ --color-ring: #2563eb;
 
  /* Spacing */
  --spacing: 0.25rem;
@@ -86,19 +86,19 @@ body {
  --color-card-foreground: #fafafa;
  --color-popover: #18181b;
  --color-popover-foreground: #fafafa;
- --color-primary: #a78bfa;
- --color-primary-foreground: #18181b;
- --color-secondary: #27272a;
- --color-secondary-foreground: #a78bfa;
- --color-muted: #18181b;
- --color-muted-foreground: #71717a;
- --color-accent: #27272a;
- --color-accent-foreground: #a78bfa;
+ --color-primary: #60a5fa;
+ --color-primary-foreground: #0f172a;
+ --color-secondary: #1e293b;
+ --color-secondary-foreground: #60a5fa;
+ --color-muted: #1e293b;
+ --color-muted-foreground: #94a3b8;
+ --color-accent: #1e293b;
+ --color-accent-foreground: #60a5fa;
  --color-destructive: #ef4444;
  --color-destructive-foreground: #ffffff;
- --color-border: #27272a;
- --color-input: #27272a;
- --color-ring: #a78bfa;
+ --color-border: #334155;
+ --color-input: #334155;
+ --color-ring: #60a5fa;
 
  --shadow-2xs: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
  --shadow-xs: 0 1px 3px 0 rgba(0, 0, 0, 0.4), 0 1px 2px -1px rgba(0, 0, 0, 0.4);
@@ -120,19 +120,19 @@ body {
 /* Grid pattern - adapts to theme */
 .bg-grid-pattern {
  background-image: linear-gradient(
- rgba(124, 58, 237, 0.05) 1px,
+ rgba(37, 99, 235, 0.05) 1px,
  transparent 1px
  ),
- linear-gradient(90deg, rgba(124, 58, 237, 0.05) 1px, transparent 1px);
+ linear-gradient(90deg, rgba(37, 99, 235, 0.05) 1px, transparent 1px);
  background-size: 40px 40px;
 }
 
 .dark .bg-grid-pattern {
  background-image: linear-gradient(
- rgba(167, 139, 250, 0.08) 1px,
+ rgba(96, 165, 250, 0.08) 1px,
  transparent 1px
  ),
- linear-gradient(90deg, rgba(167, 139, 250, 0.08) 1px, transparent 1px);
+ linear-gradient(90deg, rgba(96, 165, 250, 0.08) 1px, transparent 1px);
  background-size: 40px 40px;
 }
 
@@ -180,7 +180,7 @@ body {
 
 /* Hero section gradient text */
 .text-gradient {
- @apply bg-clip-text text-transparent bg-gradient-to-r from-primary via-violet-500 to-fuchsia-500;
+ @apply bg-clip-text text-transparent bg-gradient-to-r from-blue-600 via-blue-500 to-cyan-500;
 }
 
 /* Card hover effect */
@@ -190,11 +190,11 @@ body {
 
 /* Glow effects */
 .glow-primary {
- box-shadow: 0 0 20px rgba(124, 58, 237, 0.3);
+ box-shadow: 0 0 20px rgba(37, 99, 235, 0.3);
 }
 
 .dark .glow-primary {
- box-shadow: 0 0 20px rgba(167, 139, 250, 0.3);
+ box-shadow: 0 0 20px rgba(96, 165, 250, 0.3);
 }
 
 /* Selection colors */

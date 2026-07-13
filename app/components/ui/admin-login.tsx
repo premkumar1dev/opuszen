@@ -22,8 +22,8 @@ export function AdminLoginForm({
     title: "Opuszen",
   },
 }: AdminLoginProps) {
-  const [email, setEmail] = useState("tamilaninstamedia1@gmail.com");
-  const [password, setPassword] = useState("admin123");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -188,7 +188,7 @@ export function AdminLoginForm({
                   <FiMail className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground size-4" />
                   <Input
                     type="email"
-                    placeholder="tamilaninstamedia1@gmail.com"
+                    placeholder="admin@example.com"
                     className="pl-10 bg-background/50 border-border focus:border-primary/50 focus:ring-primary/20"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
@@ -207,7 +207,7 @@ export function AdminLoginForm({
                   <FiLock className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground size-4" />
                   <Input
                     type={showPassword ? "text" : "password"}
-                    placeholder="admin123"
+                    placeholder="••••••••"
                     className="pl-10 pr-10 bg-background/50 border-border focus:border-primary/50 focus:ring-primary/20"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
@@ -250,7 +250,7 @@ export function AdminLoginForm({
           {/* Footer details */}
           <div className="flex items-center justify-between text-xs text-muted-foreground font-mono mt-2 border-t border-border/50 pt-4">
             <span>OPUSZEN SECURE SHELL</span>
-            <span>v1.2.0</span>
+            <span>v1.3.1</span>
           </div>
 
         </div>

@@ -5,9 +5,13 @@ export function Layout({ children }: { children: React.ReactNode }) {
  const [mobileOpen, setMobileOpen] = useState(false)
  const [darkMode, setDarkMode] = useState(() => {
  if (typeof window !== 'undefined') {
+ try {
  const saved = localStorage.getItem('dark-mode')
  if (saved !== null) return JSON.parse(saved)
  return window.matchMedia('(prefers-color-scheme: dark)').matches
+ } catch {
+ return window.matchMedia('(prefers-color-scheme: dark)').matches
+ }
  }
  return false
  })
@@ -84,9 +88,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
  aria-label="Opuszen home"
  >
  <img
- src="/logo.png"
+ src="/logo-blue.png"
  alt="Opuszen"
  className="w-9 h-9"
+ style={{ filter: 'hue-rotate(210deg) saturate(2)' }}
  />
  <span>Opuszen</span>
  </NavLink>
@@ -379,7 +384,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
  <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-6">
  <div className="flex items-center gap-3">
  <img
- src="/logo.png"
+ src="/logo-blue.png"
  alt="Opuszen"
  className="w-8 h-8"
  />
