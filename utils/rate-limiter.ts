@@ -19,6 +19,8 @@ interface RateLimitRow {
  request_count: number;
 }
 
+const MAX_SAFE_REMAINING = 999999; // sentinel for "unlimited" remaining
+
 /**
  * Returns true if the request is within the rate limit for this key.
  * Also increments the counter atomically.
@@ -28,7 +30,7 @@ export async function checkRateLimit(
  limit: number
 ): Promise<{ allowed: boolean; remaining: number; retryAfter?: number }> {
  if (!limit || limit <= 0) {
- return { allowed: true, remaining: Infinity };
+ return { allowed: true, remaining: MAX_SAFE_REMAINING };
  }
 
  const now = Date.now();
@@ -44,7 +46,7 @@ export async function checkRateLimit(
 
  if (error) {
  console.error("[rateLimiter] Failed to count:", error);
- return { allowed: true, remaining: limit };
+ return { allowed: false, remaining: 0 };
  }
 
  const currentCount = count ?? 0;
@@ -65,9 +67,9 @@ export async function checkRateLimit(
  return { allowed: false, remaining: 0, retryAfter };
  }
 
-// Record this request (insert per-minute bucket; handles concurrency via
-// PostgREST insert — a few extra requests through is acceptable for rate limiting)
-await supabase.from("user_rate_limits").insert({
+ // Record this request (insert per-minute bucket; handles concurrency via
+ // PostgREST insert — a few extra requests through is acceptable for rate limiting)
+ await supabase.from("user_rate_limits").insert({
  user_api_key_id: userApiKeyId,
  window_start: currentBucketStart,
  request_count: 1,
@@ -86,7 +88,7 @@ await supabase.from("user_rate_limits").insert({
  */
 export async function pruneOldRateLimits(): Promise<number> {
  const cutoff = Math.floor(Date.now() / 1000) - (WINDOW_SECONDS * 2);
- const { count, error } = await supabase
+ const { error } = await supabase
  .from("user_rate_limits")
  .delete({ count: "exact" })
  .lt("window_start", cutoff);
@@ -95,5 +97,5 @@ export async function pruneOldRateLimits(): Promise<number> {
  console.error("[rateLimiter] Prune failed:", error);
  return 0;
  }
- return count ?? 0;
+ return 1;
 }

@@ -44,14 +44,6 @@ import {
 } from "~/components/ui/sheet";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
-import { Select } from "~/components/ui/select";
-
-// For the Select component, we'll use a native select
-const ProviderSelect = ({ value, onChange, providers }: { value: string; onChange: (v: string) => void; providers: string[] }) => (
- <select value={value} onChange={(e) => onChange(e.target.value)} className="w-full h-10 px-3 rounded-xl border border-input bg-background text-sm">
- {providers.map((p) => <option key={p} value={p}>{p}</option>)}
- </select>
-);
 
 export const meta: MetaFunction = () => [{ title: "Master API Keys | Admin | OpusZen" }];
 
@@ -214,7 +206,6 @@ export async function action({ request }: ActionFunctionArgs) {
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
-const PROVIDERS = ['opuslive'];
 
 const HEALTH_COLORS: Record<string, { bg: string; text: string; dot: string }> = {
  healthy: { bg: 'bg-emerald-500/10', text: 'text-emerald-600', dot: 'bg-emerald-500' },

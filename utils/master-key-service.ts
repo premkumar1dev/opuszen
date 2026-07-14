@@ -39,6 +39,24 @@ export async function getAllMasterKeys(): Promise<MasterApiKeyRow[]> {
 }
 
 export async function getActiveMasterKeys(): Promise<MasterApiKeyRow[]> {
+ const { data, error } = await supabase
+ .from('master_api_keys')
+ .select('*')
+ .eq('status', 'active')
+ .neq('health_status', 'quota_exhausted')
+ .neq('health_status', 'rate_limited')
+ .neq('health_status', 'temporarily_failed')
+ .neq('health_status', 'disabled')
+ .gt('remaining_credits', 0)
+ .order('priority', { ascending: true });
+
+ if (error) throw new Error(`Failed to fetch active master keys: ${error.message}`);
+ return decryptKeys(data ?? []);
+}
+
+// DB-level filtered variant (fetches all, then filters server-side — kept for
+// callers that need the full dataset)
+export async function getActiveMasterKeysUnfiltered(): Promise<MasterApiKeyRow[]> {
  const keys = await getAllMasterKeys();
  return keys.filter((k) => {
  return (
@@ -66,8 +84,8 @@ export async function getMasterKeyByProvider(provider: string, allowedProviders:
  const filtered = keys.filter((k) => allowedProviders.includes(k.provider));
  if (filtered.length > 0) return filtered[0];
  }
- const byProvider = keys.filter((k) => k.provider === provider);
- return byProvider[0] ?? keys[0] ?? null;
+ // Do NOT fall back to a non-allowed provider
+ return null;
 }
 
 export async function selectBestMasterKey(provider?: string, allowedProviders?: string[]): Promise<MasterApiKeyRow | null> {
@@ -105,9 +123,10 @@ export async function createMasterKey(input: MasterApiKeyInput): Promise<MasterA
  .single();
 
  if (error) throw new Error(`Failed to create master key: ${error.message}`);
+ if (!data) throw new Error('Failed to create master key: no data returned');
 
  // Create health record
- const keyId = (data as MasterApiKeyRow).id;
+ const keyId = data.id;
  await supabase.from('provider_health').insert({ master_api_key_id: keyId });
 
  return decryptKey(data) as MasterApiKeyRow;
@@ -116,7 +135,10 @@ export async function createMasterKey(input: MasterApiKeyInput): Promise<MasterA
 export async function updateMasterKey(id: string, updates: Partial<MasterApiKeyRow>): Promise<void> {
  const safeUpdates = { ...updates, updated_at: new Date().toISOString() };
  if (safeUpdates.api_key && typeof safeUpdates.api_key === 'string') {
+ // Only encrypt if it doesn't look like already-encrypted data (iv:tag:ciphertext format)
+ if (!safeUpdates.api_key.includes(":") || safeUpdates.api_key.split(":").length < 3) {
  safeUpdates.api_key = encrypt(safeUpdates.api_key);
+ }
  }
 
  const { error } = await (supabase
@@ -133,11 +155,17 @@ export async function deleteMasterKey(id: string): Promise<void> {
 }
 
 export async function markMasterKeyFailed(id: string, reason: string): Promise<void> {
- const key = await getMasterKeyById(id);
- if (!key) return;
+ // Fetch only the columns we need — avoid decrypting the full key
+ const { data, error } = await supabase
+ .from('master_api_keys')
+ .select('failure_count')
+ .eq('id', id)
+ .single();
 
- const newFailureCount = key.failure_count + 1;
- const updatedStatus = newFailureCount >= 5 ? 'temporarily_failed' : key.status;
+ if (error || !data) return;
+
+ const newFailureCount = (data.failure_count ?? 0) + 1;
+ const updatedStatus = newFailureCount >= 5 ? 'temporarily_failed' : 'active';
 
  await updateMasterKey(id, {
  failure_count: newFailureCount,
@@ -149,27 +177,36 @@ export async function markMasterKeyFailed(id: string, reason: string): Promise<v
 
  await updateHealthRecord(id, {
  status: 'unhealthy',
- consecutive_failures: (key.failure_count + 1),
+ consecutive_failures: newFailureCount,
  last_failure: new Date().toISOString(),
  last_error: reason,
  });
 }
 
 export async function markMasterKeySuccess(id: string): Promise<void> {
-  const key = await getMasterKeyById(id);
-  if (!key) return;
+ // Fetch only the counter columns needed — avoid decrypting the full key
+ const { data, error } = await supabase
+ .from('master_api_keys')
+ .select('total_requests, success_requests, failure_count')
+ .eq('id', id)
+ .single();
 
-  await updateMasterKey(id, {
-  last_used: new Date().toISOString(),
-  total_requests: key.total_requests + 1,
-  success_requests: key.success_requests + 1,
-  failure_count: 0,
-  health_status: 'healthy',
-  updated_at: new Date().toISOString(),
-  });
+ if (error || !data) return;
 
-  // Note: health record (consecutive_successes etc.) is updated by recordHealthSuccess()
-  // in health-service.ts which is called separately from gateway-service.
+ await supabase
+ .from('master_api_keys')
+ .update({
+ last_used: new Date().toISOString(),
+ total_requests: (data.total_requests ?? 0) + 1,
+ success_requests: (data.success_requests ?? 0) + 1,
+ failure_count: 0,
+ health_status: 'healthy',
+ updated_at: new Date().toISOString(),
+ })
+ .eq('id', id);
+
+ // Note: health record (consecutive_successes etc.) is updated by recordHealthSuccess()
+ // in health-service.ts which is called separately from gateway-service.
 }
 
 export async function markMasterKeyRateLimited(id: string): Promise<void> {
@@ -204,6 +241,9 @@ export async function markMasterKeyQuotaExhausted(id: string): Promise<void> {
 }
 
 export async function resetMasterKeyHealth(id: string): Promise<void> {
+ const key = await getMasterKeyById(id);
+ if (!key) return;
+
  await updateMasterKey(id, {
  health_status: 'healthy',
  status: 'active',
@@ -224,6 +264,16 @@ export async function resetMasterKeyHealth(id: string): Promise<void> {
  updated_at: new Date().toISOString(),
  })
  .eq('master_api_key_id', id);
+
+ // Restore remaining credits if they were depleted
+ if ((key.remaining_credits ?? 0) <= 0 && key.total_credits > 0) {
+ await supabase
+ .from('master_api_keys')
+ .update({
+ remaining_credits: key.total_credits,
+ })
+ .eq('id', id);
+ }
 }
 
 export async function getMasterKeyStats(id: string): Promise<MasterApiKeyStats> {
@@ -293,7 +343,10 @@ export async function getHealthRecord(keyId: string): Promise<any> {
  .eq('master_api_key_id', keyId)
  .maybeSingle();
 
- if (error || !data) return null;
+ if (error) {
+ console.error('[health] Failed to fetch health record:', error);
+ return null;
+ }
  return data;
 }
 
@@ -303,7 +356,10 @@ export async function getAllHealthRecords(): Promise<any[]> {
  .select('*, master_api_keys(provider, name, priority)')
  .order('last_check', { ascending: false });
 
- if (error) return [];
+ if (error) {
+ console.error('[health] Failed to fetch all health records:', error);
+ return [];
+ }
  return data ?? [];
 }
 

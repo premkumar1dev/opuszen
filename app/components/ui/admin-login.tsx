@@ -110,7 +110,7 @@ export function AdminLoginForm({
         <div className="absolute -inset-0.5 bg-gradient-to-r from-primary/50 via-violet-500/30 to-fuchsia-500/50 rounded-2xl blur opacity-75 group-hover:opacity-100 transition duration-1000 group-hover:duration-200 animate-pulse-ring" />
 
         {/* Card Body */}
-        <div className="relative border border-border bg-card/90 dark:bg-card/75 backdrop-blur-xl rounded-2xl p-6 sm:p-10 shadow-2xl flex flex-col gap-6">
+        <div className="relative border border-border bg-card/90 dark:bg-card/75 backdrop-blur-xl rounded-2xl p-6 sm:p-10 shadow-2xl flex flex-col gap-6 group">
           
           {/* Logo & Header */}
           <div className="flex flex-col items-center text-center gap-2">

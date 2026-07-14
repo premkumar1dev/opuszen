@@ -14,7 +14,7 @@ export const meta: MetaFunction = () => {
  ];
 };
 
-function getMockKeyData(key: string) {
+function getMockKeyData() {
  const resetAt = new Date();
  resetAt.setHours(resetAt.getHours() + 3);
 
@@ -57,7 +57,7 @@ async function fetchKeyStatus(key: string) {
     if (data.status === "error" || data.error) {
       if (isDemo && import.meta.env.DEV) {
         return {
-          keyData: getMockKeyData(key),
+          keyData: getMockKeyData(),
           error: null,
           key,
         };
@@ -72,7 +72,7 @@ async function fetchKeyStatus(key: string) {
   } catch (err: unknown) {
     if (isDemo && import.meta.env.DEV) {
       return {
-        keyData: getMockKeyData(key),
+        keyData: getMockKeyData(),
         error: null,
         key,
       };
@@ -100,12 +100,6 @@ export async function action({ request }: ActionFunctionArgs) {
     key = "";
   }
   return fetchKeyStatus(key);
-}
-
-interface LogItem {
- model: string;
- status: number;
- time: string;
 }
 
 export default function KeyStatusRoute() {
@@ -184,21 +178,6 @@ export default function KeyStatusRoute() {
  return `${dateStr}, ${timeStr}`;
  };
 
- const formatLogTime = (isoString: string) => {
- const date = new Date(isoString);
- if (isNaN(date.getTime())) return isoString;
-
- const dateStr = formatDateToDDMMYY(date);
- const timeStr = date.toLocaleTimeString(undefined, {
- hour: 'numeric',
- minute: '2-digit',
- second: '2-digit',
- hour12: true,
- });
-
- return `${timeStr} ${dateStr}`;
- };
-
  const getDaysLeftText = (isoString?: string) => {
  if (!isoString) return "";
  const expireDate = new Date(isoString);
@@ -234,14 +213,9 @@ export default function KeyStatusRoute() {
  const usagePercentage = keyData ? Number(keyData.usagePercent ?? 0) : 0;
  const isUnlimited = keyData ? Boolean(keyData.unlimited ?? false) : false;
  const planName = keyData ? String(keyData.planName ?? "Default Plan") : "";
- const totalRequests = keyData ? Number(keyData.totalRequests ?? 0) : 0;
- const last24hRequests = keyData ? Number(keyData.last24h?.requests ?? 0) : 0;
- const rateLimit = keyData ? Number(keyData.rateLimit ?? 0) : 0;
  const expiresAt = keyData ? String(keyData.expiresAt ?? "") : "";
- const lastUsedAt = keyData ? String(keyData.lastUsedAt ?? "") : "";
  const createdAt = keyData ? String(keyData.createdAt ?? "") : "";
  const isActive = keyData ? keyData.isActive ?? keyData.windowActive ?? false : false;
- const recentLogs: LogItem[] = keyData ? keyData.recentLogs ?? [] : [];
 
  const apiLimit = keyData
  ? Number(
@@ -271,14 +245,10 @@ export default function KeyStatusRoute() {
  ? key.length > 25
  ? `${key.slice(0, 12)}...${key.slice(-4)}`
  : key
- : keyData?.keyPrefix || "";
+ : keyData?.name
+ ? `${keyData.name}'s Key`
+ : "No key provided";
 
- const models = [
- "claude-opus-4-8",
- "claude-opus-4-7",
- "claude-sonnet-4-6",
- "claude-haiku-4-5-20251001",
- ];
 
  return (
  <Layout>

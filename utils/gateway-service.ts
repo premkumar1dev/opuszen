@@ -4,7 +4,7 @@
  *
  * Flow:
  * 1. Validate user API key
- * 2. Select best master key by priority
+ * 2. Select best master API key by priority
  * 3. Forward request to provider
  * 4. On failure (429/5xx/timeout/quota), mark key, try next
  * 5. Log everything
@@ -12,8 +12,6 @@
 import { supabaseServer as supabase } from "~/utils/supabase.server";
 import type {
  MasterApiKeyRow,
- MasterApiKeyStats,
- UserApiKeyRow,
  GatewayRequestContext,
  GatewayResponseContext,
  FailoverEvent,
@@ -23,21 +21,18 @@ import type {
  ProviderConfig,
 } from "~/types/gateway";
 import {
- selectBestMasterKey,
  markMasterKeyFailed,
  markMasterKeySuccess,
  markMasterKeyRateLimited,
  markMasterKeyQuotaExhausted,
- getMasterKeyStats,
  getAllMasterKeys,
- getMasterKeyById,
 } from "~/utils/master-key-service";
 import {
  validateUserApiKey,
  recordUserKeyUsage,
 } from "~/utils/user-key-service";
 import { logApiRequest, logFailover } from "~/utils/logging-service";
-import { recordHealthSuccess, recordHealthFailure, runHealthCheck } from "~/utils/health-service";
+import { recordHealthSuccess, recordHealthFailure } from "~/utils/health-service";
 import { calculateCredits, estimateTokens, recordUsage } from "~/utils/usage-service";
 import { getGatewayConfig } from "~/utils/gateway-config";
 
@@ -104,7 +99,13 @@ const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
 };
 
 function getProviderConfig(provider: string): ProviderConfig {
- return PROVIDER_CONFIGS[provider] ?? PROVIDER_CONFIGS['OpenAI'];
+ const normalized = provider.toLowerCase();
+ // Try exact match first, then case-insensitive fallback
+ if (PROVIDER_CONFIGS[provider]) return PROVIDER_CONFIGS[provider];
+ for (const key of Object.keys(PROVIDER_CONFIGS)) {
+ if (key.toLowerCase() === normalized) return PROVIDER_CONFIGS[key];
+ }
+ return PROVIDER_CONFIGS['OpenAI'];
 }
 
 // ---------------------------------------------------------------------------
@@ -138,9 +139,9 @@ function extractUsage(responseBody: any, model: string): TokenUsage {
  if (!usage) return { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
  // Handle both camelCase (our type) and snake_case (OpenAI/Groq/Mistral raw response)
  return {
-  promptTokens: usage.promptTokens ?? usage.prompt_tokens ?? 0,
-  completionTokens: usage.completionTokens ?? usage.completion_tokens ?? 0,
-  totalTokens: usage.totalTokens ?? usage.total_tokens ?? 0,
+ promptTokens: usage.promptTokens ?? usage.prompt_tokens ?? 0,
+ completionTokens: usage.completionTokens ?? usage.completion_tokens ?? 0,
+ totalTokens: usage.totalTokens ?? usage.total_tokens ?? 0,
  };
 }
 
@@ -153,15 +154,14 @@ function buildProviderHeaders(
 ): Record<string, string> {
  const config = getProviderConfig(provider);
  const headers: Record<string, string> = {
-  'Content-Type': 'application/json',
+ 'Content-Type': 'application/json',
  };
 
  if (provider === 'Anthropic') {
-  headers['x-api-key'] = masterKey.api_key;
-  headers['anthropic-version'] = '2023-06-01';
-  headers['anthropic-dangerous-direct-browser-access'] = 'true';
+ headers['x-api-key'] = masterKey.api_key;
+ headers['anthropic-version'] = '2023-06-01';
  } else {
-  headers[config.authHeader] = `Bearer ${masterKey.api_key}`;
+ headers[config.authHeader] = `Bearer ${masterKey.api_key}`;
  }
 
  return headers;
@@ -174,7 +174,7 @@ function buildProviderUrl(provider: string, model: string): string {
  const config = getProviderConfig(provider);
 
  if (provider === 'Anthropic') {
-  return `${config.baseUrl}/messages`;
+ return `${config.baseUrl}/messages`;
  }
 
  return `${config.baseUrl}/chat/completions`;
@@ -188,20 +188,26 @@ function transformRequestBody(
  request: ChatCompletionRequest
 ): Record<string, any> {
  if (provider === 'Anthropic') {
-  const systemMsg = request.messages.filter((m) => m.role === 'system');
-  const otherMsgs = request.messages.filter((m) => m.role !== 'system');
+ const systemMsgs = request.messages.filter((m) => m.role === 'system');
+ const otherMsgs = request.messages.filter((m) => m.role !== 'system');
 
-  return {
-   model: request.model,
-   max_tokens: request.max_tokens ?? 4096,
-   temperature: request.temperature ?? 0.7,
-   system: systemMsg.length > 0 ? systemMsg[0].content : undefined,
-   messages: otherMsgs.map((m) => ({
-    role: m.role === 'assistant' ? 'assistant' : 'user',
-    content: m.content,
-   })),
-   stream: false,
-  };
+ const systemContent = systemMsgs.length > 0
+ ? systemMsgs.map(m => m.content).join('\n')
+ : undefined;
+
+ return {
+ model: request.model,
+ max_tokens: request.max_tokens ?? 4096,
+ temperature: request.temperature ?? 0.7,
+ ...(systemContent ? { system: systemContent } : {}),
+ messages: otherMsgs.map((m) => {
+ const role = m.role as string;
+ if (role === 'assistant') return { role: 'assistant', content: m.content };
+ if (role === 'tool') return { role: 'user', content: m.content } as any;
+ return { role: 'user', content: m.content };
+ }),
+ stream: false,
+ };
  }
 
  return { ...request };
@@ -216,27 +222,60 @@ function transformResponse(
  model: string
 ): ChatCompletionResponse {
  if (provider === 'Anthropic') {
-  return {
-   id: body.id ?? `chatcmpl-${Date.now()}`,
-   choices: body.content?.map((c: any) => ({
-    message: { content: c.text ?? '', role: 'assistant' },
-    finish_reason: c.stop_reason ?? 'stop',
-   })) ?? [],
-   usage: body.usage ? {
-    promptTokens: body.usage.input_tokens,
-    completionTokens: body.usage.output_tokens,
-    totalTokens: body.usage.input_tokens + body.usage.output_tokens,
-   } : undefined,
-   provider,
-  };
+ return {
+ id: body.id ?? `chatcmpl-${Date.now()}`,
+ choices: body.content?.map((c: any) => ({
+ message: { content: c.text ?? '', role: 'assistant' },
+ finish_reason: c.stop_reason ?? 'stop',
+ })) ?? [],
+ usage: body.usage ? {
+ promptTokens: body.usage.input_tokens,
+ completionTokens: body.usage.output_tokens,
+ totalTokens: body.usage.input_tokens + body.usage.output_tokens,
+ } : undefined,
+ provider,
+ };
  }
 
  return {
-  id: body.id ?? `chatcmpl-${Date.now()}`,
-  choices: body.choices ?? [],
-  usage: body.usage,
-  provider,
+ id: body.id ?? `chatcmpl-${Date.now()}`,
+ choices: body.choices ?? [],
+ usage: body.usage,
+ provider,
  };
+}
+
+// ---------------------------------------------------------------------------
+// Sanitize error message for client response (strip sensitive details)
+// ---------------------------------------------------------------------------
+function sanitizeErrorMessage(message: string, statusCode: number): string {
+ if (statusCode >= 500 && statusCode < 600) {
+ return 'Upstream provider error. Please try again.';
+ }
+ if (statusCode === 429) {
+ return 'Rate limit exceeded. Please retry after a moment.';
+ }
+ if (statusCode === 402 || statusCode === 413) {
+ return 'Request quota exceeded.';
+ }
+ // For client errors (400, 401, 403, 404), include limited info
+ if (statusCode >= 400 && statusCode < 500) {
+ return message;
+ }
+ return 'Request failed. Please try again.';
+}
+
+// ---------------------------------------------------------------------------
+// Hash a key for safe logging (one-way, not reversible)
+// ---------------------------------------------------------------------------
+function hashForLogging(key: string, maxLen: number = 4): string {
+ let hash = 0;
+ for (let i = 0; i < key.length; i++) {
+ hash = ((hash << 5) - hash) + key.charCodeAt(i);
+ hash |= 0;
+ }
+ const hex = Math.abs(hash).toString(16).padStart(maxLen, '0');
+ return `key_***${hex}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -251,6 +290,7 @@ export async function handleGatewayRequest(
  const maxRetries = await getGatewayConfig('retry_count') ?? 3;
  const retryDelayMs = await getGatewayConfig('retry_delay_ms') ?? 1000;
  const failoverEnabled = await getGatewayConfig('failover_enabled') ?? true;
+ const requestTimeoutMs = await getGatewayConfig('request_timeout_ms') ?? 120000;
 
  // Get all active master keys sorted by priority
  const allKeys = await getAllMasterKeys();
@@ -282,8 +322,8 @@ export async function handleGatewayRequest(
 
  // Prepare request — build from full message array
  const request: ChatCompletionRequest = {
-  model: ctx.model,
-  messages: ctx.messages,
+ model: ctx.model,
+ messages: ctx.messages,
  };
 
  const estimatedTokens = estimateTokens(ctx.messages, ctx.model);
@@ -313,7 +353,7 @@ export async function handleGatewayRequest(
  method: 'POST',
  headers,
  body: JSON.stringify(body),
- signal: AbortSignal.timeout(await getGatewayConfig('request_timeout_ms') ?? 120000),
+ signal: AbortSignal.timeout(requestTimeoutMs),
  });
  } catch (fetchErr: any) {
  const errorMsg = fetchErr?.message ?? 'Network error';
@@ -357,13 +397,18 @@ export async function handleGatewayRequest(
  await recordHealthSuccess(candidate.id, responseTimeMs);
  await recordUsage(candidate.id, candidate.provider, usage.totalTokens, credits, responseTimeMs);
 
- // Update master key credits only (counters already incremented by markMasterKeySuccess)
- const updatedKey = await getMasterKeyById(candidate.id);
+ // Atomically update master key credits using a single DB call
+ // to avoid lost-update race conditions between markMasterKeySuccess and this block
+ const { data: updatedKey } = await supabase
+ .from('master_api_keys')
+ .select('used_credits, total_credits')
+ .eq('id', candidate.id)
+ .single();
+
  if (updatedKey) {
- const newUsed = updatedKey.used_credits + credits;
+ const newUsed = (updatedKey.used_credits ?? 0) + credits;
  await supabase.from('master_api_keys').update({
- used_credits: newUsed,
- remaining_credits: Math.max(0, updatedKey.total_credits - newUsed),
+ remaining_credits: Math.max(0, (updatedKey.total_credits ?? 0) - newUsed),
  last_used: new Date().toISOString(),
  }).eq('id', candidate.id);
  }
@@ -373,14 +418,14 @@ export async function handleGatewayRequest(
  await recordUserKeyUsage(ctx.userApiKey.id, usage.totalTokens, credits, true);
  }
 
- // Log the successful request
+ // Log the successful request (use hashed prefixes instead of raw key material)
  await logApiRequest({
  requestId,
  userId: ctx.userApiKey.user_id,
  userApiKeyId: ctx.userApiKey.id,
- userApiKeyPrefix: ctx.userApiKey.api_key.slice(0, 12),
+ userApiKeyPrefix: hashForLogging(ctx.userApiKey.api_key, 8),
  masterApiKeyId: candidate.id,
- masterKeyPrefix: candidate.api_key.slice(0, 8),
+ masterKeyPrefix: hashForLogging(candidate.api_key, 4),
  provider: candidate.provider,
  model: ctx.model,
  ...usage,
@@ -392,7 +437,7 @@ export async function handleGatewayRequest(
  userAgent: ctx.userAgent,
  });
 
- // Log failover events if any occurred
+ // Log failover events if any occurred — now with resolution data
  for (const fe of failoverEvents) {
  await logFailover({
  ...fe,
@@ -459,9 +504,9 @@ export async function handleGatewayRequest(
  requestId,
  userId: ctx.userApiKey.user_id,
  userApiKeyId: ctx.userApiKey.id,
- userApiKeyPrefix: ctx.userApiKey.api_key.slice(0, 12),
+ userApiKeyPrefix: hashForLogging(ctx.userApiKey.api_key, 8),
  masterApiKeyId: candidate.id,
- masterKeyPrefix: candidate.api_key.slice(0, 8),
+ masterKeyPrefix: hashForLogging(candidate.api_key, 4),
  provider: candidate.provider,
  model: ctx.model,
  ...usage,
@@ -469,7 +514,7 @@ export async function handleGatewayRequest(
  responseTimeMs,
  httpStatus: response.status,
  isSuccess: false,
- errorMessage: errorMsg,
+ errorMessage: sanitizeErrorMessage(errorMsg, response.status),
  ipAddress: ctx.ipAddress,
  userAgent: ctx.userAgent,
  });
@@ -488,7 +533,7 @@ export async function handleGatewayRequest(
  ...usage,
  creditsUsed: 0,
  responseTimeMs,
- errorMessage: errorMsg,
+ errorMessage: sanitizeErrorMessage(errorMsg, response.status),
  responseBody: transformResponse(candidate.provider, responseBody, ctx.model),
  retryNumber: retryNumber + 1,
  };
@@ -503,9 +548,9 @@ export async function handleGatewayRequest(
  requestId,
  userId: ctx.userApiKey.user_id,
  userApiKeyId: ctx.userApiKey.id,
- userApiKeyPrefix: ctx.userApiKey.api_key.slice(0, 12),
+ userApiKeyPrefix: hashForLogging(ctx.userApiKey.api_key, 8),
  masterApiKeyId: masterKey.id,
- masterKeyPrefix: masterKey.api_key.slice(0, 8),
+ masterKeyPrefix: hashForLogging(masterKey.api_key, 4),
  provider: masterKey.provider,
  model: ctx.model,
  promptTokens: 0,
@@ -554,17 +599,21 @@ export async function handleGatewayRequest(
 export async function getKeyStatus(apiKey: string): Promise<any> {
  // If this looks like a remote official key, fetch from the official API
  if (apiKey.startsWith("sk-ant-opm-") || apiKey.startsWith("sk-ant-api") || apiKey.startsWith("sk-")) {
-  try {
-   const res = await fetch(`https://api.opusmax.live/api/key-status?key=${apiKey}`);
-   if (res.ok) {
-    const remoteData = await res.json();
-    if (remoteData && remoteData.status !== "error") {
-     return remoteData;
-    }
-   }
-  } catch (e) {
-   console.error("Failed to fetch key status from remote API:", e);
-  }
+ try {
+ const res = await fetch('https://api.opusmax.live/api/key-status', {
+ method: 'POST',
+ headers: { 'Content-Type': 'application/json' },
+ body: JSON.stringify({ key: apiKey }),
+ });
+ if (res.ok) {
+ const remoteData = await res.json();
+ if (remoteData && remoteData.status !== "error") {
+ return remoteData;
+ }
+ }
+ } catch (e) {
+ console.error("Failed to fetch key status from remote API:", e);
+ }
  }
 
  const key = await validateUserApiKey(apiKey);

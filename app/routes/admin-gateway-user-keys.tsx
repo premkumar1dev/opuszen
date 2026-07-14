@@ -32,7 +32,6 @@ import {
  SheetDescription,
  SheetFooter,
 } from "~/components/ui/sheet";
-import { motion, AnimatePresence } from "framer-motion";
 
 export const meta: MetaFunction = () => [{ title: "User API Keys | Admin | OpusZen" }];
 
@@ -45,39 +44,39 @@ export async function loader({ request }: LoaderFunctionArgs) {
  let plans: { id: string; name: string }[] = [];
 
  try {
-  keys = await (await import("~/utils/user-key-service")).getAllUserApiKeys();
+ keys = await (await import("~/utils/user-key-service")).getAllUserApiKeys();
  } catch { /* table may not exist yet */ }
 
  try {
-  const { supabase } = await import("~/utils/supabase");
-  const { data } = await supabase
-   .from("users")
-   .select("id, username, name")
-   .order("username", { ascending: true });
-  users = data ?? [];
+ const { supabase } = await import("~/utils/supabase");
+ const { data } = await supabase
+ .from("users")
+ .select("id, username, name")
+ .order("username", { ascending: true });
+ users = data ?? [];
  } catch { /* skip */ }
 
  try {
-  const { supabase } = await import("~/utils/supabase");
-  const { data } = await supabase
-   .from("plans")
-   .select("id, name")
-   .order("price", { ascending: true });
-  plans = data ?? [];
+ const { supabase } = await import("~/utils/supabase");
+ const { data } = await supabase
+ .from("plans")
+ .select("id, name, price")
+ .order("price", { ascending: true });
+ plans = data ?? [];
  } catch { /* skip */ }
 
  return { keys, users, plans, adminEmail: adminCheck.adminEmail };
 }
 
 const getPlanTokenLimit = (planName: string) => {
-  const name = planName.toLowerCase();
-  if (name.includes("20x")) return 20000000;
-  if (name.includes("10x")) return 10000000;
-  if (name.includes("5x")) return 5000000;
-  if (name.includes("3x")) return 3000000;
-  if (name.includes("2x")) return 2000000;
-  if (name.includes("pro")) return 1000000;
-  return 1000000;
+ const name = planName.toLowerCase();
+ if (name.includes("20x")) return 20000000;
+ if (name.includes("10x")) return 10000000;
+ if (name.includes("5x")) return 5000000;
+ if (name.includes("3x")) return 3000000;
+ if (name.includes("2x")) return 2000000;
+ if (name.includes("pro")) return 1000000;
+ return 1000000;
 };
 
 const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
@@ -92,6 +91,33 @@ function formatDate(iso: string | null): string {
  return new Date(iso).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
+function safeErrorMessage(err: unknown): string {
+ if (err instanceof Error) return err.message;
+ return String(err);
+}
+
+async function copyToClipboard(text: string): Promise<boolean> {
+ try {
+ await navigator.clipboard.writeText(text);
+ return true;
+ } catch {
+ // Fallback for non-HTTPS contexts
+ try {
+ const textarea = document.createElement('textarea');
+ textarea.value = text;
+ textarea.style.position = 'fixed';
+ textarea.style.opacity = '0';
+ document.body.appendChild(textarea);
+ textarea.select();
+ const success = document.execCommand('copy');
+ document.body.removeChild(textarea);
+ return success;
+ } catch {
+ return false;
+ }
+ }
+}
+
 export default function AdminUserKeysRoute() {
  const { keys, users = [], plans = [], adminEmail } = useLoaderData<typeof loader>();
  const [loading, setLoading] = useState(false);
@@ -100,7 +126,7 @@ export default function AdminUserKeysRoute() {
  const [form, setForm] = useState({
  user_id: '',
  name: 'Default Key',
- allocated_credits: 1000000, // Stored as token count locally
+ allocated_credits: 1000000,
  expiry_days: 30,
  rate_limit: 60,
  allowed_models: '',
@@ -110,13 +136,15 @@ export default function AdminUserKeysRoute() {
  const refresh = useCallback(async () => {
  setLoading(true);
  await new Promise(r => setTimeout(r, 500));
- window.location.reload();
+ setLoading(false);
  }, []);
 
  const handleCopy = useCallback(async (key: UserApiKeyRow) => {
- await navigator.clipboard.writeText(key.api_key);
+ const ok = await copyToClipboard(key.api_key);
+ if (ok) {
  setCopiedId(key.id);
  setTimeout(() => setCopiedId(null), 2000);
+ }
  }, []);
 
  const handleToggle = useCallback(async (key: UserApiKeyRow) => {
@@ -127,8 +155,7 @@ export default function AdminUserKeysRoute() {
  } else {
  await (await import("~/utils/user-key-service")).enableUserApiKey(key.id);
  }
- window.location.reload();
- } catch (err: any) { alert(err.message); }
+ } catch (err: unknown) { alert(safeErrorMessage(err)); }
  setLoading(false);
  }, []);
 
@@ -137,8 +164,7 @@ export default function AdminUserKeysRoute() {
  setLoading(true);
  try {
  await (await import("~/utils/user-key-service")).regenerateUserApiKey(key.id);
- window.location.reload();
- } catch (err: any) { alert(err.message); }
+ } catch (err: unknown) { alert(safeErrorMessage(err)); }
  setLoading(false);
  }, []);
 
@@ -147,8 +173,7 @@ export default function AdminUserKeysRoute() {
  setLoading(true);
  try {
  await (await import("~/utils/user-key-service")).deleteUserApiKey(key.id);
- window.location.reload();
- } catch (err: any) { alert(err.message); }
+ } catch (err: unknown) { alert(safeErrorMessage(err)); }
  setLoading(false);
  }, []);
 
@@ -157,34 +182,33 @@ export default function AdminUserKeysRoute() {
  setLoading(true);
  try {
  await (await import("~/utils/user-key-service")).resetUserKeyUsage(key.id);
- window.location.reload();
- } catch (err: any) { alert(err.message); }
+ } catch (err: unknown) { alert(safeErrorMessage(err)); }
  setLoading(false);
  }, []);
 
-  const handleAdd = useCallback(async () => {
-  if (!form.user_id.trim()) { alert("User account selection is required"); return; }
-  setLoading(true);
-  try {
-  const expiryDate = new Date();
-  expiryDate.setDate(expiryDate.getDate() + form.expiry_days);
+ const handleAdd = useCallback(async () => {
+ if (!form.user_id.trim()) { alert("User account selection is required"); return; }
+ setLoading(true);
+ try {
+ const expiryDate = new Date();
+ const days = Math.max(1, form.expiry_days);
+ expiryDate.setDate(expiryDate.getDate() + days);
 
-  await (await import("~/utils/user-key-service")).createUserApiKey({
-  user_id: form.user_id.trim(),
-  name: form.name,
-  allocated_credits: form.allocated_credits / 1000, // Translate tokens back to credits
-  expiry_date: expiryDate.toISOString(),
-  rate_limit: form.rate_limit,
-  allowed_models: (!allowAllModels && form.allowed_models) ? form.allowed_models.split(',').map(s => s.trim()).filter(Boolean) : [],
-  });
+ await (await import("~/utils/user-key-service")).createUserApiKey({
+ user_id: form.user_id.trim(),
+ name: form.name,
+ allocated_credits: form.allocated_credits / 1000, // Translate tokens back to credits
+ expiry_date: expiryDate.toISOString(),
+ rate_limit: form.rate_limit,
+ allowed_models: (!allowAllModels && form.allowed_models) ? form.allowed_models.split(',').map(s => s.trim()).filter(Boolean) : [],
+ });
 
-  setShowAddForm(false);
-  setForm({ user_id: '', name: 'Default Key', allocated_credits: 1000000, expiry_days: 30, rate_limit: 60, allowed_models: '' });
-  setAllowAllModels(true);
-  window.location.reload();
-  } catch (err: any) { alert("Failed: " + err.message); }
-  setLoading(false);
-  }, [form, allowAllModels]);
+ setShowAddForm(false);
+ setForm({ user_id: '', name: 'Default Key', allocated_credits: 1000000, expiry_days: 30, rate_limit: 60, allowed_models: '' });
+ setAllowAllModels(true);
+ } catch (err: unknown) { alert("Failed: " + safeErrorMessage(err)); }
+ setLoading(false);
+ }, [form, allowAllModels]);
 
  const activeKeys = keys.filter((k) => k.status === 'active');
  const totalCredits = keys.reduce((s, k) => s + k.allocated_credits, 0);
@@ -216,10 +240,10 @@ export default function AdminUserKeysRoute() {
  {/* Stats */}
  <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
  {[
-  { label: "Total Keys", value: keys.length.toString(), color: "text-foreground" },
-  { label: "Active Keys", value: activeKeys.length.toString(), color: "text-emerald-500" },
-  { label: "Total Allocated Tokens", value: (totalCredits * 1000).toLocaleString(), color: "text-indigo-500" },
-  { label: "Total Used Tokens", value: (usedCredits * 1000).toLocaleString(), color: "text-amber-500" },
+ { label: "Total Keys", value: keys.length.toString(), color: "text-foreground" },
+ { label: "Active Keys", value: activeKeys.length.toString(), color: "text-emerald-500" },
+ { label: "Total Allocated Tokens", value: (totalCredits * 1000).toLocaleString(), color: "text-indigo-500" },
+ { label: "Total Used Tokens", value: (usedCredits * 1000).toLocaleString(), color: "text-amber-500" },
  ].map((s) => (
  <div key={s.label} className="p-4 rounded-xl border border-border bg-card/60">
  <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{s.label}</p>
@@ -232,19 +256,19 @@ export default function AdminUserKeysRoute() {
  <div className="rounded-2xl border border-border bg-card/60 overflow-hidden">
  <div className="overflow-x-auto">
  <table className="w-full text-sm text-left">
-  <thead>
-  <tr className="text-xs uppercase bg-muted/30 text-muted-foreground border-b border-border">
-  <th className="px-4 py-3 font-semibold">Key</th>
-  <th className="px-4 py-3 font-semibold">Name</th>
-  <th className="px-4 py-3 font-semibold">Status</th>
-  <th className="px-4 py-3 font-semibold text-right">Token Limit</th>
-  <th className="px-4 py-3 font-semibold text-right">Remaining Tokens</th>
-  <th className="px-4 py-3 font-semibold text-right">Requests</th>
-  <th className="px-4 py-3 font-semibold">Expires</th>
-  <th className="px-4 py-3 font-semibold">Last Used</th>
-  <th className="px-4 py-3 font-semibold text-right">Actions</th>
-  </tr>
-  </thead>
+ <thead>
+ <tr className="text-xs uppercase bg-muted/30 text-muted-foreground border-b border-border">
+ <th className="px-4 py-3 font-semibold">Key</th>
+ <th className="px-4 py-3 font-semibold">Name</th>
+ <th className="px-4 py-3 font-semibold">Status</th>
+ <th className="px-4 py-3 font-semibold text-right">Token Limit</th>
+ <th className="px-4 py-3 font-semibold text-right">Remaining Tokens</th>
+ <th className="px-4 py-3 font-semibold text-right">Requests</th>
+ <th className="px-4 py-3 font-semibold">Expires</th>
+ <th className="px-4 py-3 font-semibold">Last Used</th>
+ <th className="px-4 py-3 font-semibold text-right">Actions</th>
+ </tr>
+ </thead>
  <tbody className="divide-y divide-border/40">
  {keys.length === 0 ? (
  <tr>
@@ -264,7 +288,7 @@ export default function AdminUserKeysRoute() {
  <td className="px-4 py-3">
  <div className="flex items-center gap-2">
  <code className="text-xs font-mono text-muted-foreground bg-muted/50 px-2 py-1 rounded">
- {key.api_key.slice(0, 12)}...
+ {key.api_key.slice(0, 6)}...
  </code>
  <button onClick={() => handleCopy(key)} className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground cursor-pointer">
  {copiedId === key.id ? <FiCheck className="w-3.5 h-3.5 text-emerald-500" /> : <FiCopy className="w-3.5 h-3.5" />}
@@ -283,19 +307,19 @@ export default function AdminUserKeysRoute() {
  {key.status}
  </span>
  </td>
-  <td className="px-4 py-3 text-right">
-  <p className="text-xs font-mono">{(key.allocated_credits * 1000).toLocaleString()}</p>
-  </td>
-  <td className="px-4 py-3 text-right">
-  <div>
-  <p className={cn("text-xs font-bold", remaining <= 0 ? "text-red-500" : "text-foreground")}>
-  {(remaining * 1000).toLocaleString()}
-  </p>
-  <div className="w-16 h-1 bg-muted rounded-full overflow-hidden mt-1">
-  <div className={cn("h-full rounded-full", usagePct < 70 ? "bg-emerald-500" : usagePct < 90 ? "bg-amber-500" : "bg-red-500")} style={{ width: `${Math.min(100, usagePct)}%` }} />
-  </div>
-  </div>
-  </td>
+ <td className="px-4 py-3 text-right">
+ <p className="text-xs font-mono">{(key.allocated_credits * 1000).toLocaleString()}</p>
+ </td>
+ <td className="px-4 py-3 text-right">
+ <div>
+ <p className={cn("text-xs font-bold", remaining <= 0 ? "text-red-500" : "text-foreground")}>
+ {(remaining * 1000).toLocaleString()}
+ </p>
+ <div className="w-16 h-1 bg-muted rounded-full overflow-hidden mt-1">
+ <div className={cn("h-full rounded-full", usagePct < 70 ? "bg-emerald-500" : usagePct < 90 ? "bg-amber-500" : "bg-red-500")} style={{ width: `${Math.min(100, usagePct)}%` }} />
+ </div>
+ </div>
+ </td>
  <td className="px-4 py-3 text-right">
  <p className="text-xs font-mono">{key.total_requests.toLocaleString()}</p>
  </td>
@@ -345,109 +369,109 @@ export default function AdminUserKeysRoute() {
  </SheetHeader>
  <div className="mt-6 space-y-5">
  <div>
-  <div>
-  <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
-  User Account
-  </label>
-  <select
-   value={form.user_id}
-   onChange={(e) => setForm((f) => ({ ...f, user_id: e.target.value }))}
-   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-  >
-   <option value="">-- Select Live User --</option>
-   {users.map((u) => (
-    <option key={u.id} value={u.id}>
-     {u.username} {u.name ? `(${u.name})` : ""}
-    </option>
-   ))}
-  </select>
-  </div>
-  <div>
-  <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
-  Link to Plan (Optional)
-  </label>
-  <select
-   onChange={(e) => {
-    const planId = e.target.value;
-    if (!planId) return;
-    const selectedPlan = plans.find(p => p.id === planId);
-    if (selectedPlan) {
-     const limit = getPlanTokenLimit(selectedPlan.name);
-     setForm(f => ({
-      ...f,
-      name: `${selectedPlan.name} Key`,
-      allocated_credits: limit,
-     }));
-    }
-   }}
-   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-  >
-   <option value="">-- Custom (No Plan) --</option>
-   {plans.map((p) => (
-    <option key={p.id} value={p.id}>
-     {p.name}
-    </option>
-   ))}
-  </select>
-  </div>
-  <div>
-  <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
-  Key Name
-  </label>
-  <Input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="e.g., Production Key" />
-  </div>
-  <div className="grid grid-cols-2 gap-3">
-  <div>
-  <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
-  Token Limit (Tokens)
-  </label>
-  <Input type="number" value={form.allocated_credits} onChange={(e) => setForm((f) => ({ ...f, allocated_credits: parseInt(e.target.value) || 0 }))} />
-  </div>
-  <div>
-  <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
-  Rate Limit (req/min)
-  </label>
-  <Input type="number" value={form.rate_limit} onChange={(e) => setForm((f) => ({ ...f, rate_limit: parseInt(e.target.value) || 60 }))} />
-  </div>
-  </div>
-  <div>
-  <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
-  Expiry (days from now)
-  </label>
-  <Input type="number" value={form.expiry_days} onChange={(e) => setForm((f) => ({ ...f, expiry_days: parseInt(e.target.value) || 30 }))} />
-  </div>
-  <div>
-  <div className="flex items-center justify-between mb-1.5">
-   <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-   Allowed Models
-   </label>
-   <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground cursor-pointer select-none">
-   <input 
-    type="checkbox" 
-    checked={allowAllModels} 
-    onChange={(e) => {
-     setAllowAllModels(e.target.checked);
-     if (e.target.checked) {
-      setForm(f => ({ ...f, allowed_models: '' }));
-     }
-    }} 
-    className="rounded text-primary border-input focus:ring-primary"
-   />
-   Allow all models
-   </label>
-  </div>
-  <Input 
-   value={form.allowed_models} 
-   onChange={(e) => {
-    setForm((f) => ({ ...f, allowed_models: e.target.value }));
-    if (e.target.value) {
-     setAllowAllModels(false);
-    }
-   }} 
-   disabled={allowAllModels}
-   placeholder={allowAllModels ? "All models can use this key" : "claude-3-5-sonnet, gpt-4o, ..."} 
-  />
-  </div></div>
+ <div>
+ <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+ User Account
+ </label>
+ <select
+ value={form.user_id}
+ onChange={(e) => setForm((f) => ({ ...f, user_id: e.target.value }))}
+ className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+ >
+ <option value="">-- Select Live User --</option>
+ {users.map((u) => (
+ <option key={u.id} value={u.id}>
+ {u.username} {u.name ? `(${u.name})` : ""}
+ </option>
+ ))}
+ </select>
+ </div>
+ <div>
+ <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+ Link to Plan (Optional)
+ </label>
+ <select
+ onChange={(e) => {
+ const planId = e.target.value;
+ if (!planId) return;
+ const selectedPlan = plans.find(p => p.id === planId);
+ if (selectedPlan) {
+ const limit = getPlanTokenLimit(selectedPlan.name);
+ setForm(f => ({
+ ...f,
+ name: `${selectedPlan.name} Key`,
+ allocated_credits: limit,
+ }));
+ }
+ }}
+ className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+ >
+ <option value="">-- Custom (No Plan) --</option>
+ {plans.map((p) => (
+ <option key={p.id} value={p.id}>
+ {p.name}
+ </option>
+ ))}
+ </select>
+ </div>
+ <div>
+ <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+ Key Name
+ </label>
+ <Input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="e.g., Production Key" />
+ </div>
+ <div className="grid grid-cols-2 gap-3">
+ <div>
+ <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+ Token Limit (Tokens)
+ </label>
+ <Input type="number" min="1" value={form.allocated_credits} onChange={(e) => setForm((f) => ({ ...f, allocated_credits: Math.max(1, parseInt(e.target.value) || 0) }))} />
+ </div>
+ <div>
+ <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+ Rate Limit (req/min)
+ </label>
+ <Input type="number" min="1" value={form.rate_limit} onChange={(e) => setForm((f) => ({ ...f, rate_limit: Math.max(1, parseInt(e.target.value) || 60) }))} />
+ </div>
+ </div>
+ <div>
+ <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+ Expiry (days from now)
+ </label>
+ <Input type="number" min="1" value={form.expiry_days} onChange={(e) => setForm((f) => ({ ...f, expiry_days: Math.max(1, parseInt(e.target.value) || 30) }))} />
+ </div>
+ <div>
+ <div className="flex items-center justify-between mb-1.5">
+ <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+ Allowed Models
+ </label>
+ <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground cursor-pointer select-none">
+ <input
+ type="checkbox"
+ checked={allowAllModels}
+ onChange={(e) => {
+ setAllowAllModels(e.target.checked);
+ if (e.target.checked) {
+ setForm(f => ({ ...f, allowed_models: '' }));
+ }
+ }}
+ className="rounded text-primary border-input focus:ring-primary"
+ />
+ Allow all models
+ </label>
+ </div>
+ <Input
+ value={form.allowed_models}
+ onChange={(e) => {
+ setForm((f) => ({ ...f, allowed_models: e.target.value }));
+ if (e.target.value) {
+ setAllowAllModels(false);
+ }
+ }}
+ disabled={allowAllModels}
+ placeholder={allowAllModels ? "All models can use this key" : "claude-3-5-sonnet, gpt-4o, ..."}
+ />
+ </div></div>
  </div>
  <SheetFooter className="mt-6 pt-4 border-t border-border flex flex-col gap-2">
  <Button className="w-full" onClick={handleAdd} disabled={loading || !form.user_id}>
