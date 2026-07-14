@@ -32,7 +32,7 @@ import {
  recordUserKeyUsage,
 } from "~/utils/user-key-service";
 import { logApiRequest, logFailover } from "~/utils/logging-service";
-import { recordHealthSuccess, recordHealthFailure } from "~/utils/health-service";
+import { recordHealthSuccess, recordHealthFailure } from "~/utils/health-service.server";
 import { calculateCredits, estimateTokens, recordUsage } from "~/utils/usage-service";
 import { getGatewayConfig } from "~/utils/gateway-config";
 

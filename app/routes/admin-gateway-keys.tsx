@@ -179,17 +179,17 @@ export async function action({ request }: ActionFunctionArgs) {
     if (res.ok) {
      ok = true;
      message = `Connection successful (${res.status})`;
-     const { recordHealthSuccess } = await import("~/utils/health-service");
+     const { recordHealthSuccess } = await import("~/utils/health-service.server");
      await recordHealthSuccess(key.id, responseTime);
     } else {
      const err = await res.json().catch(() => ({}));
      message = err?.error?.message ?? `HTTP ${res.status}`;
-     const { recordHealthFailure } = await import("~/utils/health-service");
+     const { recordHealthFailure } = await import("~/utils/health-service.server");
      await recordHealthFailure(key.id, message, res.status);
     }
    } catch (err: any) {
     message = err.message ?? 'Connection failed';
-    const { recordHealthFailure } = await import("~/utils/health-service");
+    const { recordHealthFailure } = await import("~/utils/health-service.server");
     await recordHealthFailure(key.id, message, 500);
    }
 

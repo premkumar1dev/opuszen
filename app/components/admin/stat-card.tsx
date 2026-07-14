@@ -5,6 +5,7 @@ interface StatCardProps {
 	title: string;
 	value: string | number;
 	change?: number;
+	subtitle?: string;
 	icon: ReactNode;
 	iconBg?: string;
 	iconColor?: string;
@@ -16,6 +17,7 @@ function StatCard({
 	title,
 	value,
 	change,
+	subtitle,
 	icon,
 	iconBg = "bg-primary/10",
 	iconColor = "text-primary",
@@ -63,8 +65,13 @@ function StatCard({
 								{isPositive ? "+" : ""}
 								{change}%
 							</span>
-							<span className="font-normal text-muted-foreground ml-0.5">vs last month</span>
+							<span className="font-normal text-muted-foreground ml-0.5">vs last period</span>
 						</div>
+					)}
+					{!loading && subtitle && (
+						<p className="text-[10px] text-muted-foreground/80 mt-0.5 truncate">
+							{subtitle}
+						</p>
 					)}
 				</div>
 				<div className={cn("shrink-0 w-11 h-11 rounded-xl flex items-center justify-center", iconBg, iconColor)}>

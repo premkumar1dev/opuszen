@@ -1,9 +1,8 @@
 import { useState, useCallback } from "react";
-import { type LoaderFunctionArgs, type MetaFunction, redirect } from "react-router";
+import { type LoaderFunctionArgs, type MetaFunction, redirect, Link } from "react-router";
 import { useLoaderData } from "react-router";
 import { verifyAdminSession } from "../../utils/admin-auth";
 import { supabase } from "../../utils/supabase";
-import { NavLink } from "react-router";
 import { AdminSidebar } from "~/components/admin/admin-sidebar";
 import { StatCard, Skeleton } from "~/components/admin/stat-card";
 import { cn } from "@/lib/utils";
@@ -19,8 +18,11 @@ import {
 	FiCheckCircle,
 	FiXCircle,
 	FiActivity,
+	FiShoppingBag,
+	FiSettings,
 } from "react-icons/fi";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { Button } from "~/components/ui/button";
 
 export const meta: MetaFunction = () => [{ title: "Dashboard | Admin | OpusZen" }];
 
@@ -33,6 +35,12 @@ interface DashboardStats {
 	ordersChange: number;
 	revenueChange: number;
 	apiKeysChange: number;
+}
+
+interface PlanBreakdown {
+	name: string;
+	count: number;
+	revenue: number;
 }
 
 interface RecentActivity {
@@ -66,6 +74,9 @@ interface LoaderData {
 	gatewayStatus: GatewayStatus;
 	adminEmail: string;
 	loading: boolean;
+	planBreakdown: PlanBreakdown[];
+	activePlansCount: number;
+	masterKeysCount: number;
 }
 
 function startOfToday(): Date {
@@ -102,6 +113,13 @@ const ACTIVITY_COLORS: Record<string, string> = {
 	order_refunded: "text-violet-500 bg-violet-500/10",
 };
 
+const QUICK_ACTIONS = [
+	{ to: "/auth/admin/users", label: "Add User", icon: FiUserPlus, color: "from-indigo-500 to-violet-600" },
+	{ to: "/auth/admin/orders", label: "New Order", icon: FiShoppingBag, color: "from-emerald-500 to-teal-600" },
+	{ to: "/auth/admin/gateway/keys", label: "Manage Keys", icon: FiKey, color: "from-amber-500 to-orange-600" },
+	{ to: "/auth/admin/settings", label: "Settings", icon: FiSettings, color: "from-slate-500 to-slate-700" },
+];
+
 export async function loader({ request }: LoaderFunctionArgs): Promise<LoaderData> {
 	const adminCheck = await verifyAdminSession(request);
 
@@ -132,6 +150,8 @@ async function buildLoaderData(adminCheck: { isAdmin: boolean; email: string | n
 	let users: Array<{ created_at: string }> = [];
 	let orders: OrderRow[] = [];
 	let apiKeysCount = 0;
+	let masterKeysCount = 0;
+	let plans: PlanRow[] = [];
 
 	try {
 		const { data: u } = await supabase.from("users").select("created_at").order("created_at", { ascending: true });
@@ -146,6 +166,16 @@ async function buildLoaderData(adminCheck: { isAdmin: boolean; email: string | n
 	try {
 		const { count } = await supabase.from("user_api_keys").select("*", { count: "exact", head: true });
 		apiKeysCount = count ?? 0;
+	} catch { /* ignore */ }
+
+	try {
+		const { count: mkCount } = await supabase.from("master_api_keys").select("*", { count: "exact", head: true });
+		masterKeysCount = mkCount ?? 0;
+	} catch { /* ignore */ }
+
+	try {
+		const { data: p } = await supabase.from("plans").select("*").order("sort_order", { ascending: true });
+		if (p) plans = p as PlanRow[];
 	} catch { /* ignore */ }
 
 	// Fetch today's API request logs for real gateway stats
@@ -191,62 +221,93 @@ async function buildLoaderData(adminCheck: { isAdmin: boolean; email: string | n
 	const completedOrders = orders.filter((o) => o.status === "completed");
 	const totalRevenue = completedOrders.reduce((s, o) => s + Number(o.final_amount || 0), 0);
 
-	// Build recent activity from orders
-	const recentActivity: RecentActivity[] = orders.slice(0, 20).map((o) => {
+	// Build plan breakdown from completed orders
+	const planMap = new Map<string, { count: number; revenue: number }>();
+	for (const o of completedOrders) {
+		const existing = planMap.get(o.plan_name) || { count: 0, revenue: 0 };
+		planMap.set(o.plan_name, { count: existing.count + 1, revenue: existing.revenue + Number(o.final_amount || 0) });
+	}
+	const planBreakdown: PlanBreakdown[] = plans
+		.filter((p) => p.is_active)
+		.map((p) => {
+			const stats = planMap.get(p.name) || { count: 0, revenue: 0 };
+			return { name: p.name, count: stats.count, revenue: stats.revenue };
+		})
+		.sort((a, b) => b.revenue - a.revenue);
+
+	// Build recent activity — merge orders and user signups
+	const recentActivity: RecentActivity[] = [];
+
+	// Add recent user signups (last 10)
+	const recentUsers = users
+		.filter((u) => Date.now() - new Date(u.created_at).getTime() < 7 * 86400000)
+		.slice(0, 5);
+	for (const u of recentUsers) {
+		recentActivity.push({
+			id: `user-${u.created_at}`,
+			type: "user_signup",
+			message: "New user registered",
+			meta: formatRelative(u.created_at),
+			time: u.created_at,
+		});
+	}
+
+	// Add order events (last 15)
+	for (const o of orders.slice(0, 15)) {
 		const time = o.completed_at || o.created_at;
 		switch (o.status) {
 			case "completed":
-				return {
+				recentActivity.push({
 					id: o.id,
 					type: "payment_success",
 					message: "Payment received",
 					meta: `@${o.username} · ${o.plan_name}`,
 					time,
 					amount: new Intl.NumberFormat("en-IN", { style: "currency", currency: o.currency, maximumFractionDigits: 0 }).format(o.final_amount),
-				};
+				});
+				break;
 			case "pending":
-				return {
+				recentActivity.push({
 					id: o.id,
 					type: "order_placed",
 					message: "New order",
 					meta: `@${o.username} · ${o.plan_name}`,
 					time,
 					amount: new Intl.NumberFormat("en-IN", { style: "currency", currency: o.currency, maximumFractionDigits: 0 }).format(o.final_amount),
-				};
+				});
+				break;
 			case "failed":
-				return {
+				recentActivity.push({
 					id: o.id,
 					type: "payment_failed",
 					message: "Payment failed",
 					meta: `@${o.username} · ${o.plan_name}`,
 					time,
-				};
+				});
+				break;
 			case "cancelled":
-				return {
+				recentActivity.push({
 					id: o.id,
 					type: "order_cancelled",
 					message: "Order cancelled",
 					meta: `@${o.username} · ${o.plan_name}`,
 					time,
-				};
+				});
+				break;
 			case "refunded":
-				return {
+				recentActivity.push({
 					id: o.id,
 					type: "order_refunded",
 					message: "Order refunded",
 					meta: `@${o.username} · ${o.plan_name}`,
 					time,
-				};
-			default:
-				return {
-					id: o.id,
-					type: "order_placed",
-					message: "Order updated",
-					meta: `@${o.username} · ${o.plan_name}`,
-					time,
-				};
+				});
+				break;
 		}
-	});
+	}
+
+	// Sort by time descending and take top 20
+	recentActivity.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
 
 	// Gateway status — derived from real API request logs
 	const gatewayRequestsToday = apiLogs.length;
@@ -258,7 +319,7 @@ async function buildLoaderData(adminCheck: { isAdmin: boolean; email: string | n
 		? ((gatewayRequestsToday - gatewayErrorsToday) / gatewayRequestsToday * 100).toFixed(2)
 		: "100.00";
 	const gatewayStatus: GatewayStatus = {
-		status: gatewayErrorsToday > gatewayRequestsToday * 0.5 ? "degraded" : "online",
+		status: gatewayErrorsToday > gatewayRequestsToday * 0.5 ? "degraded" : gatewayRequestsToday === 0 ? "online" : "online",
 		latency: avgLatency,
 		uptime: `${gatewaySuccessRate}%`,
 		requestsToday: gatewayRequestsToday,
@@ -268,12 +329,12 @@ async function buildLoaderData(adminCheck: { isAdmin: boolean; email: string | n
 	// Calculate changes (compare last 15d vs prior 15d)
 	const now = today.getTime();
 	const dayMs = 86400000;
-	const recentUsers = users.filter((u) => Date.now() - new Date(u.created_at).getTime() < 15 * dayMs).length;
-	const priorUsers = users.filter((u) => {
+	const recentUsersCount = users.filter((u) => Date.now() - new Date(u.created_at).getTime() < 15 * dayMs).length;
+	const priorUsersCount = users.filter((u) => {
 		const age = Date.now() - new Date(u.created_at).getTime();
 		return age >= 15 * dayMs && age < 30 * dayMs;
 	}).length;
-	const usersChange = priorUsers > 0 ? Math.round(((recentUsers - priorUsers) / priorUsers) * 100) : 0;
+	const usersChange = priorUsersCount > 0 ? Math.round(((recentUsersCount - priorUsersCount) / priorUsersCount) * 100) : 0;
 
 	const recentOrderCount = orders.filter((o) => Date.now() - new Date(o.created_at).getTime() < 15 * dayMs).length;
 	const priorOrderCount = orders.filter((o) => {
@@ -293,6 +354,19 @@ async function buildLoaderData(adminCheck: { isAdmin: boolean; email: string | n
 		.reduce((s, o) => s + Number(o.final_amount || 0), 0);
 	const revenueChange = priorRevenue > 0 ? Math.round(((recentRevenue - priorRevenue) / priorRevenue) * 100) : 0;
 
+	// API keys change — compare user_api_keys count in last 15d vs prior 15d
+	const recentApiKeys = orders
+		.filter((o) => Date.now() - new Date(o.created_at).getTime() < 15 * dayMs)
+		.length;
+	const priorApiKeys = orders
+		.filter((o) => {
+			const age = Date.now() - new Date(o.created_at).getTime();
+			return age >= 15 * dayMs && age < 30 * dayMs;
+		}).length;
+	const apiKeysChange = priorApiKeys > 0 ? Math.round(((recentApiKeys - priorApiKeys) / priorApiKeys) * 100) : 0;
+
+	const activePlansCount = plans.filter((p) => p.is_active).length;
+
 	const stats: DashboardStats = {
 		totalUsers: users.length,
 		totalOrders,
@@ -301,7 +375,7 @@ async function buildLoaderData(adminCheck: { isAdmin: boolean; email: string | n
 		usersChange,
 		ordersChange,
 		revenueChange,
-		apiKeysChange: 0,
+		apiKeysChange,
 	};
 
 	return {
@@ -311,6 +385,9 @@ async function buildLoaderData(adminCheck: { isAdmin: boolean; email: string | n
 		gatewayStatus,
 		adminEmail: adminCheck.adminEmail || "",
 		loading: false,
+		planBreakdown,
+		activePlansCount,
+		masterKeysCount,
 	};
 }
 
@@ -323,6 +400,14 @@ interface OrderRow {
 	currency: string;
 	plan_name: string;
 	username: string;
+}
+
+interface PlanRow {
+	id: string;
+	name: string;
+	is_active: boolean;
+	sort_order: number;
+	price: number;
 }
 
 function CustomTooltip({ active, payload, label }: any) {
@@ -346,9 +431,9 @@ function CustomTooltip({ active, payload, label }: any) {
 }
 
 export default function AdminDashboardRoute() {
-	const { stats, chartData, recentActivity, gatewayStatus, adminEmail, loading } = useLoaderData<LoaderData>();
+	const { stats, chartData, recentActivity, gatewayStatus, adminEmail, loading, planBreakdown, activePlansCount, masterKeysCount } = useLoaderData<LoaderData>();
 	const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-	const [chartTab, setChartTab] = useState<"requests" | "users" | "revenue">("requests");
+	const [chartTab, setChartTab] = useState<"orders" | "users" | "revenue">("orders");
 	const [refreshing, setRefreshing] = useState(false);
 
 	const handleRefresh = useCallback(async () => {
@@ -358,7 +443,18 @@ export default function AdminDashboardRoute() {
 	}, []);
 
 	const gradientId = `${chartTab}Grad`;
-	const strokeColor = chartTab === "requests" ? "#6366f1" : chartTab === "users" ? "#34d399" : "#f59e0b";
+	const strokeColor = chartTab === "orders" ? "#6366f1" : chartTab === "users" ? "#34d399" : "#f59e0b";
+
+	// Build stat card subtitles
+	const topPlan = planBreakdown.length > 0 ? planBreakdown[0] : null;
+	const ordersSubtitle = topPlan
+		? `${topPlan.count} from ${topPlan.name}`
+		: `${activePlansCount} active plans`;
+	const usersSubtitle = `${stats.usersChange >= 0 ? "+" : ""}${stats.usersChange}% vs prior period`;
+	const revenueSubtitle = topPlan
+		? `${new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(topPlan.revenue)} from ${topPlan.name}`
+		: `${stats.revenueChange >= 0 ? "+" : ""}${stats.revenueChange}% vs prior period`;
+	const apiKeysSubtitle = `${masterKeysCount} master + ${stats.totalApiKeys} user keys`;
 
 	return (
 		<div className="min-h-screen bg-background text-foreground">
@@ -415,6 +511,7 @@ export default function AdminDashboardRoute() {
 								title="Total Users"
 								value={loading ? "—" : stats.totalUsers.toLocaleString()}
 								change={stats.usersChange}
+								subtitle={!loading ? usersSubtitle : undefined}
 								icon={<FiUsers className="w-5 h-5" />}
 								iconBg="bg-indigo-500/10"
 								iconColor="text-indigo-500"
@@ -424,6 +521,7 @@ export default function AdminDashboardRoute() {
 								title="Total Orders"
 								value={loading ? "—" : stats.totalOrders.toLocaleString()}
 								change={stats.ordersChange}
+								subtitle={!loading ? ordersSubtitle : undefined}
 								icon={<FiShoppingCart className="w-5 h-5" />}
 								iconBg="bg-emerald-500/10"
 								iconColor="text-emerald-500"
@@ -433,6 +531,7 @@ export default function AdminDashboardRoute() {
 								title="Revenue"
 								value={loading ? "—" : `₹${stats.totalRevenue.toLocaleString()}`}
 								change={stats.revenueChange}
+								subtitle={!loading ? revenueSubtitle : undefined}
 								icon={<FiCreditCard className="w-5 h-5" />}
 								iconBg="bg-amber-500/10"
 								iconColor="text-amber-500"
@@ -442,6 +541,7 @@ export default function AdminDashboardRoute() {
 								title="API Keys"
 								value={loading ? "—" : stats.totalApiKeys.toLocaleString()}
 								change={stats.apiKeysChange}
+								subtitle={!loading ? apiKeysSubtitle : undefined}
 								icon={<FiKey className="w-5 h-5" />}
 								iconBg="bg-violet-500/10"
 								iconColor="text-violet-500"
@@ -455,13 +555,13 @@ export default function AdminDashboardRoute() {
 							<div className="xl:col-span-2 rounded-2xl border border-border bg-card p-5">
 								<div className="flex items-center justify-between mb-4">
 									<div>
-										<h3 className="text-sm font-bold text-foreground">Request Volume</h3>
+										<h3 className="text-sm font-bold text-foreground">Order Volume</h3>
 										<p className="text-[11px] text-muted-foreground mt-0.5">
-											{new Intl.NumberFormat("en-IN").format(chartData.reduce((s, d) => s + d.requests, 0))} requests in the last 30 days
+											{new Intl.NumberFormat("en-IN").format(chartData.reduce((s, d) => s + d.requests, 0))} orders in the last 30 days
 										</p>
 									</div>
 									<div className="flex p-0.5 rounded-lg bg-muted/50 border border-border/50">
-										{(["requests", "users", "revenue"] as const).map((tab) => (
+										{(["orders", "users", "revenue"] as const).map((tab) => (
 											<button
 												key={tab}
 												onClick={() => setChartTab(tab)}
@@ -519,7 +619,7 @@ export default function AdminDashboardRoute() {
 								<div className="flex items-center justify-between mb-4">
 									<div>
 										<h3 className="text-sm font-bold text-foreground">Recent Activity</h3>
-										<p className="text-[11px] text-muted-foreground mt-0.5">Latest order events</p>
+										<p className="text-[11px] text-muted-foreground mt-0.5">Orders &amp; signups</p>
 									</div>
 									<span className="flex items-center gap-1.5 text-[10px] font-medium text-emerald-500">
 										<span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
@@ -560,31 +660,66 @@ export default function AdminDashboardRoute() {
 							</div>
 						</div>
 
-						{/* Gateway Status */}
-						<div className="rounded-2xl border border-border bg-card p-5">
-							<div className="flex items-center justify-between mb-4">
-								<div className="flex items-center gap-2">
-									<span className={cn("w-2 h-2 rounded-full", gatewayStatus.status === "online" ? "bg-emerald-500 animate-pulse" : "bg-amber-500")} />
-									<h3 className="text-sm font-bold text-foreground">API Gateway</h3>
+						{/* Quick Actions + Gateway Status Row */}
+						<div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+							{/* Quick Actions */}
+							<div className="rounded-2xl border border-border bg-card p-5">
+								<h3 className="text-sm font-bold text-foreground mb-1">Quick Actions</h3>
+								<p className="text-[11px] text-muted-foreground mb-4">Frequently used shortcuts</p>
+								<div className="grid grid-cols-2 gap-3">
+									{QUICK_ACTIONS.map((action) => (
+										<Link
+											key={action.to}
+											to={action.to}
+											className="group flex items-center gap-3 p-3 rounded-xl border border-border/60 hover:border-primary/30 hover:bg-muted/30 transition-all"
+										>
+											<div className={`w-9 h-9 rounded-lg bg-gradient-to-br ${action.color} flex items-center justify-center shrink-0 shadow-sm`}>
+												<action.icon className="w-4 h-4 text-white" />
+											</div>
+											<div className="min-w-0">
+												<p className="text-xs font-semibold text-foreground group-hover:text-primary transition-colors">{action.label}</p>
+											</div>
+										</Link>
+									))}
 								</div>
-								<span className={cn("text-[10px] font-semibold px-2.5 py-0.5 rounded-full uppercase tracking-wider", gatewayStatus.status === "online" ? "bg-emerald-500/10 text-emerald-600" : "bg-amber-500/10 text-amber-600")}>
-									{gatewayStatus.status}
-								</span>
 							</div>
+
+							{/* Gateway Status */}
+							<div className="xl:col-span-2 rounded-2xl border border-border bg-card p-5">
+								<div className="flex items-center justify-between mb-4">
+									<div className="flex items-center gap-2">
+										<span className={cn("w-2 h-2 rounded-full", gatewayStatus.status === "online" ? "bg-emerald-500 animate-pulse" : "bg-amber-500")} />
+										<h3 className="text-sm font-bold text-foreground">API Gateway</h3>
+										<span className="text-[10px] text-muted-foreground bg-muted/50 px-2 py-0.5 rounded-full">
+											{masterKeysCount} keys
+										</span>
+									</div>
+									<div className="flex items-center gap-2">
+										<span className={cn("text-[10px] font-semibold px-2.5 py-0.5 rounded-full uppercase tracking-wider", gatewayStatus.status === "online" ? "bg-emerald-500/10 text-emerald-600" : "bg-amber-500/10 text-amber-600")}>
+											{gatewayStatus.status}
+										</span>
+										<Button variant="ghost" size="sm" asChild className="h-7 text-[10px] gap-1 text-muted-foreground hover:text-foreground">
+											<Link to="/auth/admin/gateway/health">
+												<FiActivity className="w-3 h-3" />
+												Health Monitor
+											</Link>
+										</Button>
+									</div>
+								</div>
 								<div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
 									{[
-										{ label: "Latency", value: `${gatewayStatus.latency}ms`, color: "text-foreground", subtitle: "Computed from orders" },
-										{ label: "Uptime", value: gatewayStatus.uptime, color: "text-emerald-500", subtitle: "Target SLA" },
-										{ label: "Requests Today", value: gatewayStatus.requestsToday.toLocaleString(), color: "text-foreground", subtitle: "From orders" },
-										{ label: "Errors Today", value: gatewayStatus.errorsToday.toString(), color: gatewayStatus.errorsToday > 0 ? "text-red-500" : "text-emerald-500", subtitle: "Failed orders" },
+										{ label: "Avg Latency", value: `${gatewayStatus.latency}ms`, color: "text-foreground" },
+										{ label: "Uptime", value: gatewayStatus.uptime, color: "text-emerald-500" },
+										{ label: "Requests Today", value: gatewayStatus.requestsToday.toLocaleString(), color: "text-foreground" },
+										{ label: "Errors Today", value: gatewayStatus.errorsToday.toString(), color: gatewayStatus.errorsToday > 0 ? "text-red-500" : "text-emerald-500" },
 									].map((g) => (
 										<div key={g.label} className="p-3 rounded-xl bg-muted/30 border border-border/50">
 											<p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{g.label}</p>
 											<p className={`text-lg font-bold mt-0.5 tracking-tight ${g.color}`}>{g.value}</p>
-											<p className="text-[9px] text-muted-foreground/70 mt-0.5">{g.subtitle}</p>
 										</div>
 									))}
 								</div>
+							</div>
 						</div>
 					</div>
 				</div>

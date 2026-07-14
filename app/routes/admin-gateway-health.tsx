@@ -39,7 +39,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
  let records: any[] = [];
  try {
- records = await (await import("~/utils/health-service")).getAllHealthRecords();
+ records = await (await import("~/utils/health-service.server")).getAllHealthRecords();
  } catch { /* table may not exist */ }
 
  return { records, adminEmail: adminCheck.adminEmail };
@@ -70,7 +70,7 @@ export default function AdminHealthMonitorRoute() {
  const handleReset = useCallback(async (keyId: string) => {
  setResetting(keyId);
  try {
- await (await import("~/utils/health-service")).resetHealthStatus(keyId);
+ await (await import("~/utils/health-service.server")).resetHealthStatus(keyId);
  window.location.reload();
  } catch (err: any) { alert("Failed: " + err.message); }
  setResetting(null);
@@ -79,7 +79,7 @@ export default function AdminHealthMonitorRoute() {
  const handleRetest = useCallback(async (keyId: string) => {
  setResetting(keyId);
  try {
- await (await import("~/utils/health-service")).runHealthCheck(keyId);
+ await (await import("~/utils/health-service.server")).runHealthCheck(keyId);
  window.location.reload();
  } catch { /* ignore */ }
  setResetting(null);

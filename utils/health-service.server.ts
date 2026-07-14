@@ -1,6 +1,9 @@
 /**
- * Health Service
+ * Health Service (Server-only)
  * Handles health checks, auto-recovery, and status management for provider keys
+ *
+ * Must be imported only from server loaders, actions, or route event handlers.
+ * Uses supabaseServer which requires the SERVICE_ROLE key — not available client-side.
  */
 import { supabaseServer as supabase } from "~/utils/supabase.server";
 import type { MasterApiKeyRow, ProviderHealthRow } from "~/types/gateway";
