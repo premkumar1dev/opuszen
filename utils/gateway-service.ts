@@ -99,13 +99,28 @@ const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
 };
 
 function getProviderConfig(provider: string): ProviderConfig {
- const normalized = provider.toLowerCase();
- // Try exact match first, then case-insensitive fallback
- if (PROVIDER_CONFIGS[provider]) return PROVIDER_CONFIGS[provider];
- for (const key of Object.keys(PROVIDER_CONFIGS)) {
- if (key.toLowerCase() === normalized) return PROVIDER_CONFIGS[key];
- }
- return PROVIDER_CONFIGS['OpenAI'];
+  if (provider.startsWith("http://") || provider.startsWith("https://")) {
+    const baseUrl = provider.endsWith("/") ? provider.slice(0, -1) : provider;
+    const isAnthropic = baseUrl.toLowerCase().includes("anthropic");
+    const isGoogle = baseUrl.toLowerCase().includes("generativelanguage");
+    
+    return {
+      name: provider,
+      baseUrl,
+      authHeader: isAnthropic ? 'x-api-key' : isGoogle ? 'x-goog-api-key' : 'Authorization',
+      modelsEndpoint: isAnthropic ? '/messages' : '/models',
+      supportsStreaming: true,
+      tokenPricing: {},
+    };
+  }
+
+  const normalized = provider.toLowerCase();
+  // Try exact match first, then case-insensitive fallback
+  if (PROVIDER_CONFIGS[provider]) return PROVIDER_CONFIGS[provider];
+  for (const key of Object.keys(PROVIDER_CONFIGS)) {
+  if (key.toLowerCase() === normalized) return PROVIDER_CONFIGS[key];
+  }
+  return PROVIDER_CONFIGS['OpenAI'];
 }
 
 // ---------------------------------------------------------------------------
@@ -600,11 +615,10 @@ export async function getKeyStatus(apiKey: string): Promise<any> {
  // If this looks like a remote official key, fetch from the official API
  if (apiKey.startsWith("sk-ant-opm-") || apiKey.startsWith("sk-ant-api") || apiKey.startsWith("sk-")) {
  try {
- const res = await fetch('https://api.opusmax.live/api/key-status', {
- method: 'POST',
- headers: { 'Content-Type': 'application/json' },
- body: JSON.stringify({ key: apiKey }),
- });
+  const res = await fetch(`https://api.opusmax.live/api/key-status?key=${encodeURIComponent(apiKey)}`, {
+  method: 'GET',
+  headers: { 'Content-Type': 'application/json' },
+  });
  if (res.ok) {
  const remoteData = await res.json();
  if (remoteData && remoteData.status !== "error") {

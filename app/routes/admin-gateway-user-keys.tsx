@@ -2,10 +2,11 @@
  * Admin - User API Keys Management
  * Route: /auth/admin/gateway/user-keys
  */
-import { useState, useCallback } from "react";
-import { type LoaderFunctionArgs, type MetaFunction, redirect } from "react-router";
-import { useLoaderData } from "react-router";
+import { useState, useCallback, useEffect } from "react";
+import { type LoaderFunctionArgs, type ActionFunctionArgs, type MetaFunction, redirect } from "react-router";
+import { useLoaderData, useFetcher, useNavigate } from "react-router";
 import { verifyAdminSession } from "~/utils/admin-auth";
+import { supabaseServer } from "~/utils/supabase.server";
 import { AdminSidebar } from "~/components/admin/admin-sidebar";
 import { cn } from "~/lib/utils";
 import type { UserApiKeyRow } from "~/types/gateway";
@@ -48,8 +49,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
  } catch { /* table may not exist yet */ }
 
  try {
- const { supabase } = await import("~/utils/supabase");
- const { data } = await supabase
+ const { data } = await supabaseServer
  .from("users")
  .select("id, username, name")
  .order("username", { ascending: true });
@@ -57,8 +57,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
  } catch { /* skip */ }
 
  try {
- const { supabase } = await import("~/utils/supabase");
- const { data } = await supabase
+ const { data } = await supabaseServer
  .from("plans")
  .select("id, name, price")
  .order("price", { ascending: true });
@@ -66,6 +65,79 @@ export async function loader({ request }: LoaderFunctionArgs) {
  } catch { /* skip */ }
 
  return { keys, users, plans, adminEmail: adminCheck.adminEmail };
+}
+
+export async function action({ request }: ActionFunctionArgs) {
+  const adminCheck = await verifyAdminSession(request);
+  if (!adminCheck.isAdmin) throw redirect("/auth/admin");
+
+  const formData = await request.formData();
+  const intent = formData.get("intent")?.toString();
+
+  try {
+    const userKeyService = await import("~/utils/user-key-service");
+
+    if (intent === "toggle-status") {
+      const id = formData.get("id")?.toString() || "";
+      const currentStatus = formData.get("currentStatus")?.toString();
+      if (currentStatus === "active") {
+        await userKeyService.disableUserApiKey(id);
+      } else {
+        await userKeyService.enableUserApiKey(id);
+      }
+      return { success: true, intent: "toggle-status" };
+    }
+
+    if (intent === "regenerate") {
+      const id = formData.get("id")?.toString() || "";
+      await userKeyService.regenerateUserApiKey(id);
+      return { success: true, intent: "regenerate" };
+    }
+
+    if (intent === "delete") {
+      const id = formData.get("id")?.toString() || "";
+      await userKeyService.deleteUserApiKey(id);
+      return { success: true, intent: "delete" };
+    }
+
+    if (intent === "reset-usage") {
+      const id = formData.get("id")?.toString() || "";
+      await userKeyService.resetUserKeyUsage(id);
+      return { success: true, intent: "reset-usage" };
+    }
+
+    if (intent === "create") {
+      const user_id = formData.get("user_id")?.toString() || "";
+      const name = formData.get("name")?.toString() || "";
+      const allocated_credits = parseFloat(formData.get("allocated_credits")?.toString() || "0") || 0;
+      const expiry_days = parseInt(formData.get("expiry_days")?.toString() || "30") || 30;
+      const rate_limit = parseInt(formData.get("rate_limit")?.toString() || "60") || 60;
+      const allowed_models_str = formData.get("allowed_models")?.toString() || "";
+      const allowAllModels = formData.get("allowAllModels") === "true";
+
+      const expiryDate = new Date();
+      expiryDate.setDate(expiryDate.getDate() + Math.max(1, expiry_days));
+
+      const allowed_models = (!allowAllModels && allowed_models_str)
+        ? allowed_models_str.split(',').map(s => s.trim()).filter(Boolean)
+        : [];
+
+      await userKeyService.createUserApiKey({
+        user_id: user_id.trim(),
+        name,
+        allocated_credits,
+        expiry_date: expiryDate.toISOString(),
+        rate_limit,
+        allowed_models,
+      });
+
+      return { success: true, intent: "create" };
+    }
+
+    return { error: "Unknown action intent" };
+  } catch (err: any) {
+    return { error: err.message || "An unexpected server error occurred" };
+  }
 }
 
 const getPlanTokenLimit = (planName: string) => {
@@ -119,96 +191,111 @@ async function copyToClipboard(text: string): Promise<boolean> {
 }
 
 export default function AdminUserKeysRoute() {
- const { keys, users = [], plans = [], adminEmail } = useLoaderData<typeof loader>();
- const [loading, setLoading] = useState(false);
- const [showAddForm, setShowAddForm] = useState(false);
- const [allowAllModels, setAllowAllModels] = useState(true);
- const [form, setForm] = useState({
- user_id: '',
- name: 'Default Key',
- allocated_credits: 1000000,
- expiry_days: 30,
- rate_limit: 60,
- allowed_models: '',
- });
- const [copiedId, setCopiedId] = useState<string | null>(null);
+  const { keys, users = [], plans = [], adminEmail } = useLoaderData<typeof loader>();
+  const fetcher = useFetcher();
+  const navigate = useNavigate();
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [allowAllModels, setAllowAllModels] = useState(true);
+  const [form, setForm] = useState({
+    user_id: '',
+    name: 'Default Key',
+    allocated_credits: 1000000,
+    expiry_days: 30,
+    rate_limit: 60,
+    allowed_models: '',
+  });
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
- const refresh = useCallback(async () => {
- setLoading(true);
- await new Promise(r => setTimeout(r, 500));
- setLoading(false);
- }, []);
+  const loading = fetcher.state !== "idle";
 
- const handleCopy = useCallback(async (key: UserApiKeyRow) => {
- const ok = await copyToClipboard(key.api_key);
- if (ok) {
- setCopiedId(key.id);
- setTimeout(() => setCopiedId(null), 2000);
- }
- }, []);
+  useEffect(() => {
+    if (fetcher.state === "idle" && fetcher.data) {
+      const data = fetcher.data as any;
+      if (data.error) {
+        alert("Action failed: " + data.error);
+      } else if (data.success) {
+        if (data.intent === "create") {
+          setShowAddForm(false);
+          setForm({ user_id: '', name: 'Default Key', allocated_credits: 1000000, expiry_days: 30, rate_limit: 60, allowed_models: '' });
+          setAllowAllModels(true);
+        }
+        navigate(".", { replace: true });
+      }
+    }
+  }, [fetcher.state, fetcher.data, navigate]);
 
- const handleToggle = useCallback(async (key: UserApiKeyRow) => {
- setLoading(true);
- try {
- if (key.status === 'active') {
- await (await import("~/utils/user-key-service")).disableUserApiKey(key.id);
- } else {
- await (await import("~/utils/user-key-service")).enableUserApiKey(key.id);
- }
- } catch (err: unknown) { alert(safeErrorMessage(err)); }
- setLoading(false);
- }, []);
+  const refresh = useCallback(() => {
+    navigate(".", { replace: true });
+  }, [navigate]);
 
- const handleRegenerate = useCallback(async (key: UserApiKeyRow) => {
- if (!confirm("Regenerate this key? The old key will stop working immediately.")) return;
- setLoading(true);
- try {
- await (await import("~/utils/user-key-service")).regenerateUserApiKey(key.id);
- } catch (err: unknown) { alert(safeErrorMessage(err)); }
- setLoading(false);
- }, []);
+  const handleCopy = useCallback(async (key: UserApiKeyRow) => {
+    const ok = await copyToClipboard(key.api_key);
+    if (ok) {
+      setCopiedId(key.id);
+      setTimeout(() => setCopiedId(null), 2000);
+    }
+  }, []);
 
- const handleDelete = useCallback(async (key: UserApiKeyRow) => {
- if (!confirm(`Delete key "${key.name}"? This cannot be undone.`)) return;
- setLoading(true);
- try {
- await (await import("~/utils/user-key-service")).deleteUserApiKey(key.id);
- } catch (err: unknown) { alert(safeErrorMessage(err)); }
- setLoading(false);
- }, []);
+  const handleToggle = useCallback(async (key: UserApiKeyRow) => {
+    fetcher.submit(
+      {
+        intent: "toggle-status",
+        id: key.id,
+        currentStatus: key.status,
+      },
+      { method: "POST" }
+    );
+  }, [fetcher]);
 
- const handleResetUsage = useCallback(async (key: UserApiKeyRow) => {
- if (!confirm("Reset usage for this key?")) return;
- setLoading(true);
- try {
- await (await import("~/utils/user-key-service")).resetUserKeyUsage(key.id);
- } catch (err: unknown) { alert(safeErrorMessage(err)); }
- setLoading(false);
- }, []);
+  const handleRegenerate = useCallback(async (key: UserApiKeyRow) => {
+    if (!confirm("Regenerate this key? The old key will stop working immediately.")) return;
+    fetcher.submit(
+      {
+        intent: "regenerate",
+        id: key.id,
+      },
+      { method: "POST" }
+    );
+  }, [fetcher]);
 
- const handleAdd = useCallback(async () => {
- if (!form.user_id.trim()) { alert("User account selection is required"); return; }
- setLoading(true);
- try {
- const expiryDate = new Date();
- const days = Math.max(1, form.expiry_days);
- expiryDate.setDate(expiryDate.getDate() + days);
+  const handleDelete = useCallback(async (key: UserApiKeyRow) => {
+    if (!confirm(`Delete key "${key.name}"? This cannot be undone.`)) return;
+    fetcher.submit(
+      {
+        intent: "delete",
+        id: key.id,
+      },
+      { method: "POST" }
+    );
+  }, [fetcher]);
 
- await (await import("~/utils/user-key-service")).createUserApiKey({
- user_id: form.user_id.trim(),
- name: form.name,
- allocated_credits: form.allocated_credits / 1000, // Translate tokens back to credits
- expiry_date: expiryDate.toISOString(),
- rate_limit: form.rate_limit,
- allowed_models: (!allowAllModels && form.allowed_models) ? form.allowed_models.split(',').map(s => s.trim()).filter(Boolean) : [],
- });
+  const handleResetUsage = useCallback(async (key: UserApiKeyRow) => {
+    if (!confirm("Reset usage for this key?")) return;
+    fetcher.submit(
+      {
+        intent: "reset-usage",
+        id: key.id,
+      },
+      { method: "POST" }
+    );
+  }, [fetcher]);
 
- setShowAddForm(false);
- setForm({ user_id: '', name: 'Default Key', allocated_credits: 1000000, expiry_days: 30, rate_limit: 60, allowed_models: '' });
- setAllowAllModels(true);
- } catch (err: unknown) { alert("Failed: " + safeErrorMessage(err)); }
- setLoading(false);
- }, [form, allowAllModels]);
+  const handleAdd = useCallback(async () => {
+    if (!form.user_id.trim()) { alert("User account selection is required"); return; }
+    fetcher.submit(
+      {
+        intent: "create",
+        user_id: form.user_id.trim(),
+        name: form.name,
+        allocated_credits: String(form.allocated_credits / 1000), // Translate tokens back to credits
+        expiry_days: String(form.expiry_days),
+        rate_limit: String(form.rate_limit),
+        allowed_models: form.allowed_models,
+        allowAllModels: String(allowAllModels),
+      },
+      { method: "POST" }
+    );
+  }, [form, allowAllModels, fetcher]);
 
  const activeKeys = keys.filter((k) => k.status === 'active');
  const totalCredits = keys.reduce((s, k) => s + k.allocated_credits, 0);

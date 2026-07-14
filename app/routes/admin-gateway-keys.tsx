@@ -6,7 +6,6 @@ import { useState, useCallback, useEffect } from "react";
 import { type LoaderFunctionArgs, type ActionFunctionArgs, type MetaFunction, redirect } from "react-router";
 import { useLoaderData, useNavigate, useFetcher } from "react-router";
 import { verifyAdminSession } from "~/utils/admin-auth";
-import { supabase } from "~/utils/supabase";
 import { AdminSidebar } from "~/components/admin/admin-sidebar";
 import { cn } from "~/lib/utils";
 import type { MasterApiKeyRow, MasterApiKeyStats } from "~/types/gateway";
@@ -386,7 +385,42 @@ export default function AdminMasterKeysRoute() {
  }, [fetcher]);
 
  const activeKeys = keys.filter((k) => k.status === 'active');
- const totalRemaining = keys.reduce((s, k) => s + (k.remaining_credits ?? 0), 0);
+
+ // Calculate remaining stats dynamically (credits vs tokens)
+ let totalCreditsRemaining = 0;
+ let totalTokensRemaining = 0;
+ let hasTokenKeys = false;
+ let hasCreditKeys = false;
+
+ keys.forEach((key) => {
+  const keyDetail = details[key.id];
+  const isTokenKey = !!keyDetail && keyDetail.unlimited !== undefined;
+  
+  if (isTokenKey) {
+   hasTokenKeys = true;
+   const planName = keyDetail?.planName || "N/A";
+   const rawLimit = Number(keyDetail.windowTokensLimit ?? keyDetail.windowTokenLimit ?? keyDetail.window_tokens_limit ?? keyDetail.window_token_limit ?? 0);
+   const rawUsed = Number(keyDetail.windowTokensUsed ?? keyDetail.windowTokenUsed ?? keyDetail.window_tokens_used ?? keyDetail.window_token_used ?? 0);
+   const limit = rawLimit > 0 ? rawLimit : getPlanTokenLimit(planName);
+   const used = rawLimit > 0 ? rawUsed : Math.round(limit * (Number(keyDetail.usagePercent ?? keyDetail.usage_percent ?? 0) / 100));
+   const remaining = Math.max(0, limit - used);
+   totalTokensRemaining += remaining;
+  } else {
+   hasCreditKeys = true;
+   totalCreditsRemaining += (key.remaining_credits ?? 0);
+  }
+ });
+
+ let remainingLabel = "Credits Remaining";
+ let remainingValue = `$${totalCreditsRemaining.toFixed(2)}`;
+
+ if (hasTokenKeys && !hasCreditKeys) {
+  remainingLabel = "Tokens Remaining";
+  remainingValue = totalTokensRemaining.toLocaleString();
+ } else if (hasTokenKeys && hasCreditKeys) {
+  remainingLabel = "Remaining Balance";
+  remainingValue = `${totalTokensRemaining.toLocaleString()} T / $${totalCreditsRemaining.toFixed(2)}`;
+ }
 
  return (
  <div className="min-h-screen bg-background text-foreground">
@@ -421,7 +455,7 @@ export default function AdminMasterKeysRoute() {
  { label: "Total Keys", value: keys.length.toString(), color: "text-foreground" },
  { label: "Active Keys", value: activeKeys.length.toString(), color: "text-emerald-500" },
  { label: "Failed/Disabled", value: (keys.length - activeKeys.length).toString(), color: "text-red-500" },
- { label: "Credits Remaining", value: `$${totalRemaining.toFixed(2)}`, color: "text-amber-500" },
+ { label: remainingLabel, value: remainingValue, color: "text-amber-500" },
  ].map((s) => (
  <div key={s.label} className="p-4 rounded-xl border border-border bg-card/60">
  <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{s.label}</p>
