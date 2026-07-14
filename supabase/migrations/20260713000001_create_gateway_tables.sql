@@ -6,7 +6,7 @@
 -- -------------------------------
 -- Master API Keys (upstream provider keys)
 -- -------------------------------
-DROP TABLE IF EXISTS public.master_api_keys;
+DROP TABLE IF EXISTS public.master_api_keys CASCADE;
 CREATE TABLE public.master_api_keys (
  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
  provider TEXT NOT NULL DEFAULT 'OpenAI',
@@ -42,16 +42,13 @@ CREATE POLICY "master_keys_delete_admin" ON public.master_api_keys FOR DELETE US
 -- Seed data
 INSERT INTO public.master_api_keys (provider, name, api_key, status, priority, total_credits, remaining_credits)
 VALUES
- ('OpenAI', 'OpenAI Primary', 'sk-proj-placeholder-1', 'active', 1, 500.00, 500.00),
- ('Anthropic', 'Claude Primary', 'sk-ant-placeholder-1', 'active', 2, 500.00, 500.00),
- ('OpenAI', 'OpenAI Backup', 'sk-proj-placeholder-2', 'active', 3, 300.00, 300.00),
- ('Google', 'Gemini Primary', 'AIza-placeholder-1', 'active', 4, 200.00, 200.00)
+ ('https://api.opusmax.live/v1', 'OpusLive Primary', 'sk-placeholder-key', 'active', 1, 999999.00, 999999.00)
 ON CONFLICT DO NOTHING;
 
 -- -------------------------------
 -- User API Keys
 -- -------------------------------
-DROP TABLE IF EXISTS public.user_api_keys;
+DROP TABLE IF EXISTS public.user_api_keys CASCADE;
 CREATE TABLE public.user_api_keys (
  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -88,7 +85,7 @@ CREATE POLICY "user_api_keys_delete_admin" ON public.user_api_keys FOR DELETE US
 -- -------------------------------
 -- API Request Logs
 -- -------------------------------
-DROP TABLE IF EXISTS public.api_request_logs;
+DROP TABLE IF EXISTS public.api_request_logs CASCADE;
 CREATE TABLE public.api_request_logs (
  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
  request_id TEXT NOT NULL,
@@ -127,7 +124,7 @@ CREATE POLICY "api_logs_insert_system" ON public.api_request_logs FOR INSERT WIT
 -- -------------------------------
 -- API Failover Logs
 -- -------------------------------
-DROP TABLE IF EXISTS public.api_failover_logs;
+DROP TABLE IF EXISTS public.api_failover_logs CASCADE;
 CREATE TABLE public.api_failover_logs (
  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
  request_id TEXT NOT NULL,
@@ -156,7 +153,7 @@ CREATE POLICY "failover_logs_insert_system" ON public.api_failover_logs FOR INSE
 -- -------------------------------
 -- Provider Health Status
 -- -------------------------------
-DROP TABLE IF EXISTS public.provider_health;
+DROP TABLE IF EXISTS public.provider_health CASCADE;
 CREATE TABLE public.provider_health (
  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
  master_api_key_id UUID NOT NULL REFERENCES public.master_api_keys(id) ON DELETE CASCADE,
@@ -193,7 +190,7 @@ ON CONFLICT DO NOTHING;
 -- -------------------------------
 -- Usage Statistics (aggregated)
 -- -------------------------------
-DROP TABLE IF EXISTS public.usage_statistics;
+DROP TABLE IF EXISTS public.usage_statistics CASCADE;
 CREATE TABLE public.usage_statistics (
  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
  date DATE NOT NULL DEFAULT CURRENT_DATE,
@@ -221,7 +218,7 @@ CREATE POLICY "usage_stats_insert_system" ON public.usage_statistics FOR INSERT 
 -- -------------------------------
 -- User Credit History
 -- -------------------------------
-DROP TABLE IF EXISTS public.user_credit_history;
+DROP TABLE IF EXISTS public.user_credit_history CASCADE;
 CREATE TABLE public.user_credit_history (
  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -247,7 +244,7 @@ CREATE POLICY "credit_history_insert_system" ON public.user_credit_history FOR I
 -- -------------------------------
 -- Gateway Configuration Settings
 -- -------------------------------
-DROP TABLE IF EXISTS public.gateway_config;
+DROP TABLE IF EXISTS public.gateway_config CASCADE;
 CREATE TABLE public.gateway_config (
  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
  key TEXT NOT NULL UNIQUE,

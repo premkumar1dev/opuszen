@@ -1,9 +1,32 @@
 /**
  * Master API Key Management Service
  * Handles loading, selecting, and managing upstream provider keys
+ *
+ * API keys are encrypted at rest using AES-256-GCM via utils/crypto.server.ts.
+ * The master_api_keys.api_key column stores encrypted strings (iv:tag:ciphertext).
  */
 import { supabaseServer as supabase } from "~/utils/supabase.server";
 import type { MasterApiKeyRow, MasterApiKeyInput, MasterApiKeyStats, ProviderHealthRow } from "~/types/gateway";
+import { encrypt, decrypt } from "~/utils/crypto.server";
+
+/** Decrypt the api_key field from a raw DB row */
+function decryptKey(row: any): any {
+ if (!row?.api_key || typeof row.api_key !== "string") return row;
+ // Already plain (legacy unencrypted data): if it looks like an AI API key (starts with sk- / gsk- / etc.)
+ // but is NOT in "iv:tag:base64" format, try to encrypt it now. For reads, assume already encrypted.
+ if (row.api_key.includes(":") && row.api_key.split(":").length >= 3) {
+ // Looks like encrypted format (iv:tag:ciphertext)
+ const decrypted = decrypt(row.api_key);
+ if (decrypted) {
+ return { ...row, api_key: decrypted };
+ }
+ }
+ return row; // return as-is if decryption fails
+}
+
+function decryptKeys(rows: any[]): any[] {
+ return rows.map(decryptKey);
+}
 
 export async function getAllMasterKeys(): Promise<MasterApiKeyRow[]> {
  const { data, error } = await supabase
@@ -12,7 +35,7 @@ export async function getAllMasterKeys(): Promise<MasterApiKeyRow[]> {
  .order('priority', { ascending: true });
 
  if (error) throw new Error(`Failed to fetch master keys: ${error.message}`);
- return (data ?? []) as MasterApiKeyRow[];
+ return decryptKeys(data ?? []);
 }
 
 export async function getActiveMasterKeys(): Promise<MasterApiKeyRow[]> {
@@ -34,7 +57,7 @@ export async function getMasterKeyById(id: string): Promise<MasterApiKeyRow | nu
  .single();
 
  if (error) return null;
- return data as MasterApiKeyRow;
+ return decryptKey(data);
 }
 
 export async function getMasterKeyByProvider(provider: string, allowedProviders: string[]): Promise<MasterApiKeyRow | null> {
@@ -65,12 +88,14 @@ export async function selectBestMasterKey(provider?: string, allowedProviders?: 
 }
 
 export async function createMasterKey(input: MasterApiKeyInput): Promise<MasterApiKeyRow> {
+ const encryptedApiKey = encrypt(input.api_key);
+
  const { data, error } = await (supabase
  .from('master_api_keys') as any)
  .insert({
  provider: input.provider,
  name: input.name,
- api_key: input.api_key,
+ api_key: encryptedApiKey,
  priority: input.priority ?? 100,
  total_credits: input.total_credits ?? 0,
  remaining_credits: input.total_credits ?? 0,
@@ -85,13 +110,18 @@ export async function createMasterKey(input: MasterApiKeyInput): Promise<MasterA
  const keyId = (data as MasterApiKeyRow).id;
  await supabase.from('provider_health').insert({ master_api_key_id: keyId });
 
- return data as MasterApiKeyRow;
+ return decryptKey(data) as MasterApiKeyRow;
 }
 
 export async function updateMasterKey(id: string, updates: Partial<MasterApiKeyRow>): Promise<void> {
+ const safeUpdates = { ...updates, updated_at: new Date().toISOString() };
+ if (safeUpdates.api_key && typeof safeUpdates.api_key === 'string') {
+ safeUpdates.api_key = encrypt(safeUpdates.api_key);
+ }
+
  const { error } = await (supabase
  .from('master_api_keys') as any)
- .update({ ...updates, updated_at: new Date().toISOString() })
+ .update(safeUpdates)
  .eq('id', id);
 
  if (error) throw new Error(`Failed to update master key: ${error.message}`);
@@ -125,7 +155,7 @@ export async function markMasterKeyFailed(id: string, reason: string): Promise<v
  });
 }
 
-export async function markMasterKeySuccess(id: string, responseTimeMs: number): Promise<void> {
+export async function markMasterKeySuccess(id: string): Promise<void> {
   const key = await getMasterKeyById(id);
   if (!key) return;
 

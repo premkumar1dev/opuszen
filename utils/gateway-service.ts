@@ -93,6 +93,14 @@ const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
  supportsStreaming: true,
  tokenPricing: {},
  },
+ opuslive: {
+ name: 'opuslive',
+ baseUrl: 'https://api.opusmax.live/v1',
+ authHeader: 'Authorization',
+ modelsEndpoint: '/models',
+ supportsStreaming: true,
+ tokenPricing: {},
+ },
 };
 
 function getProviderConfig(provider: string): ProviderConfig {
@@ -345,7 +353,7 @@ export async function handleGatewayRequest(
  const usage = extractUsage(responseBody as ChatCompletionResponse, ctx.model);
  const credits = calculateCredits(ctx.model, usage);
 
- await markMasterKeySuccess(candidate.id, responseTimeMs);
+ await markMasterKeySuccess(candidate.id);
  await recordHealthSuccess(candidate.id, responseTimeMs);
  await recordUsage(candidate.id, candidate.provider, usage.totalTokens, credits, responseTimeMs);
 
@@ -544,6 +552,21 @@ export async function handleGatewayRequest(
 // User API key status endpoint
 // ---------------------------------------------------------------------------
 export async function getKeyStatus(apiKey: string): Promise<any> {
+ // If this looks like a remote official key, fetch from the official API
+ if (apiKey.startsWith("sk-ant-opm-") || apiKey.startsWith("sk-ant-api") || apiKey.startsWith("sk-")) {
+  try {
+   const res = await fetch(`https://api.opusmax.live/api/key-status?key=${apiKey}`);
+   if (res.ok) {
+    const remoteData = await res.json();
+    if (remoteData && remoteData.status !== "error") {
+     return remoteData;
+    }
+   }
+  } catch (e) {
+   console.error("Failed to fetch key status from remote API:", e);
+  }
+ }
+
  const key = await validateUserApiKey(apiKey);
  if (!key) {
  return { status: 'error', error: 'Invalid or expired API key' };

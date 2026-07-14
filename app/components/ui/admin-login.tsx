@@ -152,7 +152,7 @@ export function AdminLoginForm({
               {logs.map((log, index) => (
                 <div key={index} className="flex items-start gap-1">
                   <span className="text-primary select-none">&gt;</span>
-                  <span className={log.startsWith("ERR") ? "text-red-400" : log.startsWith("SEC") ? "text-yellow-500" : log.includes("PASSED") ? "text-emerald-400" : ""}>
+                  <span className={log?.startsWith("ERR") ? "text-red-400" : log?.startsWith("SEC") ? "text-yellow-500" : log?.includes("PASSED") ? "text-emerald-400" : ""}>
                     {log}
                   </span>
                 </div>

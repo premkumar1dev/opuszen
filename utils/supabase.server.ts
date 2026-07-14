@@ -11,12 +11,20 @@ let serverInstance: SupabaseClient | null = null;
 function getServerSupabaseClient(): SupabaseClient {
   const url = process.env.VITE_SUPABASE_URL || import.meta.env.VITE_SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const isPlaceholder = serviceRoleKey === "PASTE_YOUR_SERVICE_ROLE_KEY_HERE";
 
-  if (!url || !serviceRoleKey) {
-    console.warn(
-      "[supabase.server] Missing SUPABASE_SERVICE_ROLE_KEY — falling back to publishable key.\n" +
-        "Set SUPABASE_SERVICE_ROLE_KEY in your server environment for proper admin access."
-    );
+  if (!url || !serviceRoleKey || isPlaceholder) {
+    if (isPlaceholder) {
+      console.error(
+        "[supabase.server] CRITICAL: SUPABASE_SERVICE_ROLE_KEY is still set to the placeholder value " +
+          "'PASTE_YOUR_SERVICE_ROLE_KEY_HERE' in your .env file. Please paste your actual service_role key."
+      );
+    } else {
+      console.warn(
+        "[supabase.server] Missing SUPABASE_SERVICE_ROLE_KEY — falling back to publishable key.\n" +
+          "Set SUPABASE_SERVICE_ROLE_KEY in your server environment for proper admin access."
+      );
+    }
     // Fallback: use the publishable key (less secure, relies on RLS)
     const pubKey =
       process.env.VITE_SUPABASE_PUBLISHABLE_KEY ||

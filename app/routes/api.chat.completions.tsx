@@ -64,7 +64,8 @@ export async function action({ request }: ActionFunctionArgs) {
   // 3. Determine provider from model
   const model = body.model ?? "";
   let provider = 'OpenAI';
-  if (model.toLowerCase().includes('claude')) provider = 'Anthropic';
+  if (model.toLowerCase().includes('opuslive')) provider = 'opuslive';
+  else if (model.toLowerCase().includes('claude')) provider = 'Anthropic';
   else if (model.toLowerCase().includes('gemini')) provider = 'Google';
   else if (model.toLowerCase().includes('llama') || model.toLowerCase().includes('mixtral')) provider = 'Groq';
   else if (model.toLowerCase().includes('mistral')) provider = 'Mistral';
