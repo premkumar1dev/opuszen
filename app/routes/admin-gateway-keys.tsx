@@ -295,7 +295,11 @@ export default function AdminMasterKeysRoute() {
   setKeyDetails(null);
   setDetailsError(null);
   try {
-   const res = await fetch(`/api/key-status?key=${encodeURIComponent(key.api_key)}`);
+   const res = await fetch("/api/key-status", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ key: key.api_key }),
+			});
    if (res.ok) {
     const data = await res.json();
     if (data && data.status !== "error") {

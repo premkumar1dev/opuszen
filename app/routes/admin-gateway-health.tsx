@@ -2,9 +2,9 @@
  * Admin - Health Monitor
  * Route: /auth/admin/gateway/health
  */
-import { useState, useCallback, useEffect } from "react";
-import { type LoaderFunctionArgs, type MetaFunction, redirect } from "react-router";
-import { useLoaderData } from "react-router";
+import { useState, useCallback } from "react";
+import { type LoaderFunctionArgs, type ActionFunctionArgs, type MetaFunction, redirect } from "react-router";
+import { useLoaderData, useFetcher } from "react-router";
 import { verifyAdminSession } from "~/utils/admin-auth";
 import { AdminSidebar } from "~/components/admin/admin-sidebar";
 import { cn } from "~/lib/utils";
@@ -22,6 +22,29 @@ import {
  FiLoader,
 } from "react-icons/fi";
 import { Button } from "~/components/ui/button";
+import {
+ resetHealthStatus,
+ runHealthCheck,
+ getAllHealthRecords,
+} from "~/utils/health-service.server";
+
+export interface HealthRecord {
+ id: string;
+ master_api_key_id: string;
+ status: string;
+ success_rate: number | null;
+ avg_response_time_ms: number | null;
+ consecutive_failures: number | null;
+ last_check: string | null;
+ last_error: string | null;
+ master_api_keys?: {
+  id: string;
+  provider: string;
+  name: string;
+  priority: number;
+  status: string;
+ } | null;
+}
 
 export const meta: MetaFunction = () => [{ title: "Health Monitor | Admin | OpusZen" }];
 
@@ -37,12 +60,32 @@ export async function loader({ request }: LoaderFunctionArgs) {
  const adminCheck = await verifyAdminSession(request);
  if (!adminCheck.isAdmin) throw redirect("/auth/admin");
 
- let records: any[] = [];
+ let records: HealthRecord[] = [];
  try {
- records = await (await import("~/utils/health-service.server")).getAllHealthRecords();
+ records = await getAllHealthRecords();
  } catch { /* table may not exist */ }
 
  return { records, adminEmail: adminCheck.adminEmail };
+}
+
+export async function action({ request }: ActionFunctionArgs) {
+ const adminCheck = await verifyAdminSession(request);
+ if (!adminCheck.isAdmin) throw redirect("/auth/admin");
+
+ const formData = await request.formData();
+ const intent = formData.get("intent")?.toString();
+
+ if (intent === "reset") {
+ const keyId = formData.get("keyId")?.toString();
+ if (keyId) await resetHealthStatus(keyId);
+ }
+
+ if (intent === "retest") {
+ const keyId = formData.get("keyId")?.toString();
+ if (keyId) await runHealthCheck(keyId);
+ }
+
+ return { ok: true };
 }
 
 function formatTime(iso: string | null): string {
@@ -58,8 +101,8 @@ function formatTime(iso: string | null): string {
 
 export default function AdminHealthMonitorRoute() {
  const { records, adminEmail } = useLoaderData<typeof loader>();
+ const fetcher = useFetcher();
  const [loading, setLoading] = useState(false);
- const [resetting, setResetting] = useState<string | null>(null);
 
  const refresh = useCallback(async () => {
  setLoading(true);
@@ -67,23 +110,21 @@ export default function AdminHealthMonitorRoute() {
  window.location.reload();
  }, []);
 
- const handleReset = useCallback(async (keyId: string) => {
- setResetting(keyId);
- try {
- await (await import("~/utils/health-service.server")).resetHealthStatus(keyId);
+ const handleReset = useCallback((keyId: string) => {
+ fetcher.submit(
+ { intent: "reset", keyId },
+ { method: "post" }
+ );
  window.location.reload();
- } catch (err: any) { alert("Failed: " + err.message); }
- setResetting(null);
- }, []);
+ }, [fetcher]);
 
- const handleRetest = useCallback(async (keyId: string) => {
- setResetting(keyId);
- try {
- await (await import("~/utils/health-service.server")).runHealthCheck(keyId);
+ const handleRetest = useCallback((keyId: string) => {
+ fetcher.submit(
+ { intent: "retest", keyId },
+ { method: "post" }
+ );
  window.location.reload();
- } catch { /* ignore */ }
- setResetting(null);
- }, []);
+ }, [fetcher]);
 
  const stats = {
  total: records.length,
@@ -179,7 +220,7 @@ export default function AdminHealthMonitorRoute() {
  <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
  {items.map((record: any) => {
  const mk = record.master_api_keys || {};
- const isResetting = resetting === record.master_api_key_id;
+ const isResetting = fetcher.state !== "idle";
 
  return (
  <div key={record.id} className={cn("p-5 rounded-2xl border transition-all", config.bg, config.border)}>

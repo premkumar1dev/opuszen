@@ -57,6 +57,10 @@ export function getServerSupabase(): SupabaseClient {
   return serverInstance;
 }
 
+export function resetServerSupabase(): void {
+ serverInstance = null;
+}
+
 /**
  * Proxy export for drop-in replacement in server modules.
  * Usage:  import { supabaseServer } from "~/utils/supabase.server";

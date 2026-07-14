@@ -91,6 +91,30 @@ export default [
  file: "routes/admin-payments.tsx",
  },
  {
+ path: "/user/dashboard",
+ file: "routes/user-dashboard.tsx",
+ },
+ {
+ path: "/user/my-keys",
+ file: "routes/user-my-keys.tsx",
+ },
+ {
+ path: "/user/orders",
+ file: "routes/user-orders.tsx",
+ },
+ {
+ path: "/user/refer-earn",
+ file: "routes/user-refer-earn.tsx",
+ },
+ {
+ path: "/user/support",
+ file: "routes/user-support.tsx",
+ },
+ {
+ path: "/user/account",
+ file: "routes/user-account.tsx",
+ },
+ {
  path: "/docs",
  file: "routes/docs.tsx",
  },

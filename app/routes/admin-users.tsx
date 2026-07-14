@@ -1,9 +1,9 @@
 import { useState, useCallback, useEffect } from "react";
-import { type LoaderFunctionArgs, type MetaFunction, redirect } from "react-router";
-import { useLoaderData } from "react-router";
-import { verifyAdminSession } from "../../utils/admin-auth";
-import { supabase } from "../../utils/supabase";
-import { supabaseServer } from "../../utils/supabase.server";
+import { type LoaderFunctionArgs, type MetaFunction, type ActionFunctionArgs, redirect, data } from "react-router";
+import { useLoaderData, useFetcher } from "react-router";
+import { verifyAdminSession } from "~/utils/admin-auth";
+import { supabase } from "~/utils/supabase";
+import { supabaseServer } from "~/utils/supabase.server";
 import { AdminSidebar } from "~/components/admin/admin-sidebar";
 import { StatCard } from "~/components/admin/stat-card";
 import { cn } from "@/lib/utils";
@@ -38,6 +38,7 @@ import {
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { motion, AnimatePresence } from "framer-motion";
+import crypto from "node:crypto";
 
 export const meta: MetaFunction = () => {
 	return [{ title: "Manage Users | Admin | OpusZen" }];
@@ -52,6 +53,7 @@ interface User {
 	username: string;
 	password: string;
 	name: string;
+	email: string;
 	phone_number: string;
 	account_balance: number;
 	total_orders: number;
@@ -176,7 +178,7 @@ function EditUserSheet({ user, isNew, onClose, onSave, onAdd, onDelete, saving }
 			setForm({ ...user });
 			setErrors({});
 		} else if (isNew) {
-			setForm({ username: "", password: "", name: "", phone_number: "", account_balance: 0, total_orders: 0, total_spent: 0 });
+			setForm({ username: "", password: "", name: "", email: "", phone_number: "", account_balance: 0, total_orders: 0, total_spent: 0 });
 			setDeleting(false);
 			setErrors({});
 		}
@@ -185,11 +187,14 @@ function EditUserSheet({ user, isNew, onClose, onSave, onAdd, onDelete, saving }
 	const validate = (): boolean => {
 		const errs: Record<string, string> = {};
 		const name = (form.name ?? "").trim();
+		const email = (form.email ?? "").trim();
 		const username = (form.username ?? "").trim();
 		const password = (form.password ?? "").trim();
 		const phone = (form.phone_number ?? "").trim();
 
 		if (!name) errs.name = "Display name is required";
+		if (!email) errs.email = "Email is required";
+		else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errs.email = "Enter a valid email address";
 		if (!username) errs.username = "Username is required";
 		else if (!/^[a-zA-Z0-9_]+$/.test(username)) errs.username = "Only letters, numbers, and underscores";
 		if (!password) errs.password = "Password is required";
@@ -293,6 +298,20 @@ function EditUserSheet({ user, isNew, onClose, onSave, onAdd, onDelete, saving }
 		className={errors.name ? "border-red-500 focus-visible:ring-red-500" : ""}
 		/>
 		<FieldError field="name" />
+		</div>
+
+		<div>
+		<label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+		Email
+		</label>
+		<Input
+		type="email"
+		value={form.email ?? ""}
+		onChange={(e) => { setForm((f) => ({ ...f, email: e.target.value })); setErrors((e) => ({ ...e, email: "" })); }}
+		placeholder="user@example.com"
+		className={errors.email ? "border-red-500 focus-visible:ring-red-500" : ""}
+		/>
+		<FieldError field="email" />
 		</div>
 
 		<div>
@@ -443,6 +462,97 @@ function EditUserSheet({ user, isNew, onClose, onSave, onAdd, onDelete, saving }
 }
 
 /* ------------------------------------------------------------------ */
+/* Server Actions (password hashing happens server-side) */
+/* ------------------------------------------------------------------ */
+
+function hashPassword(password: string): string {
+	return crypto.scryptSync(password, "opuszen-users-salt", 64).toString("hex");
+}
+
+export async function action({ request }: ActionFunctionArgs) {
+	const adminCheck = await verifyAdminSession(request);
+	if (!adminCheck.isAdmin) return redirect("/auth/admin");
+
+	const formData = await request.formData();
+	const intent = formData.get("intent")?.toString();
+
+	try {
+		if (intent === "create") {
+			const username = formData.get("username")?.toString().trim() || "";
+			const password = formData.get("password")?.toString() || "";
+			const name = formData.get("name")?.toString().trim() || "";
+			const email = formData.get("email")?.toString().trim() || "";
+			const phone_number = formData.get("phone_number")?.toString().trim() || "";
+			const account_balance = parseFloat(formData.get("account_balance")?.toString() || "0");
+			const total_orders = parseInt(formData.get("total_orders")?.toString() || "0");
+			const total_spent = parseFloat(formData.get("total_spent")?.toString() || "0");
+
+			if (!username || !password || !name) {
+				return data({ error: "Username, password, and name are required." }, { status: 400 });
+			}
+
+			const hashedPassword = hashPassword(password);
+
+			const { data: dbData, error } = await supabaseServer
+				.from("users")
+				.insert({
+					username,
+					password: hashedPassword,
+					name,
+					email,
+					phone_number,
+					account_balance,
+					total_orders,
+					total_spent,
+				})
+				.select()
+				.single();
+
+			if (error) throw new Error(error.message);
+			return data({ success: true, user: dbData });
+		}
+
+		if (intent === "update") {
+			const id = formData.get("id")?.toString() || "";
+			const username = formData.get("username")?.toString().trim() || "";
+			const password = formData.get("password")?.toString() || "";
+			const name = formData.get("name")?.toString().trim() || "";
+			const email = formData.get("email")?.toString().trim() || "";
+			const phone_number = formData.get("phone_number")?.toString().trim() || "";
+			const account_balance = parseFloat(formData.get("account_balance")?.toString() || "0");
+			const total_orders = parseInt(formData.get("total_orders")?.toString() || "0");
+			const total_spent = parseFloat(formData.get("total_spent")?.toString() || "0");
+
+			const updates: any = { username, name, email, phone_number, account_balance, total_orders, total_spent };
+			if (password && password.length >= 6) {
+				updates.password = hashPassword(password);
+			}
+
+			const { data: dbData, error } = await supabaseServer
+				.from("users")
+				.update(updates)
+				.eq("id", id)
+				.select()
+				.single();
+
+			if (error) throw new Error(error.message);
+			return data({ success: true, user: dbData });
+		}
+
+		if (intent === "delete") {
+			const id = formData.get("id")?.toString() || "";
+			const { error } = await supabaseServer.from("users").delete().eq("id", id);
+			if (error) throw new Error(error.message);
+			return data({ success: true });
+		}
+
+		return data({ error: "Unknown action" }, { status: 400 });
+	} catch (err: any) {
+		return data({ error: err.message || "An unexpected error occurred" }, { status: 500 });
+	}
+}
+
+/* ------------------------------------------------------------------ */
 /* Main Component */
 /* ------------------------------------------------------------------ */
 
@@ -455,6 +565,7 @@ export default function AdminUsersRoute() {
 		adminEmail: string | null;
 	}>();
 
+	const fetcher = useFetcher();
 	const [allUsers, setAllUsers] = useState<User[]>(initialUsers);
 	const [loading, setLoading] = useState(false);
 	const [saving, setSaving] = useState(false);
@@ -480,71 +591,74 @@ export default function AdminUsersRoute() {
 
 	const handleAdd = useCallback(async (newUser: User) => {
 		setSaving(true);
-		const { data, error } = await (supabase
-			.from("users") as any)
-			.insert({
-				username: newUser.username,
-				password: newUser.password,
-				name: newUser.name,
-				phone_number: newUser.phone_number,
-				account_balance: newUser.account_balance,
-				total_orders: newUser.total_orders,
-				total_spent: newUser.total_spent,
-			})
-			.select()
-			.single();
+		const fd = new FormData();
+		fd.set("intent", "create");
+		fd.set("username", newUser.username);
+		fd.set("password", newUser.password);
+		fd.set("name", newUser.name);
+		fd.set("email", newUser.email || "");
+		fd.set("phone_number", newUser.phone_number || "");
+		fd.set("account_balance", String(newUser.account_balance ?? 0));
+		fd.set("total_orders", String(newUser.total_orders ?? 0));
+		fd.set("total_spent", String(newUser.total_spent ?? 0));
 
-		if (!error && data) {
-			setAllUsers((prev) => [data as User, ...prev]);
-		} else {
-			alert("Failed to create user: " + (error?.message ?? "Unknown error"));
+		await fetcher.submit(fd, { method: "post" });
+		if (fetcher.data?.user) {
+			setAllUsers((prev) => [fetcher.data.user as User, ...prev]);
+		} else if (fetcher.data?.error) {
+			alert("Failed: " + fetcher.data.error);
 		}
 		setSaving(false);
-	}, []);
+	}, [fetcher]);
 
 	const handleSave = useCallback(async (updated: User) => {
 		setSaving(true);
-		const { error } = await (supabase
-			.from("users") as any)
-			.update({
-				username: updated.username,
-				password: updated.password,
-				name: updated.name,
-				phone_number: updated.phone_number,
-				account_balance: updated.account_balance,
-				total_orders: updated.total_orders,
-				total_spent: updated.total_spent,
-			})
-			.eq("id", updated.id);
+		const fd = new FormData();
+		fd.set("intent", "update");
+		fd.set("id", updated.id);
+		fd.set("username", updated.username);
+		if (updated.password && updated.password.length >= 6) {
+			fd.set("password", updated.password);
+		}
+		fd.set("name", updated.name);
+		fd.set("email", updated.email || "");
+		fd.set("phone_number", updated.phone_number || "");
+		fd.set("account_balance", String(updated.account_balance ?? 0));
+		fd.set("total_orders", String(updated.total_orders ?? 0));
+		fd.set("total_spent", String(updated.total_spent ?? 0));
 
-		if (!error) {
+		await fetcher.submit(fd, { method: "post" });
+		if (!fetcher.data?.error) {
 			setAllUsers((prev) => prev.map((u) => (u.id === updated.id ? updated : u)));
 		} else {
-			alert("Failed to save: " + (error?.message ?? "Unknown error"));
+			alert("Failed to save: " + (fetcher.data?.error ?? "Unknown error"));
 		}
 		setSaving(false);
-	}, []);
+	}, [fetcher]);
 
 	const handleDelete = useCallback(async (id: string) => {
 		setSaving(true);
-		const { error } = await supabase.from("users").delete().eq("id", id);
-		if (!error) {
+		const fd = new FormData();
+		fd.set("intent", "delete");
+		fd.set("id", id);
+		await fetcher.submit(fd, { method: "post" });
+		if (!fetcher.data?.error) {
 			setAllUsers((prev) => prev.filter((u) => u.id !== id));
 			setPage(1);
 		} else {
-			alert("Failed to delete: " + (error?.message ?? "Unknown error"));
+			alert("Failed to delete: " + (fetcher.data?.error ?? "Unknown error"));
 		}
 		setSaving(false);
-	}, []);
+	}, [fetcher]);
 
 	const handleExport = () => {
 		const csv = [
-			["Username", "Password", "Name", "Phone Number", "Account Balance", "Total Orders", "Total Spent", "Created At"].join(","),
+			["Username", "Name", "Email", "Phone Number", "Account Balance", "Total Orders", "Total Spent", "Created At"].join(","),
 			...allUsers.map((u) =>
 				[
 					`"${u.username}"`,
-					`"${u.password}"`,
 					`"${u.name}"`,
+					`"${u.email}"`,
 					`"${u.phone_number}"`,
 					u.account_balance ?? 0.00,
 					u.total_orders ?? 0,
@@ -579,6 +693,7 @@ export default function AdminUsersRoute() {
 			if (
 				!u.name.toLowerCase().includes(q) &&
 				!u.username.toLowerCase().includes(q) &&
+				!u.email.toLowerCase().includes(q) &&
 				!u.phone_number.toLowerCase().includes(q)
 			) {
 				return false;
@@ -762,12 +877,6 @@ export default function AdminUsersRoute() {
 		</th>
 		<th
 		className="px-4 py-3 font-semibold cursor-pointer select-none hover:text-foreground transition-colors"
-		onClick={() => handleSort("password")}
-		>
-		<span className="flex items-center">Password <SortIcon field="password" /></span>
-		</th>
-		<th
-		className="px-4 py-3 font-semibold cursor-pointer select-none hover:text-foreground transition-colors"
 		onClick={() => handleSort("created_at")}
 		>
 		<span className="flex items-center">Created At <SortIcon field="created_at" /></span>
@@ -793,7 +902,7 @@ export default function AdminUsersRoute() {
 		<tbody className="divide-y divide-border/40">
 		{paginated.length === 0 ? (
 		<tr>
-		<td colSpan={7} className="px-4 py-12 text-center text-muted-foreground">
+		<td colSpan={6} className="px-4 py-12 text-center text-muted-foreground">
 		<div className="flex flex-col items-center gap-2">
 		<FiUserX className="w-8 h-8 opacity-40" />
 		<p className="text-sm font-medium">No users found</p>
@@ -825,7 +934,7 @@ export default function AdminUsersRoute() {
 
 		{/* Password */}
 		<td className="px-4 py-3 font-mono text-xs text-muted-foreground">
-		{user.password}
+		{"•••••••••••"}
 		</td>
 
 		{/* Created At */}

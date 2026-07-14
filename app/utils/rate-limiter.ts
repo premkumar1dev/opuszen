@@ -37,12 +37,12 @@ export async function checkRateLimit(
  const windowStart = Math.floor(now / 1000) - WINDOW_SECONDS;
  const currentBucketStart = Math.floor(now / 1000);
 
- // Count requests in the last WINDOW_SECONDS
+ // Count requests in the last WINDOW_SECONDS (sliding window)
  const { count, error } = await supabase
  .from("user_rate_limits")
  .select("*", { count: "exact", head: true })
  .eq("user_api_key_id", userApiKeyId)
- .gte("window_start", windowStart);
+ .gte("window_start", currentBucketStart - WINDOW_SECONDS);
 
  if (error) {
  console.error("[rateLimiter] Failed to count:", error);
@@ -88,14 +88,14 @@ export async function checkRateLimit(
  */
 export async function pruneOldRateLimits(): Promise<number> {
  const cutoff = Math.floor(Date.now() / 1000) - (WINDOW_SECONDS * 2);
- const { error } = await supabase
+ const { error, count } = await supabase
  .from("user_rate_limits")
- .delete({ count: "exact" })
+ .delete()
  .lt("window_start", cutoff);
 
  if (error) {
  console.error("[rateLimiter] Prune failed:", error);
  return 0;
  }
- return 1;
+ return count ?? 0;
 }

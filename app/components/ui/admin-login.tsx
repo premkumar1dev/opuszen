@@ -3,7 +3,7 @@ import { useNavigate } from "react-router";
 import { FiMail, FiLock, FiShield, FiEye, FiEyeOff, FiTerminal, FiDatabase, FiAlertTriangle, FiCheckCircle } from "react-icons/fi";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { supabase } from "../../../utils/supabase";
+import { supabase } from "~/utils/supabase";
 
 interface AdminLoginProps {
   logo?: {

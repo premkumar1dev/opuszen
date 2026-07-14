@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { FiLock, FiCheckCircle, FiAlertCircle } from "react-icons/fi";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { supabase } from "../../utils/supabase";
+import { supabase } from "~/utils/supabase";
 
 export const meta: MetaFunction = () => {
  return [

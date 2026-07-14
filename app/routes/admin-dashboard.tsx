@@ -1,8 +1,8 @@
 import { useState, useCallback } from "react";
 import { type LoaderFunctionArgs, type MetaFunction, redirect, Link } from "react-router";
 import { useLoaderData } from "react-router";
-import { verifyAdminSession } from "../../utils/admin-auth";
-import { supabase } from "../../utils/supabase";
+import { verifyAdminSession } from "~/utils/admin-auth";
+import { supabase } from "~/utils/supabase";
 import { AdminSidebar } from "~/components/admin/admin-sidebar";
 import { StatCard, Skeleton } from "~/components/admin/stat-card";
 import { cn } from "@/lib/utils";

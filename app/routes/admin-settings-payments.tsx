@@ -7,9 +7,8 @@ import {
 } from "react-router";
 import { useLoaderData, useActionData, useNavigation, useFetcher, Form } from "react-router";
 import { useState, useEffect } from "react";
-import { verifyAdminSession } from "../../utils/admin-auth";
-import { supabase } from "../../utils/supabase";
-import { AdminHeader } from "~/components/admin/admin-header";
+import { verifyAdminSession } from "~/utils/admin-auth";
+import { supabase } from "~/utils/supabase";
 import { cn } from "@/lib/utils";
 import { FaRupeeSign } from "react-icons/fa6";
 import {
@@ -341,16 +340,14 @@ export default function AdminSettingsPaymentsRoute() {
 		<button
 			type="button"
 			onClick={() => onChange(!checked)}
-			className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/50 ${
-				checked ? "bg-primary" : "bg-muted"
-			}`}
+			className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/50 ${checked ? "bg-primary" : "bg-muted"
+				}`}
 			role="switch"
 			aria-checked={checked}
 		>
 			<span
-				className={`inline-block h-4.5 w-4.5 transform rounded-full bg-white shadow-md transition-transform duration-200 ${
-					checked ? "translate-x-[22px]" : "translate-x-1"
-				}`}
+				className={`inline-block h-4.5 w-4.5 transform rounded-full bg-white shadow-md transition-transform duration-200 ${checked ? "translate-x-[22px]" : "translate-x-1"
+					}`}
 				style={{ width: "18px", height: "18px" }}
 			/>
 		</button>
@@ -390,16 +387,14 @@ export default function AdminSettingsPaymentsRoute() {
 
 						{/* Live status badge */}
 						<div
-							className={`flex items-center gap-2 px-4 py-2 rounded-xl border text-sm font-semibold transition-all ${
-								form.is_active
+							className={`flex items-center gap-2 px-4 py-2 rounded-xl border text-sm font-semibold transition-all ${form.is_active
 									? "bg-emerald-500/10 border-emerald-500/20 text-emerald-500"
 									: "bg-muted/40 border-border text-muted-foreground"
-							}`}
+								}`}
 						>
 							<span
-								className={`w-2 h-2 rounded-full ${
-									form.is_active ? "bg-emerald-500 animate-pulse" : "bg-muted-foreground"
-								}`}
+								className={`w-2 h-2 rounded-full ${form.is_active ? "bg-emerald-500 animate-pulse" : "bg-muted-foreground"
+									}`}
 							/>
 							{form.is_active ? "Gateway Active" : "Gateway Disabled"}
 						</div>
@@ -417,11 +412,10 @@ export default function AdminSettingsPaymentsRoute() {
 											<Link
 												key={tab.id}
 												to={tab.href}
-												className={`${baseClasses} ${
-													isActive
+												className={`${baseClasses} ${isActive
 														? "bg-primary/10 text-primary font-semibold"
 														: "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-												}`}
+													}`}
 											>
 												{tab.icon}
 												{tab.label}
@@ -454,446 +448,443 @@ export default function AdminSettingsPaymentsRoute() {
 								</div>
 							)}
 
-					<Form method="post" className="space-y-5">
-						{/* Hidden form fields to sync state */}
-						<input type="hidden" name="intent" value="save" />
-						<input type="hidden" name="is_active" value={String(form.is_active)} />
-						<input type="hidden" name="test_mode" value={String(form.test_mode)} />
+							<Form method="post" className="space-y-5">
+								{/* Hidden form fields to sync state */}
+								<input type="hidden" name="intent" value="save" />
+								<input type="hidden" name="is_active" value={String(form.is_active)} />
+								<input type="hidden" name="test_mode" value={String(form.test_mode)} />
 
-						{/* ── Section 1: Gateway Control ── */}
-						<div className="rounded-2xl border border-border bg-card/60 p-6 space-y-5">
-							<div className="flex items-center gap-3">
-								<div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
-									<FiSettings className="w-4 h-4" />
-								</div>
-								<div>
-									<h3 className="text-base font-bold text-foreground">Gateway Control</h3>
-									<p className="text-xs text-muted-foreground">
-										Enable or disable the payment gateway globally
-									</p>
-								</div>
-							</div>
+								{/* ── Section 1: Gateway Control ── */}
+								<div className="rounded-2xl border border-border bg-card/60 p-6 space-y-5">
+									<div className="flex items-center gap-3">
+										<div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
+											<FiSettings className="w-4 h-4" />
+										</div>
+										<div>
+											<h3 className="text-base font-bold text-foreground">Gateway Control</h3>
+											<p className="text-xs text-muted-foreground">
+												Enable or disable the payment gateway globally
+											</p>
+										</div>
+									</div>
 
-							<div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-								{/* Gateway Name */}
-								<div>
-									<label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
-										Gateway Name
-									</label>
-									<input
-										type="text"
-										name="gateway_name"
-										value={form.gateway_name}
-										onChange={(e) =>
-											setForm((f) => ({ ...f, gateway_name: e.target.value }))
-										}
-										placeholder="e.g. KhiladiXPro"
-										className="w-full h-10 px-3 rounded-xl border border-border bg-background/50 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all"
-									/>
-								</div>
+									<div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+										{/* Gateway Name */}
+										<div>
+											<label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+												Gateway Name
+											</label>
+											<input
+												type="text"
+												name="gateway_name"
+												value={form.gateway_name}
+												onChange={(e) =>
+													setForm((f) => ({ ...f, gateway_name: e.target.value }))
+												}
+												placeholder="e.g. KhiladiXPro"
+												className="w-full h-10 px-3 rounded-xl border border-border bg-background/50 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all"
+											/>
+										</div>
 
-								{/* Active Toggle */}
-								<div>
-									<label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
-										Payment Gateway Status
-									</label>
-									<div className="flex items-center gap-3 h-10 px-3 rounded-xl border border-border bg-background/50">
+										{/* Active Toggle */}
+										<div>
+											<label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+												Payment Gateway Status
+											</label>
+											<div className="flex items-center gap-3 h-10 px-3 rounded-xl border border-border bg-background/50">
+												<Toggle
+													checked={form.is_active}
+													onChange={(v) => setForm((f) => ({ ...f, is_active: v }))}
+												/>
+												<span
+													className={`text-sm font-medium ${form.is_active ? "text-emerald-500" : "text-muted-foreground"
+														}`}
+												>
+													{form.is_active ? "Enabled — accepting payments" : "Disabled — no payments"}
+												</span>
+											</div>
+										</div>
+									</div>
+
+									{/* Test Mode */}
+									<div className="flex items-center justify-between py-3 px-4 rounded-xl bg-amber-500/5 border border-amber-500/15 hover:bg-amber-500/8 transition-colors">
+										<div>
+											<p className="text-sm font-semibold text-foreground flex items-center gap-2">
+												<FiZap className="w-4 h-4 text-amber-500" />
+												Test Mode
+											</p>
+											<p className="text-xs text-muted-foreground mt-0.5">
+												Use sandbox endpoints — no real charges will occur
+											</p>
+										</div>
 										<Toggle
-											checked={form.is_active}
-											onChange={(v) => setForm((f) => ({ ...f, is_active: v }))}
+											checked={form.test_mode}
+											onChange={(v) => setForm((f) => ({ ...f, test_mode: v }))}
 										/>
-										<span
-											className={`text-sm font-medium ${
-												form.is_active ? "text-emerald-500" : "text-muted-foreground"
-											}`}
-										>
-											{form.is_active ? "Enabled — accepting payments" : "Disabled — no payments"}
-										</span>
 									</div>
 								</div>
-							</div>
 
-							{/* Test Mode */}
-							<div className="flex items-center justify-between py-3 px-4 rounded-xl bg-amber-500/5 border border-amber-500/15 hover:bg-amber-500/8 transition-colors">
-								<div>
-									<p className="text-sm font-semibold text-foreground flex items-center gap-2">
-										<FiZap className="w-4 h-4 text-amber-500" />
-										Test Mode
-									</p>
-									<p className="text-xs text-muted-foreground mt-0.5">
-										Use sandbox endpoints — no real charges will occur
-									</p>
-								</div>
-								<Toggle
-									checked={form.test_mode}
-									onChange={(v) => setForm((f) => ({ ...f, test_mode: v }))}
-								/>
-							</div>
-						</div>
-
-						{/* ── Section 2: API Credentials ── */}
-						<div className="rounded-2xl border border-border bg-card/60 p-6 space-y-5">
-							<div className="flex items-center gap-3">
-								<div className="w-8 h-8 rounded-lg bg-violet-500/10 flex items-center justify-center text-violet-500">
-									<FiKey className="w-4 h-4" />
-								</div>
-								<div>
-									<h3 className="text-base font-bold text-foreground">API Credentials</h3>
-									<p className="text-xs text-muted-foreground">
-										Sensitive keys are masked — click the eye icon to reveal
-									</p>
-								</div>
-							</div>
-
-							{/* API Key */}
-							<div>
-								<label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
-									User Token / API Key
-								</label>
-								<div className="relative">
-									<div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-										<FiLock className="w-4 h-4" />
-									</div>
-									<input
-										type={showKey ? "text" : "password"}
-										name="api_key"
-										value={form.api_key}
-										onChange={(e) => setForm((f) => ({ ...f, api_key: e.target.value }))}
-										placeholder="Enter your user_token / API key"
-										className="w-full h-10 pl-9 pr-10 rounded-xl border border-border bg-background/50 text-sm text-foreground font-mono focus:outline-none focus:ring-2 focus:ring-violet-500/30 transition-all"
-									/>
-									<button
-										type="button"
-										onClick={() => setShowKey((v) => !v)}
-										className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-										title={showKey ? "Hide key" : "Reveal key"}
-									>
-										{showKey ? (
-											<FiEyeOff className="w-4 h-4" />
-										) : (
-											<FiEye className="w-4 h-4" />
-										)}
-									</button>
-								</div>
-								<p className="text-[11px] text-muted-foreground mt-1 font-mono">
-									Used as <code className="bg-muted/50 px-1 rounded">user_token</code> in all API
-									requests
-								</p>
-							</div>
-
-							{/* Webhook Secret */}
-							<div>
-								<label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
-									Webhook Secret{" "}
-									<span className="normal-case font-normal text-muted-foreground">(optional)</span>
-								</label>
-								<div className="relative">
-									<div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-										<FiShield className="w-4 h-4" />
-									</div>
-									<input
-										type={showSecret ? "text" : "password"}
-										name="webhook_secret"
-										value={form.webhook_secret}
-										onChange={(e) =>
-											setForm((f) => ({ ...f, webhook_secret: e.target.value }))
-										}
-										placeholder="Webhook verification secret"
-										className="w-full h-10 pl-9 pr-10 rounded-xl border border-border bg-background/50 text-sm text-foreground font-mono focus:outline-none focus:ring-2 focus:ring-violet-500/30 transition-all"
-									/>
-									<button
-										type="button"
-										onClick={() => setShowSecret((v) => !v)}
-										className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-									>
-										{showSecret ? (
-											<FiEyeOff className="w-4 h-4" />
-										) : (
-											<FiEye className="w-4 h-4" />
-										)}
-									</button>
-								</div>
-							</div>
-						</div>
-
-						{/* ── Section 3: API Endpoints ── */}
-						<div className="rounded-2xl border border-border bg-card/60 p-6 space-y-5">
-							<div className="flex items-center gap-3">
-								<div className="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-500">
-									<FiGlobe className="w-4 h-4" />
-								</div>
-								<div>
-									<h3 className="text-base font-bold text-foreground">API Endpoints</h3>
-									<p className="text-xs text-muted-foreground">
-										Configure the base URL and endpoint paths for the gateway
-									</p>
-								</div>
-							</div>
-
-							{/* Base URL */}
-							<div>
-								<label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
-									API Base URL
-								</label>
-								<div className="relative">
-									<div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-										<FiGlobe className="w-4 h-4" />
-									</div>
-									<input
-										type="url"
-										name="api_base_url"
-										value={form.api_base_url}
-										onChange={(e) =>
-											setForm((f) => ({ ...f, api_base_url: e.target.value }))
-										}
-										placeholder="https://khilaadixpro.shop"
-										className="w-full h-10 pl-9 pr-3 rounded-xl border border-border bg-background/50 text-sm text-foreground font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500/30 transition-all"
-									/>
-								</div>
-							</div>
-
-							<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-								{/* Create Order Endpoint */}
-								<div>
-									<label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
-										Create Order Path
-									</label>
-									<div className="relative">
-										<div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-											<FiLink className="w-4 h-4" />
+								{/* ── Section 2: API Credentials ── */}
+								<div className="rounded-2xl border border-border bg-card/60 p-6 space-y-5">
+									<div className="flex items-center gap-3">
+										<div className="w-8 h-8 rounded-lg bg-violet-500/10 flex items-center justify-center text-violet-500">
+											<FiKey className="w-4 h-4" />
 										</div>
-										<input
-											type="text"
-											name="create_order_endpoint"
-											value={form.create_order_endpoint}
-											onChange={(e) =>
-												setForm((f) => ({ ...f, create_order_endpoint: e.target.value }))
-											}
-											placeholder="/api/create-order"
-											className="w-full h-10 pl-9 pr-3 rounded-xl border border-border bg-background/50 text-sm text-foreground font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500/30 transition-all"
-										/>
-									</div>
-								</div>
-
-								{/* Check Status Endpoint */}
-								<div>
-									<label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
-										Check Status Path
-									</label>
-									<div className="relative">
-										<div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-											<FiActivity className="w-4 h-4" />
+										<div>
+											<h3 className="text-base font-bold text-foreground">API Credentials</h3>
+											<p className="text-xs text-muted-foreground">
+												Sensitive keys are masked — click the eye icon to reveal
+											</p>
 										</div>
-										<input
-											type="text"
-											name="check_status_endpoint"
-											value={form.check_status_endpoint}
-											onChange={(e) =>
-												setForm((f) => ({
-													...f,
-													check_status_endpoint: e.target.value,
-												}))
-											}
-											placeholder="/api/check-order-status"
-											className="w-full h-10 pl-9 pr-3 rounded-xl border border-border bg-background/50 text-sm text-foreground font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500/30 transition-all"
-										/>
+									</div>
+
+									{/* API Key */}
+									<div>
+										<label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+											User Token / API Key
+										</label>
+										<div className="relative">
+											<div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+												<FiLock className="w-4 h-4" />
+											</div>
+											<input
+												type={showKey ? "text" : "password"}
+												name="api_key"
+												value={form.api_key}
+												onChange={(e) => setForm((f) => ({ ...f, api_key: e.target.value }))}
+												placeholder="Enter your user_token / API key"
+												className="w-full h-10 pl-9 pr-10 rounded-xl border border-border bg-background/50 text-sm text-foreground font-mono focus:outline-none focus:ring-2 focus:ring-violet-500/30 transition-all"
+											/>
+											<button
+												type="button"
+												onClick={() => setShowKey((v) => !v)}
+												className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+												title={showKey ? "Hide key" : "Reveal key"}
+											>
+												{showKey ? (
+													<FiEyeOff className="w-4 h-4" />
+												) : (
+													<FiEye className="w-4 h-4" />
+												)}
+											</button>
+										</div>
+										<p className="text-[11px] text-muted-foreground mt-1 font-mono">
+											Used as <code className="bg-muted/50 px-1 rounded">user_token</code> in all API
+											requests
+										</p>
+									</div>
+
+									{/* Webhook Secret */}
+									<div>
+										<label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+											Webhook Secret{" "}
+											<span className="normal-case font-normal text-muted-foreground">(optional)</span>
+										</label>
+										<div className="relative">
+											<div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+												<FiShield className="w-4 h-4" />
+											</div>
+											<input
+												type={showSecret ? "text" : "password"}
+												name="webhook_secret"
+												value={form.webhook_secret}
+												onChange={(e) =>
+													setForm((f) => ({ ...f, webhook_secret: e.target.value }))
+												}
+												placeholder="Webhook verification secret"
+												className="w-full h-10 pl-9 pr-10 rounded-xl border border-border bg-background/50 text-sm text-foreground font-mono focus:outline-none focus:ring-2 focus:ring-violet-500/30 transition-all"
+											/>
+											<button
+												type="button"
+												onClick={() => setShowSecret((v) => !v)}
+												className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+											>
+												{showSecret ? (
+													<FiEyeOff className="w-4 h-4" />
+												) : (
+													<FiEye className="w-4 h-4" />
+												)}
+											</button>
+										</div>
 									</div>
 								</div>
-							</div>
 
-							{/* Resolved URLs preview */}
-							<div className="space-y-2 pt-1">
-								<p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-									<FiInfo className="w-3.5 h-3.5" />
-									Resolved Endpoint URLs
-								</p>
-								<div className="space-y-1.5">
-									<div className="flex items-center gap-2 p-2.5 rounded-lg bg-muted/20 border border-border/40">
-										<span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-500 uppercase tracking-wider shrink-0">
-											POST
-										</span>
-										<code className="text-[11px] text-muted-foreground font-mono truncate">
-											{createOrderUrl}
-										</code>
+								{/* ── Section 3: API Endpoints ── */}
+								<div className="rounded-2xl border border-border bg-card/60 p-6 space-y-5">
+									<div className="flex items-center gap-3">
+										<div className="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-500">
+											<FiGlobe className="w-4 h-4" />
+										</div>
+										<div>
+											<h3 className="text-base font-bold text-foreground">API Endpoints</h3>
+											<p className="text-xs text-muted-foreground">
+												Configure the base URL and endpoint paths for the gateway
+											</p>
+										</div>
 									</div>
-									<div className="flex items-center gap-2 p-2.5 rounded-lg bg-muted/20 border border-border/40">
-										<span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-500 uppercase tracking-wider shrink-0">
-											POST
-										</span>
-										<code className="text-[11px] text-muted-foreground font-mono truncate">
-											{checkStatusUrl}
-										</code>
+
+									{/* Base URL */}
+									<div>
+										<label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+											API Base URL
+										</label>
+										<div className="relative">
+											<div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+												<FiGlobe className="w-4 h-4" />
+											</div>
+											<input
+												type="url"
+												name="api_base_url"
+												value={form.api_base_url}
+												onChange={(e) =>
+													setForm((f) => ({ ...f, api_base_url: e.target.value }))
+												}
+												placeholder="https://khilaadixpro.shop"
+												className="w-full h-10 pl-9 pr-3 rounded-xl border border-border bg-background/50 text-sm text-foreground font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500/30 transition-all"
+											/>
+										</div>
+									</div>
+
+									<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+										{/* Create Order Endpoint */}
+										<div>
+											<label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+												Create Order Path
+											</label>
+											<div className="relative">
+												<div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+													<FiLink className="w-4 h-4" />
+												</div>
+												<input
+													type="text"
+													name="create_order_endpoint"
+													value={form.create_order_endpoint}
+													onChange={(e) =>
+														setForm((f) => ({ ...f, create_order_endpoint: e.target.value }))
+													}
+													placeholder="/api/create-order"
+													className="w-full h-10 pl-9 pr-3 rounded-xl border border-border bg-background/50 text-sm text-foreground font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500/30 transition-all"
+												/>
+											</div>
+										</div>
+
+										{/* Check Status Endpoint */}
+										<div>
+											<label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+												Check Status Path
+											</label>
+											<div className="relative">
+												<div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+													<FiActivity className="w-4 h-4" />
+												</div>
+												<input
+													type="text"
+													name="check_status_endpoint"
+													value={form.check_status_endpoint}
+													onChange={(e) =>
+														setForm((f) => ({
+															...f,
+															check_status_endpoint: e.target.value,
+														}))
+													}
+													placeholder="/api/check-order-status"
+													className="w-full h-10 pl-9 pr-3 rounded-xl border border-border bg-background/50 text-sm text-foreground font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500/30 transition-all"
+												/>
+											</div>
+										</div>
+									</div>
+
+									{/* Resolved URLs preview */}
+									<div className="space-y-2 pt-1">
+										<p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+											<FiInfo className="w-3.5 h-3.5" />
+											Resolved Endpoint URLs
+										</p>
+										<div className="space-y-1.5">
+											<div className="flex items-center gap-2 p-2.5 rounded-lg bg-muted/20 border border-border/40">
+												<span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-500 uppercase tracking-wider shrink-0">
+													POST
+												</span>
+												<code className="text-[11px] text-muted-foreground font-mono truncate">
+													{createOrderUrl}
+												</code>
+											</div>
+											<div className="flex items-center gap-2 p-2.5 rounded-lg bg-muted/20 border border-border/40">
+												<span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-500 uppercase tracking-wider shrink-0">
+													POST
+												</span>
+												<code className="text-[11px] text-muted-foreground font-mono truncate">
+													{checkStatusUrl}
+												</code>
+											</div>
+										</div>
 									</div>
 								</div>
-							</div>
-						</div>
 
-						{/* ── SDK Reference ── */}
-						<div className="rounded-2xl border border-border/50 bg-muted/20 p-5 space-y-3">
-							<p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
-								<FiInfo className="w-3.5 h-3.5" />
-								Create Order — Payload Reference
-							</p>
-							<div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-								{[
-									{ field: "customer_mobile", type: "string", note: "Buyer phone number" },
-									{ field: "user_token", type: "string", note: "← API Key above" },
-									{ field: "amount", type: "string", note: "Order amount (INR)" },
-									{ field: "order_id", type: "string", note: "Unique order ID" },
-									{ field: "redirect_url", type: "string", note: "Post-payment URL" },
-									{ field: "remark1", type: "string", note: "Custom tag 1" },
-								].map((f) => (
-									<div
-										key={f.field}
-										className="flex flex-col gap-0.5 p-2.5 rounded-lg bg-card/60 border border-border/40"
-									>
-										<code className="text-[11px] font-mono text-violet-400">{f.field}</code>
-										<span className="text-[10px] text-muted-foreground">{f.note}</span>
+								{/* ── SDK Reference ── */}
+								<div className="rounded-2xl border border-border/50 bg-muted/20 p-5 space-y-3">
+									<p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+										<FiInfo className="w-3.5 h-3.5" />
+										Create Order — Payload Reference
+									</p>
+									<div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+										{[
+											{ field: "customer_mobile", type: "string", note: "Buyer phone number" },
+											{ field: "user_token", type: "string", note: "← API Key above" },
+											{ field: "amount", type: "string", note: "Order amount (INR)" },
+											{ field: "order_id", type: "string", note: "Unique order ID" },
+											{ field: "redirect_url", type: "string", note: "Post-payment URL" },
+											{ field: "remark1", type: "string", note: "Custom tag 1" },
+										].map((f) => (
+											<div
+												key={f.field}
+												className="flex flex-col gap-0.5 p-2.5 rounded-lg bg-card/60 border border-border/40"
+											>
+												<code className="text-[11px] font-mono text-violet-400">{f.field}</code>
+												<span className="text-[10px] text-muted-foreground">{f.note}</span>
+											</div>
+										))}
 									</div>
-								))}
-							</div>
-							<p className="text-[11px] text-muted-foreground">
-								Webhook receives:{" "}
-								<code className="bg-muted/50 px-1 rounded">status</code>,{" "}
-								<code className="bg-muted/50 px-1 rounded">order_id</code>,{" "}
-								<code className="bg-muted/50 px-1 rounded">remark1</code> via{" "}
-								<code className="bg-muted/50 px-1 rounded">POST</code> when payment completes.
-							</p>
-						</div>
-
-						{/* ── Section 5: Test Payment ── */}
-						<div className="rounded-2xl border border-border bg-card/60 p-6 space-y-5">
-							<div className="flex items-center gap-3">
-								<div className="w-8 h-8 rounded-lg bg-cyan-500/10 flex items-center justify-center text-cyan-500">
-									<FiSend className="w-4 h-4" />
-								</div>
-								<div>
-									<h3 className="text-base font-bold text-foreground">Test Payment</h3>
-									<p className="text-xs text-muted-foreground">
-										Send a test create-order request to verify your gateway configuration
+									<p className="text-[11px] text-muted-foreground">
+										Webhook receives:{" "}
+										<code className="bg-muted/50 px-1 rounded">status</code>,{" "}
+										<code className="bg-muted/50 px-1 rounded">order_id</code>,{" "}
+										<code className="bg-muted/50 px-1 rounded">remark1</code> via{" "}
+										<code className="bg-muted/50 px-1 rounded">POST</code> when payment completes.
 									</p>
 								</div>
-							</div>
 
-							<div className="flex flex-col sm:flex-row gap-3">
-								{/* Amount input */}
-								<div className="relative flex-1">
-									<div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-										<FaRupeeSign className="w-3.5 h-3.5" />
-									</div>
-									<input
-										type="number"
-										min="1"
-										step="1"
-										value={testAmount}
-										onChange={(e) => setTestAmount(e.target.value)}
-										placeholder="Enter amount (e.g. 100)"
-										className="w-full h-10 pl-9 pr-3 rounded-xl border border-border bg-background/50 text-sm text-foreground font-mono focus:outline-none focus:ring-2 focus:ring-cyan-500/30 transition-all"
-										onKeyDown={(e) => {
-											if (e.key === "Enter") {
-												e.preventDefault();
-												handleTestPayment();
-											}
-										}}
-									/>
-								</div>
-
-								{/* Test button */}
-								<button
-									type="button"
-									onClick={handleTestPayment}
-									disabled={testLoading || !testAmount}
-									className="flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold bg-gradient-to-r from-cyan-500 to-blue-500 text-white hover:from-cyan-600 hover:to-blue-600 transition-all cursor-pointer shadow-md shadow-cyan-500/20 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
-								>
-									{testLoading ? (
-										<>
-											<FiRefreshCw className="w-4 h-4 animate-spin" />
-											Sending…
-										</>
-									) : (
-										<>
+								{/* ── Section 5: Test Payment ── */}
+								<div className="rounded-2xl border border-border bg-card/60 p-6 space-y-5">
+									<div className="flex items-center gap-3">
+										<div className="w-8 h-8 rounded-lg bg-cyan-500/10 flex items-center justify-center text-cyan-500">
 											<FiSend className="w-4 h-4" />
-											Send Test Payment
-										</>
-									)}
-								</button>
-							</div>
-
-							{/* Test result */}
-							{testResult && (
-								<div
-									className={`rounded-xl border p-4 space-y-2 animate-in fade-in slide-in-from-top-2 duration-300 ${
-										testResult.status === "success"
-											? "bg-emerald-500/5 border-emerald-500/20"
-											: "bg-red-500/5 border-red-500/20"
-									}`}
-								>
-									<div className="flex items-center gap-2">
-										{testResult.status === "success" ? (
-											<FiCheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
-										) : (
-											<FiXCircle className="w-4 h-4 text-red-500 shrink-0" />
-										)}
-										<span
-											className={`text-sm font-semibold ${
-												testResult.status === "success" ? "text-emerald-500" : "text-red-500"
-											}`}
-										>
-											{testResult.status === "success" ? "Gateway Responded Successfully" : "Test Failed"}
-										</span>
+										</div>
+										<div>
+											<h3 className="text-base font-bold text-foreground">Test Payment</h3>
+											<p className="text-xs text-muted-foreground">
+												Send a test create-order request to verify your gateway configuration
+											</p>
+										</div>
 									</div>
-									<p className="text-xs text-muted-foreground">{testResult.message}</p>
-									{testResult.data && (
-										<details className="mt-1">
-											<summary className="text-[11px] text-muted-foreground cursor-pointer hover:text-foreground transition-colors font-medium">
-												View full response
-											</summary>
-											<pre className="mt-2 p-3 rounded-lg bg-background/50 border border-border/40 text-[11px] font-mono text-muted-foreground overflow-x-auto max-h-48 overflow-y-auto">
-												{JSON.stringify(testResult.data, null, 2)}
-											</pre>
-										</details>
+
+									<div className="flex flex-col sm:flex-row gap-3">
+										{/* Amount input */}
+										<div className="relative flex-1">
+											<div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+												<FaRupeeSign className="w-3.5 h-3.5" />
+											</div>
+											<input
+												type="number"
+												min="1"
+												step="1"
+												value={testAmount}
+												onChange={(e) => setTestAmount(e.target.value)}
+												placeholder="Enter amount (e.g. 100)"
+												className="w-full h-10 pl-9 pr-3 rounded-xl border border-border bg-background/50 text-sm text-foreground font-mono focus:outline-none focus:ring-2 focus:ring-cyan-500/30 transition-all"
+												onKeyDown={(e) => {
+													if (e.key === "Enter") {
+														e.preventDefault();
+														handleTestPayment();
+													}
+												}}
+											/>
+										</div>
+
+										{/* Test button */}
+										<button
+											type="button"
+											onClick={handleTestPayment}
+											disabled={testLoading || !testAmount}
+											className="flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold bg-gradient-to-r from-cyan-500 to-blue-500 text-white hover:from-cyan-600 hover:to-blue-600 transition-all cursor-pointer shadow-md shadow-cyan-500/20 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
+										>
+											{testLoading ? (
+												<>
+													<FiRefreshCw className="w-4 h-4 animate-spin" />
+													Sending…
+												</>
+											) : (
+												<>
+													<FiSend className="w-4 h-4" />
+													Send Test Payment
+												</>
+											)}
+										</button>
+									</div>
+
+									{/* Test result */}
+									{testResult && (
+										<div
+											className={`rounded-xl border p-4 space-y-2 animate-in fade-in slide-in-from-top-2 duration-300 ${testResult.status === "success"
+													? "bg-emerald-500/5 border-emerald-500/20"
+													: "bg-red-500/5 border-red-500/20"
+												}`}
+										>
+											<div className="flex items-center gap-2">
+												{testResult.status === "success" ? (
+													<FiCheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+												) : (
+													<FiXCircle className="w-4 h-4 text-red-500 shrink-0" />
+												)}
+												<span
+													className={`text-sm font-semibold ${testResult.status === "success" ? "text-emerald-500" : "text-red-500"
+														}`}
+												>
+													{testResult.status === "success" ? "Gateway Responded Successfully" : "Test Failed"}
+												</span>
+											</div>
+											<p className="text-xs text-muted-foreground">{testResult.message}</p>
+											{testResult.data && (
+												<details className="mt-1">
+													<summary className="text-[11px] text-muted-foreground cursor-pointer hover:text-foreground transition-colors font-medium">
+														View full response
+													</summary>
+													<pre className="mt-2 p-3 rounded-lg bg-background/50 border border-border/40 text-[11px] font-mono text-muted-foreground overflow-x-auto max-h-48 overflow-y-auto">
+														{JSON.stringify(testResult.data, null, 2)}
+													</pre>
+												</details>
+											)}
+										</div>
 									)}
+
+									{/* Info note */}
+									<p className="text-[11px] text-muted-foreground flex items-start gap-1.5">
+										<FiInfo className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+										This sends a real create-order request to your configured gateway with a test order ID and dummy mobile number (9999999999).
+										Make sure your settings are saved first.
+									</p>
 								</div>
-							)}
 
-							{/* Info note */}
-							<p className="text-[11px] text-muted-foreground flex items-start gap-1.5">
-								<FiInfo className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-								This sends a real create-order request to your configured gateway with a test order ID and dummy mobile number (9999999999).
-								Make sure your settings are saved first.
-							</p>
-						</div>
-
-						{/* Save Button */}
-						<div className="flex items-center justify-between pt-1">
-							{settings?.updated_at && (
-								<p className="text-[11px] text-muted-foreground">
-									Last saved:{" "}
-									{new Date(settings.updated_at).toLocaleString("en-IN", {
-										dateStyle: "medium",
-										timeStyle: "short",
-									})}
-								</p>
-							)}
-							<button
-								type="submit"
-								disabled={isSubmitting}
-								className="ml-auto flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-all cursor-pointer shadow-md shadow-primary/20 disabled:opacity-60 disabled:cursor-not-allowed"
-							>
-								{isSubmitting ? (
-									<>
-										<FiRefreshCw className="w-4 h-4 animate-spin" />
-										Saving…
-									</>
-								) : (
-									<>
-										<FiSave className="w-4 h-4" />
-										Save Gateway Settings
-									</>
-								)}
-							</button>
-						</div>
-					</Form>
+								{/* Save Button */}
+								<div className="flex items-center justify-between pt-1">
+									{settings?.updated_at && (
+										<p className="text-[11px] text-muted-foreground">
+											Last saved:{" "}
+											{new Date(settings.updated_at).toLocaleString("en-IN", {
+												dateStyle: "medium",
+												timeStyle: "short",
+											})}
+										</p>
+									)}
+									<button
+										type="submit"
+										disabled={isSubmitting}
+										className="ml-auto flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-all cursor-pointer shadow-md shadow-primary/20 disabled:opacity-60 disabled:cursor-not-allowed"
+									>
+										{isSubmitting ? (
+											<>
+												<FiRefreshCw className="w-4 h-4 animate-spin" />
+												Saving…
+											</>
+										) : (
+											<>
+												<FiSave className="w-4 h-4" />
+												Save Gateway Settings
+											</>
+										)}
+									</button>
+								</div>
+							</Form>
 						</div>
 					</div>
 				</div>

@@ -7,9 +7,8 @@ import {
 } from "react-router";
 import { useLoaderData, useActionData, useNavigation, Form } from "react-router";
 import { useState, useEffect, useRef } from "react";
-import { verifyAdminSession } from "../../utils/admin-auth";
-import { supabase } from "../../utils/supabase";
-import { AdminHeader } from "~/components/admin/admin-header";
+import { verifyAdminSession } from "~/utils/admin-auth";
+import { supabase } from "~/utils/supabase";
 import {
 	FiGlobe,
 	FiSave,
@@ -288,7 +287,6 @@ export default function AdminSettingsSiteRoute() {
 
 	return (
 		<div className="min-h-screen bg-background text-foreground">
-			<AdminHeader adminEmail={adminEmail || undefined} />
 			<main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
 				<div className="max-w-[900px] space-y-6">
 

@@ -31,9 +31,9 @@ export async function recordHealthSuccess(keyId: string, responseTimeMs: number)
  if (!record) return;
 
  const newConsecutive = (record.consecutive_successes ?? 0) + 1;
- const totalChecks = record.total_checks;
- const existingSuccesses = Math.round((record.success_rate / 100) * totalChecks);
- const newSuccessRate = totalChecks > 0 ? Math.round(((existingSuccesses + 1) / (totalChecks + 1)) * 100) : 100;
+ const totalChecks = record.total_checks + 1;
+ const existingSuccesses = Math.round((record.success_rate / 100) * record.total_checks);
+ const newSuccessRate = totalChecks > 0 ? Math.round(((existingSuccesses + 1) / totalChecks) * 100) : 100;
 
  await (supabase
  .from('provider_health') as any)
@@ -43,8 +43,8 @@ export async function recordHealthSuccess(keyId: string, responseTimeMs: number)
  consecutive_failures: 0,
  last_success: new Date().toISOString(),
  last_error: '',
- avg_response_time_ms: Math.round(((record.avg_response_time_ms ?? 0) * totalChecks + responseTimeMs) / (totalChecks + 1)),
- total_checks: totalChecks + 1,
+ avg_response_time_ms: Math.round(((record.avg_response_time_ms ?? 0) * record.total_checks + responseTimeMs) / totalChecks),
+ total_checks: totalChecks,
  success_rate: newSuccessRate,
  retry_after: null,
  updated_at: new Date().toISOString(),
@@ -71,9 +71,9 @@ export async function recordHealthFailure(
  if (!record) return;
 
  const newConsecutive = (record.consecutive_failures ?? 0) + 1;
- const totalChecks = record.total_checks;
- const existingSuccesses = Math.round((record.success_rate / 100) * totalChecks);
- const newSuccessRate = totalChecks > 0 ? Math.round((existingSuccesses / (totalChecks + 1)) * 100) : 0;
+ const totalChecks = record.total_checks + 1;
+ const existingSuccesses = Math.round((record.success_rate / 100) * record.total_checks);
+ const newSuccessRate = totalChecks > 0 ? Math.round((existingSuccesses / totalChecks) * 100) : 0;
 
  let healthStatus: ProviderHealthRow['status'] = 'unhealthy';
  if (statusCode === 429) healthStatus = 'rate_limited';
@@ -87,7 +87,7 @@ export async function recordHealthFailure(
  consecutive_successes: 0,
  last_failure: new Date().toISOString(),
  last_error: error.slice(0, 500),
- total_checks: totalChecks + 1,
+ total_checks: totalChecks,
  success_rate: newSuccessRate,
  updated_at: new Date().toISOString(),
  })

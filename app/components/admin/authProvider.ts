@@ -1,6 +1,6 @@
 import { type AuthProvider } from "react-admin";
-import { supabase } from "~/../utils/supabase";
-import { verifyAdminSession } from "~/../utils/admin-auth";
+import { supabase } from "~/utils/supabase";
+import { verifyAdminSession } from "~/utils/admin-auth";
 
 export const authProvider: AuthProvider = {
   login: async ({ username, password }) => {

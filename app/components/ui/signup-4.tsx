@@ -2,7 +2,7 @@ import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { supabase } from "../../../utils/supabase";
+import { supabase } from "~/utils/supabase";
 
 interface Signup4Props {
  heading?: string;
@@ -66,6 +66,7 @@ const Signup4 = ({
  setError(authError.message);
  } else {
  setSuccess(true);
+ window.location.href = "/user/dashboard";
  }
  } catch (err: unknown) {
  const message = err instanceof Error ? err.message : "An unexpected error occurred.";

@@ -12,16 +12,18 @@ import { encrypt, decrypt } from "~/utils/crypto.server";
 /** Decrypt the api_key field from a raw DB row */
 function decryptKey(row: any): any {
  if (!row?.api_key || typeof row.api_key !== "string") return row;
- // Already plain (legacy unencrypted data): if it looks like an AI API key (starts with sk- / gsk- / etc.)
- // but is NOT in "iv:tag:base64" format, try to encrypt it now. For reads, assume already encrypted.
- if (row.api_key.includes(":") && row.api_key.split(":").length >= 3) {
- // Looks like encrypted format (iv:tag:ciphertext)
+ // Skip decryption for legacy plaintext keys (legacy data migration path)
+ if (!row.api_key.includes(":") || row.api_key.split(":").length < 3) {
+ return row; // plaintext - will be encrypted on next update
+ }
+ // Encrypted format (iv:tag:ciphertext)
  const decrypted = decrypt(row.api_key);
  if (decrypted) {
  return { ...row, api_key: decrypted };
  }
- }
- return row; // return as-is if decryption fails
+ // Decryption failed - this means the encryption key changed or data is corrupted
+ console.error("[master-key-service] Failed to decrypt API key for row", row.id, "- key may be unrecoverable");
+ throw new Error(`Failed to decrypt API key for row ${row.id}`);
 }
 
 function decryptKeys(rows: any[]): any[] {

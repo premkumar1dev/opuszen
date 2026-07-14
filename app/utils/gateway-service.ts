@@ -412,8 +412,14 @@ export async function handleGatewayRequest(
  await recordHealthSuccess(candidate.id, responseTimeMs);
  await recordUsage(candidate.id, candidate.provider, usage.totalTokens, credits, responseTimeMs);
 
- // Atomically update master key credits using a single DB call
- // to avoid lost-update race conditions between markMasterKeySuccess and this block
+ // Atomically update master key credits using SQL RPC to avoid lost-update race conditions
+ const { error: rpcError } = await supabase.rpc('increment_master_key_credits', {
+ p_master_key_id: candidate.id,
+ p_credits: credits,
+ });
+
+ if (rpcError) {
+ // Fallback: if RPC doesn't exist, do best-effort update (still has race risk)
  const { data: updatedKey } = await supabase
  .from('master_api_keys')
  .select('used_credits, total_credits')
@@ -426,6 +432,7 @@ export async function handleGatewayRequest(
  remaining_credits: Math.max(0, (updatedKey.total_credits ?? 0) - newUsed),
  last_used: new Date().toISOString(),
  }).eq('id', candidate.id);
+ }
  }
 
  // Record user key usage

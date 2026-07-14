@@ -1,7 +1,7 @@
 import { useCallback } from "react";
 import { NavLink, useNavigate } from "react-router";
 import { FiShield, FiLogOut, FiUsers, FiHome, FiKey, FiCreditCard, FiShoppingBag, FiSettings, FiGlobe, FiMail } from "react-icons/fi";
-import { supabase } from "../../../utils/supabase";
+import { supabase } from "~/utils/supabase";
 
 interface AdminHeaderProps {
  adminEmail?: string;

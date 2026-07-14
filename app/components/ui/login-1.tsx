@@ -2,7 +2,7 @@ import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { supabase } from "../../../utils/supabase";
+import { supabase } from "~/utils/supabase";
 
 interface Login1Props {
  heading?: string;
@@ -50,7 +50,7 @@ const Login1 = ({
  } else {
  setSuccess(true);
  setTimeout(() => {
- window.location.href = "/key-status";
+ window.location.href = "/user/dashboard";
  }, 300);
  }
  } catch (err: unknown) {

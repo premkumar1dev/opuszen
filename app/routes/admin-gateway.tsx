@@ -1,7 +1,7 @@
 import { type LoaderFunctionArgs, type MetaFunction, redirect, Link } from "react-router";
 import { useLoaderData } from "react-router";
 import { useState } from "react";
-import { verifyAdminSession } from "../../utils/admin-auth";
+import { verifyAdminSession } from "~/utils/admin-auth";
 import { AdminSidebar } from "~/components/admin/admin-sidebar";
 import { cn } from "@/lib/utils";
 import { FiServer, FiCpu, FiHardDrive, FiZap, FiGlobe, FiShield, FiRefreshCw, FiPlay, FiSquare, FiAlertTriangle, FiCheckCircle, FiXCircle, FiClock, FiCopy, FiChevronDown, FiKey, FiActivity, FiUsers, FiSettings } from "react-icons/fi";

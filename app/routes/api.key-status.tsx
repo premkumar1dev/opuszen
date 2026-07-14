@@ -3,52 +3,38 @@
  * POST /api/key-status
  *
  * Returns real-time status for a user API key.
+ * Keys are accepted ONLY via POST body — never via query parameters.
  */
-import { type MetaFunction, type ActionFunctionArgs, type LoaderFunctionArgs, data } from "react-router";
-
-export const meta: MetaFunction = () => [{ title: "Key Status API" }];
+import { type MetaFunction, type ActionFunctionArgs, data } from "react-router";
 import { getKeyStatus } from "~/utils/gateway-service";
 
+export const meta: MetaFunction = () => [{ title: "Key Status API" }];
+
+export const loader = () => data({ error: "Method not allowed. Use POST." }, { status: 405 });
+
 export async function action({ request }: ActionFunctionArgs) {
- let apiKey = "";
+	let apiKey = "";
 
- try {
- const formData = await request.formData();
- apiKey = String(formData.get("key") ?? "").trim();
- } catch {
- // Also try JSON body
- try {
- const body = await request.json();
- apiKey = String(body.key ?? "").trim();
- } catch {
- apiKey = "";
- }
- }
+	try {
+		const formData = await request.formData();
+		apiKey = String(formData.get("key") ?? "").trim();
+	} catch {
+		try {
+			const body = await request.json();
+			apiKey = String(body.key ?? "").trim();
+		} catch {
+			apiKey = "";
+		}
+	}
 
- if (!apiKey) {
- return data({ error: "Missing API key" }, { status: 400 });
- }
+	if (!apiKey) {
+		return data({ error: "Missing API key" }, { status: 400 });
+	}
 
- try {
- const result = await getKeyStatus(apiKey);
- return data(result);
- } catch (err: any) {
- return data({ error: err.message ?? "Failed to check key status" }, { status: 500 });
- }
-}
-
-export async function loader({ request }: LoaderFunctionArgs) {
- const url = new URL(request.url);
- const apiKey = String(url.searchParams.get("key") || "").trim();
-
- if (!apiKey) {
- return data({ error: "Missing API key. Provide it as a query parameter ?key=" }, { status: 400 });
- }
-
- try {
- const result = await getKeyStatus(apiKey);
- return data(result);
- } catch (err: any) {
- return data({ error: err.message ?? "Failed to check key status" }, { status: 500 });
- }
+	try {
+		const result = await getKeyStatus(apiKey);
+		return data(result);
+	} catch (err: any) {
+		return data({ error: err.message ?? "Failed to check key status" }, { status: 500 });
+	}
 }

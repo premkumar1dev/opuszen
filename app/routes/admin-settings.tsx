@@ -1,9 +1,8 @@
 import { type LoaderFunctionArgs, type MetaFunction, redirect, Link, useSearchParams } from "react-router";
 import { useLoaderData } from "react-router";
 import { useState, useEffect } from "react";
-import { verifyAdminSession } from "../../utils/admin-auth";
+import { verifyAdminSession } from "~/utils/admin-auth";
 import { AdminSidebar } from "~/components/admin/admin-sidebar";
-import { AdminHeader } from "~/components/admin/admin-header";
 import { cn } from "@/lib/utils";
 import { FiSettings, FiUser, FiKey, FiBell, FiGlobe, FiShield, FiSave, FiLock, FiDatabase, FiMail, FiCheck, FiMoon, FiSun, FiMonitor, FiCreditCard } from "react-icons/fi";
 
