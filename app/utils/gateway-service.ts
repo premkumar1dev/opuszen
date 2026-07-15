@@ -406,7 +406,22 @@ export async function handleGatewayRequest(
  if (response.ok) {
  // Success
  const usage = extractUsage(responseBody as ChatCompletionResponse, ctx.model);
- const credits = calculateCredits(ctx.model, usage);
+
+ // Per-token plan billing: use plan's per-token pricing instead of model pricing
+ const userKey = ctx.userApiKey as any;
+ const planInputPrice = userKey?.price_per_1m_input_tokens ?? 0;
+ const planOutputPrice = userKey?.price_per_1m_output_tokens ?? 0;
+ const isPerTokenPlan = (userKey?.pricing_type === 'per_token') && (planInputPrice > 0 || planOutputPrice > 0);
+
+ let credits: number;
+ if (isPerTokenPlan) {
+ credits = Math.round(
+ ((usage.promptTokens / 1_000_000) * planInputPrice +
+ (usage.completionTokens / 1_000_000) * planOutputPrice) * 10_000
+ ) / 10_000;
+ } else {
+ credits = calculateCredits(ctx.model, usage);
+ }
 
  await markMasterKeySuccess(candidate.id);
  await recordHealthSuccess(candidate.id, responseTimeMs);
@@ -437,7 +452,25 @@ export async function handleGatewayRequest(
 
  // Record user key usage
  if (ctx.userApiKey.id) {
- await recordUserKeyUsage(ctx.userApiKey.id, usage.totalTokens, credits, true);
+ const planPricing = isPerTokenPlan
+	 ? { input: planInputPrice, output: planOutputPrice }
+	 : null;
+
+ // Update token counters on user key
+ const keyUpdates: any = {
+	 last_prompt_tokens: usage.promptTokens,
+	 last_completion_tokens: usage.completionTokens,
+ };
+ const existingKey = ctx.userApiKey as any;
+ if (existingKey) {
+	 keyUpdates.total_prompt_tokens = (existingKey.total_prompt_tokens ?? 0) + usage.promptTokens;
+	 keyUpdates.total_completion_tokens = (existingKey.total_completion_tokens ?? 0) + usage.completionTokens;
+ }
+ try {
+	 await supabaseServer.from('user_api_keys').update(keyUpdates).eq('id', ctx.userApiKey.id);
+ } catch { /* best-effort */ }
+
+ await recordUserKeyUsage(ctx.userApiKey.id, usage.totalTokens, credits, true, planPricing);
  }
 
  // Log the successful request (use hashed prefixes instead of raw key material)

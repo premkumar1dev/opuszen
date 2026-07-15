@@ -39,6 +39,7 @@ import {
 	FiDatabase,
 	FiMail,
 } from "react-icons/fi";
+import { AdminHeader } from "~/components/admin/admin-header";
 
 const TABS = [
 	{ id: "profile", label: "Profile", icon: <FiUser className="w-4 h-4" />, href: "/auth/admin/settings?tab=profile" },

@@ -23,6 +23,7 @@ import {
  FiShield,
  FiAward,
  FiTrendingUp,
+ FiActivity,
 } from "react-icons/fi";
 import {
  Sheet,
@@ -57,6 +58,9 @@ interface Plan {
  sort_order: number;
  created_at: string;
  updated_at: string;
+ price_per_1m_input_tokens: number;
+ price_per_1m_output_tokens: number;
+ min_credits: number;
 }
 
 interface PlanForm {
@@ -69,6 +73,9 @@ interface PlanForm {
  multiplier: string;
  sort_order: string;
  is_active: boolean;
+ price_per_1m_input_tokens: string;
+ price_per_1m_output_tokens: string;
+ min_credits: string;
 }
 
 /* ------------------------------------------------------------------ */
@@ -175,6 +182,9 @@ function PlanSheet({ isOpen, plan, mode, onClose, onSave, saving }: PlanSheetPro
  multiplier: "1",
  sort_order: "0",
  is_active: true,
+ price_per_1m_input_tokens: "0",
+ price_per_1m_output_tokens: "0",
+ min_credits: "0",
  };
 
  const [form, setForm] = useState<PlanForm>(
@@ -189,6 +199,9 @@ function PlanSheet({ isOpen, plan, mode, onClose, onSave, saving }: PlanSheetPro
  multiplier: String(plan.multiplier),
  sort_order: String(plan.sort_order),
  is_active: plan.is_active,
+ price_per_1m_input_tokens: String(plan.price_per_1m_input_tokens ?? 0),
+ price_per_1m_output_tokens: String(plan.price_per_1m_output_tokens ?? 0),
+ min_credits: String(plan.min_credits ?? 0),
  }
  : empty
  );
@@ -225,6 +238,9 @@ function PlanSheet({ isOpen, plan, mode, onClose, onSave, saving }: PlanSheetPro
  multiplier: parseFloat(form.multiplier),
  sort_order: parseInt(form.sort_order) || 0,
  is_active: form.is_active,
+ price_per_1m_input_tokens: parseFloat(form.price_per_1m_input_tokens) || 0,
+ price_per_1m_output_tokens: parseFloat(form.price_per_1m_output_tokens) || 0,
+ min_credits: parseFloat(form.min_credits) || 0,
  });
  onClose();
  };
@@ -382,6 +398,63 @@ function PlanSheet({ isOpen, plan, mode, onClose, onSave, saving }: PlanSheetPro
  </div>
  </div>
 
+ {/* ── Per-Token Pricing (optional, set to 0 for flat pricing) ── */}
+ <div className="p-4 rounded-xl border border-dashed border-indigo-500/30 bg-indigo-500/[0.03]">
+ <p className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider mb-3">
+ Per-Token Pricing{" "}
+ <span className="font-normal text-[10px] normal-case text-muted-foreground">
+ (leave 0 to use flat subscription pricing)
+ </span>
+ </p>
+ <div className="grid grid-cols-2 gap-3">
+ <div>
+ <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+ Input Tokens (per 1M)
+ </label>
+ <Input
+ type="number"
+ step="0.0001"
+ min="0"
+ placeholder="0.00"
+ {...field("price_per_1m_input_tokens")}
+ />
+ <p className="text-[10px] text-muted-foreground mt-1">
+ Cost per 1M input tokens
+ </p>
+ </div>
+ <div>
+ <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+ Output Tokens (per 1M)
+ </label>
+ <Input
+ type="number"
+ step="0.0001"
+ min="0"
+ placeholder="0.00"
+ {...field("price_per_1m_output_tokens")}
+ />
+ <p className="text-[10px] text-muted-foreground mt-1">
+ Cost per 1M output tokens
+ </p>
+ </div>
+ </div>
+ <div className="mt-3">
+ <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+ Min Credits (for pre-paid)
+ </label>
+ <Input
+ type="number"
+ step="0.01"
+ min="0"
+ placeholder="0.00"
+ {...field("min_credits")}
+ />
+ <p className="text-[10px] text-muted-foreground mt-1">
+ Minimum credits to purchase when using per-token pricing
+ </p>
+ </div>
+ </div>
+
  {/* Features */}
  <div>
  <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
@@ -509,6 +582,9 @@ export default function AdminPlansRoute() {
  multiplier: formData.multiplier ?? 1,
  sort_order: formData.sort_order ?? 0,
  is_active: formData.is_active ?? true,
+ price_per_1m_input_tokens: formData.price_per_1m_input_tokens ?? 0,
+ price_per_1m_output_tokens: formData.price_per_1m_output_tokens ?? 0,
+ min_credits: formData.min_credits ?? 0,
  updated_at: new Date().toISOString(),
  };
 
@@ -772,6 +848,11 @@ export default function AdminPlansRoute() {
  {plan.multiplier}x
  </span>
  )}
+ {plan.price_per_1m_input_tokens > 0 && (
+ <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-400/25 text-amber-100 uppercase tracking-wider">
+ Token
+ </span>
+ )}
  </div>
  </div>
 
@@ -793,6 +874,32 @@ export default function AdminPlansRoute() {
  </ul>
  ) : (
  <p className="text-xs text-muted-foreground/60 italic">No features listed</p>
+ )}
+
+ {(plan.price_per_1m_input_tokens > 0 || plan.price_per_1m_output_tokens > 0) && (
+ <div className="mt-3 p-2.5 rounded-lg bg-indigo-500/5 border border-indigo-500/10">
+ <p className="text-[10px] font-semibold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider mb-1.5">
+ Token Pricing
+ </p>
+ <div className="space-y-1">
+ {plan.price_per_1m_input_tokens > 0 && (
+ <div className="flex justify-between text-[11px]">
+ <span className="text-muted-foreground">Input</span>
+ <span className="text-[var(--dashboard-text)] font-mono">
+ {plan.currency} {Number(plan.price_per_1m_input_tokens).toFixed(4)}/M tokens
+ </span>
+ </div>
+ )}
+ {plan.price_per_1m_output_tokens > 0 && (
+ <div className="flex justify-between text-[11px]">
+ <span className="text-muted-foreground">Output</span>
+ <span className="text-[var(--dashboard-text)] font-mono">
+ {plan.currency} {Number(plan.price_per_1m_output_tokens).toFixed(4)}/M tokens
+ </span>
+ </div>
+ )}
+ </div>
+ </div>
  )}
 
  {/* Card Footer */}

@@ -27,6 +27,14 @@ export default [
  file: "routes/admin-login.tsx",
  },
  {
+ path: "/auth/admin/session",
+ file: "routes/auth.admin.session.tsx",
+ },
+ {
+ path: "/auth/admin/logout",
+ file: "routes/auth.admin.logout.tsx",
+ },
+ {
  path: "/auth/admin/dashboard",
  file: "routes/admin-dashboard.tsx",
  },
@@ -97,6 +105,10 @@ export default [
  {
  path: "/user/my-keys",
  file: "routes/user-my-keys.tsx",
+ },
+ {
+ path: "/user/payment",
+ file: "routes/payment.tsx",
  },
  {
  path: "/user/orders",

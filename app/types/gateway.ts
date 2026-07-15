@@ -72,6 +72,14 @@ export interface UserApiKeyRow {
  last_used: string | null;
  created_at: string;
  updated_at: string;
+ plan_name: string;
+ pricing_type: 'flat' | 'per_token';
+ price_per_1m_input_tokens: number;
+ price_per_1m_output_tokens: number;
+ last_prompt_tokens: number;
+ last_completion_tokens: number;
+ total_prompt_tokens: number;
+ total_completion_tokens: number;
 }
 
 export interface UserApiKeyInput {
