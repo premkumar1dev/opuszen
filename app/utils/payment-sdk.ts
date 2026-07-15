@@ -121,9 +121,11 @@ export class PaymentSDK {
 			return response.data;
 		} catch (error) {
 			if (axios.isAxiosError(error)) {
-				throw error.response?.data || error.message;
+				const detail = error.response?.data || error.message || 'Network error';
+				throw new Error(typeof detail === 'string' ? detail : JSON.stringify(detail));
 			}
-			throw error;
+			if (error instanceof Error) throw error;
+			throw new Error(String(error));
 		}
 	}
 }

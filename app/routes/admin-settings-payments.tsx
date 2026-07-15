@@ -191,14 +191,18 @@ export async function action({ request }: ActionFunctionArgs): Promise<ActionDat
 		}
 
 		const orderId = `TEST_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-		const url = `${gatewaySettings.api_base_url}${gatewaySettings.create_order_endpoint}`;
+		// Respect test_mode: use test base URL suffix when in sandbox mode
+		const baseUrl = gatewaySettings.test_mode
+			? gatewaySettings.api_base_url.replace(/\/$/, "") + "/test"
+			: gatewaySettings.api_base_url;
+		const url = `${baseUrl}${gatewaySettings.create_order_endpoint}`;
 
 		const payload = new URLSearchParams({
 			customer_mobile: "9999999999",
 			user_token: gatewaySettings.api_key,
 			amount: String(amt),
 			order_id: orderId,
-			redirect_url: "https://localhost/test-callback",
+			redirect_url: (request.headers.get("x-forwarded-proto") || "http") + "://" + (request.headers.get("host") || "localhost") + "/auth/admin/settings/payments",
 			remark1: "admin_test_payment",
 			remark2: "test",
 		});

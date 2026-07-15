@@ -164,12 +164,13 @@ interface EditUserSheetProps {
 	onClose: () => void;
 	onSave: (user: User) => Promise<void>;
 	onAdd: (user: User) => Promise<void>;
+	onAdd: (user: User) => Promise<void>;
 	onDelete: (id: string) => Promise<void>;
 	saving: boolean;
 }
 
 function EditUserSheet({ user, isNew, onClose, onSave, onAdd, onDelete, saving }: EditUserSheetProps) {
-	const [form, setForm] = useState<Partial<User>>({});
+	const [form, setForm] = useState<Partial<UserForm>>({ password: "" });
 	const [deleting, setDeleting] = useState(false);
 	const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -178,7 +179,7 @@ function EditUserSheet({ user, isNew, onClose, onSave, onAdd, onDelete, saving }
 			setForm({ ...user, password: "" });
 			setErrors({});
 		} else if (isNew) {
-			setForm({ username: "", password: "", name: "", email: "", phone_number: "", account_balance: 0, total_orders: 0, total_spent: 0 });
+			setForm({ id: "", username: "", password: "", name: "", email: "", phone_number: "", account_balance: 0, total_orders: 0, total_spent: 0 } as UserForm);
 			setDeleting(false);
 			setErrors({});
 		}
@@ -226,9 +227,9 @@ function EditUserSheet({ user, isNew, onClose, onSave, onAdd, onDelete, saving }
 		}
 
 		if (isNew) {
-			await onAdd({ ...(form as User), id: crypto.randomUUID() });
+			await onAdd({ ...(form as UserForm), password: form.password ?? "", id: crypto.randomUUID() } as unknown as User);
 		} else {
-			await onSave({ ...user, ...form } as User);
+			await onSave({ ...user, ...form, password: "" } as unknown as User);
 		}
 		onClose();
 	};
@@ -468,9 +469,25 @@ function EditUserSheet({ user, isNew, onClose, onSave, onAdd, onDelete, saving }
 
 async function hashPassword(password: string): Promise<string> {
 	return new Promise((resolve, reject) => {
-		crypto.scrypt(password, "opuszen-users-salt", 64, (err, derivedKey) => {
+		// Per-user random salt prevents rainbow-table attacks
+		const salt = crypto.randomBytes(16).toString("hex");
+		crypto.scrypt(password, salt, 64, (err, derivedKey) => {
 			if (err) reject(err);
-			else resolve(derivedKey.toString("hex"));
+			else resolve(salt + "$" + derivedKey.toString("hex"));
+		});
+	});
+}
+
+async function verifyPassword(password: string, stored: string): Promise<boolean> {
+	return new Promise((resolve, reject) => {
+		const [salt] = stored.split("$");
+		crypto.scrypt(password, salt, 64, (err, derivedKey) => {
+			if (err) return reject(err);
+			// Constant-time comparison
+			const expected = derivedKey.toString("hex");
+			const match = expected.length === stored.length - 33 &&
+				crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(stored.slice(33)));
+			resolve(match);
 		});
 	});
 }
@@ -600,7 +617,7 @@ export default function AdminUsersRoute() {
 		const fd = new FormData();
 		fd.set("intent", "create");
 		fd.set("username", newUser.username);
-		fd.set("password", newUser.password);
+		fd.set("password", (newUser as any).password);
 		fd.set("name", newUser.name);
 		fd.set("email", newUser.email || "");
 		fd.set("phone_number", newUser.phone_number || "");
@@ -645,6 +662,7 @@ export default function AdminUsersRoute() {
 	}, [fetcher]);
 
 	const handleExport = () => {
+		// Deliberately exclude password_hash from export
 		const csv = [
 			["Username", "Name", "Email", "Phone Number", "Account Balance", "Total Orders", "Total Spent", "Created At"].join(","),
 			...allUsers.map((u) =>

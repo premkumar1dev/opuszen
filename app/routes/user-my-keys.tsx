@@ -139,6 +139,8 @@ export default function UserMyKeysRoute() {
 	const [plansLoading, setPlansLoading] = useState(false);
 	const [gatewayName, setGatewayName] = useState("PAY0");
 	const pendingOrderIdRef = useRef<string | null>(null);
+	// Stores the DB UUID of the pending order so finalizePaidOrder can target it precisely
+	const pendingOrderDbIdRef = useRef<string | null>(null);
 
 	// Refs for values read inside the verification interval (avoids stale closures)
 	const searchParamsRef = useRef(searchParams);
@@ -206,7 +208,7 @@ export default function UserMyKeysRoute() {
 						clearInterval(interval);
 						setVerificationStatus("failed");
 						setVerificationMessage("Payment gateway returned an error (HTTP " + res.status + "). Please contact support with your Order ID: " + oid);
-						sessionStorage.removeItem(`gateway_order_${oid}`);
+						if (oid) sessionStorage.removeItem(`gateway_order_${oid}`);
 						setTimeout(() => setSearchParamsRef.current({}), 5000);
 						return;
 					}
@@ -217,7 +219,7 @@ export default function UserMyKeysRoute() {
 						clearInterval(interval);
 						setVerificationStatus("failed");
 						setVerificationMessage(result.message || "Payment gateway rejected the request. Please contact support.");
-						sessionStorage.removeItem(`gateway_order_${oid}`);
+						if (oid) sessionStorage.removeItem(`gateway_order_${oid}`);
 						setTimeout(() => setSearchParamsRef.current({}), 5000);
 						return;
 					}
@@ -265,7 +267,7 @@ export default function UserMyKeysRoute() {
 							amount: result.result?.amount || "0",
 						});
 
-						sessionStorage.removeItem(`gateway_order_${oid}`);
+						if (oid) sessionStorage.removeItem(`gateway_order_${oid}`);
 
 						// Refresh keys list to show the newly created key
 						await fetchKeys();
@@ -279,7 +281,7 @@ export default function UserMyKeysRoute() {
 						clearInterval(interval);
 						setVerificationStatus("failed");
 						setVerificationMessage("Verification returned FAILED status. Please try again or contact support.");
-						sessionStorage.removeItem(`gateway_order_${oid}`);
+						if (oid) sessionStorage.removeItem(`gateway_order_${oid}`);
 						setTimeout(() => {
 							setSearchParamsRef.current({});
 						}, 5000);
@@ -366,12 +368,13 @@ export default function UserMyKeysRoute() {
 		transactionRef: string;
 		keyName: string;
 	}): Promise<{ id: string }> {
-		const { data: sessionData } = await supabase.auth.getSession();
-		const userId = sessionData.session?.user.id;
-
+		// Use state user first (avoids redundant getSession call); fall back only if needed
+		let userId = user?.id;
 		if (!userId) {
-			throw new Error("You must be logged in to purchase a plan");
+			const { data: sessionData } = await supabase.auth.getSession();
+			userId = sessionData.session?.user?.id;
 		}
+		if (!userId) throw new Error("You must be logged in to purchase a plan");
 
 		// Create a pending order record so the admin can audit it
 		const { data: orderRow, error } = await supabase
@@ -394,7 +397,9 @@ export default function UserMyKeysRoute() {
 			throw new Error(error?.message || "Failed to create order");
 		}
 
-		return orderRow;
+		// Store DB ID so finalizePaidOrder targets the correct record
+	pendingOrderDbIdRef.current = orderRow.id;
+	return orderRow;
 	}
 
 	/* Process a successful payment return - finalize the API key */
@@ -413,8 +418,10 @@ export default function UserMyKeysRoute() {
 		const { data: sessionData } = await supabase.auth.getSession();
 		const userId = sessionData.session?.user.id;
 
-		// Update the order to "paid"
-		if (userId) {
+		// Update the specific order to "paid" — filter by DB UUID to avoid
+		// accidentally marking ALL of a user's pending orders as paid
+		const orderDbId = pendingOrderDbIdRef.current;
+		if (userId && orderDbId) {
 			await supabase
 				.from("orders")
 				.update({
@@ -424,8 +431,10 @@ export default function UserMyKeysRoute() {
 						successData.utr ? ` (UTR ${successData.utr})` : ""
 					}`,
 				})
-				.eq("user_id", userId)
+				.eq("id", orderDbId)
 				.eq("status", "pending");
+			// Clear the ref so retries don't double-match
+			pendingOrderDbIdRef.current = null;
 		}
 
 		// Create the API key with plan settings
@@ -465,21 +474,9 @@ export default function UserMyKeysRoute() {
 		}
 	}
 
-	/* Handle payment redirect: /user/my-keys?payment=success|failed */
-	useEffect(() => {
-		const params = new URLSearchParams(window.location.search);
-		const result = params.get("payment");
-		if (result === "success") {
-			const raw = sessionStorage.getItem("payment_last_success");
-			if (raw) {
-				try {
-					const data = JSON.parse(raw);
-					finalizePaidOrder(data);
-					sessionStorage.removeItem("payment_last_success");
-				} catch {}
-			}
-		}
-	}, []);
+	// Payment success is handled entirely by the ?payment=verify polling effect above.
+	// This previous ?payment=success handler (which read from sessionStorage key
+	// "payment_last_success") was dead code — that key is never written.
 
 	async function deleteKey(id: string) {
 		try { await supabase.from("api_keys").delete().eq("id", id); setKeys((k) => k.filter((k) => k.id !== id)); } catch { }

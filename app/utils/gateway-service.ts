@@ -356,18 +356,21 @@ export async function handleGatewayRequest(
  let lastStatusCode = 0;
  let masterKey: MasterApiKeyRow | null = null;
 
- for (const candidate of activeKeys) {
- masterKey = candidate;
+	// When failover is disabled, only try the first (highest-priority) key.
+	// Bug fix: the original condition 'retryNumber > 0' broke the loop after a single
+	// retry even when failover was enabled, so secondary keys were never tried.
+	const keysToTry = failoverEnabled ? activeKeys : [activeKeys[0]];
 
- if (!failoverEnabled && retryNumber > 0) break;
+	for (const candidate of keysToTry) {
+		masterKey = candidate;
 
- const config = getProviderConfig(candidate.provider);
- const url = buildProviderUrl(candidate.provider, ctx.model);
- const headers = buildProviderHeaders(candidate.provider, candidate);
- const body = transformRequestBody(candidate.provider, {
- ...request,
- model: ctx.model,
- });
+		const config = getProviderConfig(candidate.provider);
+		const url = buildProviderUrl(candidate.provider, ctx.model);
+		const headers = buildProviderHeaders(candidate.provider, candidate);
+		const body = transformRequestBody(candidate.provider, {
+			...request,
+			model: ctx.model,
+		});
 
  const fetchStart = Date.now();
  let response: Response;
@@ -507,21 +510,21 @@ export async function handleGatewayRequest(
  // Record user key usage
  if (ctx.userApiKey.id) {
  const planPricing = isPerTokenPlan
-	 ? { input: planInputPrice, output: planOutputPrice }
-	 : null;
+		? { input: planInputPrice, output: planOutputPrice }
+		: null;
 
  // Update token counters on user key
  const keyUpdates: any = {
-	 last_prompt_tokens: usage.promptTokens,
-	 last_completion_tokens: usage.completionTokens,
+		last_prompt_tokens: usage.promptTokens,
+		last_completion_tokens: usage.completionTokens,
  };
  const existingKey = ctx.userApiKey as any;
  if (existingKey) {
-	 keyUpdates.total_prompt_tokens = (existingKey.total_prompt_tokens ?? 0) + usage.promptTokens;
-	 keyUpdates.total_completion_tokens = (existingKey.total_completion_tokens ?? 0) + usage.completionTokens;
+		keyUpdates.total_prompt_tokens = (existingKey.total_prompt_tokens ?? 0) + usage.promptTokens;
+		keyUpdates.total_completion_tokens = (existingKey.total_completion_tokens ?? 0) + usage.completionTokens;
  }
  try {
-	 await supabase.from('user_api_keys').update(keyUpdates).eq('id', ctx.userApiKey.id);
+		await supabase.from('user_api_keys').update(keyUpdates).eq('id', ctx.userApiKey.id);
  } catch { /* best-effort */ }
 
  await recordUserKeyUsage(ctx.userApiKey.id, usage.totalTokens, credits, true, planPricing);
