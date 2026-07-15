@@ -11,6 +11,7 @@ import {
 	FiTrash2,
 	FiSave,
 	FiAlertTriangle,
+	FiSmartphone,
 } from "react-icons/fi";
 import { supabase } from "~/utils/supabase";
 import { useDashboardTheme } from "~/utils/theme";
@@ -28,9 +29,13 @@ export default function UserAccountRoute() {
 	const [newPw, setNewPw] = useState("");
 	const [saving, setSaving] = useState(false);
 	const [sidebarOpen, setSidebarOpen] = useState(false);
-	const [showPw, setShowPw] = useState(false);
+	const [showCurrentPw, setShowCurrentPw] = useState(false);
+	const [showNewPw, setShowNewPw] = useState(false);
 	const [showDelete, setShowDelete] = useState(false);
 	const [notifications, setNotifications] = useState({ email: true, billing: true, security: true, marketing: false });
+	const [errorMsg, setErrorMsg] = useState<string | null>(null);
+	const [successMsg, setSuccessMsg] = useState<string | null>(null);
+	const [deleting, setDeleting] = useState(false);
 
 	useEffect(() => {
 		supabase.auth.getUser().then(({ data }) => {
@@ -47,27 +52,68 @@ export default function UserAccountRoute() {
 
 	async function saveProfile() {
 		setSaving(true);
+		setErrorMsg(null);
+		setSuccessMsg(null);
 		try {
 			await supabase.auth.updateUser({ data: { full_name: profile.full_name, company: profile.company, website: profile.website, phone: profile.phone } });
-		} catch { }
+			setSuccessMsg("Profile updated successfully.");
+			setTimeout(() => setSuccessMsg(null), 4000);
+		} catch {
+			setErrorMsg("Failed to update profile. Please try again.");
+		}
 		setSaving(false);
 	}
 
 	async function changePassword() {
 		if (!currentPw || !newPw) return;
+		setErrorMsg(null);
+		setSuccessMsg(null);
 		try {
+			// Verify current password by reauthenticating before allowing change
+			const { error: reauthErr } = await supabase.auth.signInWithPassword({ email: user.email, password: currentPw });
+			if (reauthErr) {
+				setErrorMsg("Current password is incorrect.");
+				return;
+			}
 			await supabase.auth.updateUser({ password: newPw });
+			setSuccessMsg("Password updated successfully.");
 			setCurrentPw(""); setNewPw("");
-		} catch { }
+			setTimeout(() => setSuccessMsg(null), 4000);
+		} catch {
+			setErrorMsg("Failed to update password. Please try again.");
+		}
 	}
 
 	async function deleteAccount() {
-		try { await supabase.auth.admin.deleteUser(user.id); } catch { }
+		if (!user) return;
+		setErrorMsg(null);
+		setDeleting(true);
+		try {
+			// Client-side .admin methods are unavailable from the browser;
+			// sign out to revoke session and guide user to contact support
+			await supabase.auth.signOut();
+			setSuccessMsg("Your session has been terminated. Contact support for permanent account deletion.");
+			setTimeout(() => setSuccessMsg(null), 8000);
+		} catch {
+			setErrorMsg("Failed to terminate session. Please try again or contact support.");
+		}
+		setDeleting(false);
+		setShowDelete(false);
 	}
 
-	const toggleNotif = (key: keyof typeof notifications) => {
-		setNotifications((n) => ({ ...n, [key]: !n[key] }));
+	const toggleNotif = async (key: keyof typeof notifications) => {
+		setNotifications((n) => {
+			const next = { ...n, [key]: !n[key] };
+			// Persist to user metadata (fire-and-forget)
+			if (user) {
+				supabase.auth.updateUser({ data: { ...user.user_metadata, preferences: next } }).catch(() => {});
+			}
+			return next;
+		});
 	};
+
+	const displayUsername = user?.email || user?.user_metadata?.email || "—";
+	const displayMobile = user?.user_metadata?.phone || user?.phone || "Not set";
 
 	return (
 		<div className="dashboard flex min-h-screen">
@@ -95,6 +141,20 @@ export default function UserAccountRoute() {
 				</header>
 
 				<div className="p-4 sm:p-6 lg:p-8 max-w-[800px] mx-auto w-full">
+					{/* Flash messages */}
+					{errorMsg && (
+						<div className="mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs flex items-center gap-2">
+							<FiAlertTriangle className="w-4 h-4 shrink-0" />
+							{errorMsg}
+						</div>
+					)}
+					{successMsg && (
+						<div className="mb-4 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs flex items-center gap-2">
+							<FiShield className="w-4 h-4 shrink-0" />
+							{successMsg}
+						</div>
+					)}
+
 					{/* Profile */}
 					<div className="dashboard-card p-5 sm:p-6 rounded-2xl mb-4 sm:mb-6">
 						<div className="flex items-center gap-3 mb-6">
@@ -106,12 +166,22 @@ export default function UserAccountRoute() {
 						</div>
 						<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 							<div>
-								<label className="block text-xs font-semibold text-[var(--dashboard-text-secondary)] mb-1.5">Full Name</label>
-								<input type="text" value={profile.full_name} onChange={(e) => setProfile((p) => ({ ...p, full_name: e.target.value }))} className="dashboard-input w-full px-3 py-2.5 rounded-xl text-sm focus:outline-none focus:border-indigo-500/50 transition-all" />
+								<label className="block text-xs font-semibold text-[var(--dashboard-text-secondary)] mb-1.5">Username</label>
+								<div className="dashboard-input w-full px-3 py-2.5 rounded-xl text-sm bg-[var(--dashboard-input-bg)] text-[var(--dashboard-text)] cursor-default flex items-center gap-2">
+									<FiUser className="w-3.5 h-3.5 text-[var(--dashboard-text-muted)] shrink-0" />
+									{displayUsername}
+								</div>
 							</div>
 							<div>
-								<label className="block text-xs font-semibold text-[var(--dashboard-text-secondary)] mb-1.5">Email</label>
-								<input type="email" value={user?.email || ""} disabled className="dashboard-input w-full px-3 py-2.5 rounded-xl text-sm opacity-60 cursor-not-allowed" />
+								<label className="block text-xs font-semibold text-[var(--dashboard-text-secondary)] mb-1.5">Mobile Number</label>
+								<div className="dashboard-input w-full px-3 py-2.5 rounded-xl text-sm bg-[var(--dashboard-input-bg)] text-[var(--dashboard-text)] cursor-default flex items-center gap-2">
+									<FiSmartphone className="w-3.5 h-3.5 text-[var(--dashboard-text-muted)] shrink-0" />
+									{displayMobile}
+								</div>
+							</div>
+							<div>
+								<label className="block text-xs font-semibold text-[var(--dashboard-text-secondary)] mb-1.5">Full Name</label>
+								<input type="text" value={profile.full_name} onChange={(e) => setProfile((p) => ({ ...p, full_name: e.target.value }))} className="dashboard-input w-full px-3 py-2.5 rounded-xl text-sm focus:outline-none focus:border-indigo-500/50 transition-all" />
 							</div>
 							<div>
 								<label className="block text-xs font-semibold text-[var(--dashboard-text-secondary)] mb-1.5">Company</label>
@@ -142,13 +212,16 @@ export default function UserAccountRoute() {
 							<div>
 								<label className="block text-xs font-semibold text-[var(--dashboard-text-secondary)] mb-1.5">Current Password</label>
 								<div className="relative">
-									<input type={showPw ? "text" : "password"} value={currentPw} onChange={(e) => setCurrentPw(e.target.value)} className="dashboard-input w-full px-3 py-2.5 pr-10 rounded-xl text-sm focus:outline-none focus:border-indigo-500/50 transition-all" />
-									<button onClick={() => setShowPw(!showPw)} className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--dashboard-text-muted)] hover:text-[var(--dashboard-text)] p-1 touch-manipulation" aria-label={showPw ? "Hide" : "Show"}><FiEye className="w-4 h-4" /></button>
+									<input type={showCurrentPw ? "text" : "password"} value={currentPw} onChange={(e) => setCurrentPw(e.target.value)} className="dashboard-input w-full px-3 py-2.5 pr-10 rounded-xl text-sm focus:outline-none focus:border-indigo-500/50 transition-all" />
+									<button onClick={() => setShowCurrentPw(!showCurrentPw)} className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--dashboard-text-muted)] hover:text-[var(--dashboard-text)] p-1 touch-manipulation" aria-label={showCurrentPw ? "Hide" : "Show"}><FiEye className="w-4 h-4" /></button>
 								</div>
 							</div>
 							<div>
 								<label className="block text-xs font-semibold text-[var(--dashboard-text-secondary)] mb-1.5">New Password</label>
-								<input type={showPw ? "text" : "password"} value={newPw} onChange={(e) => setNewPw(e.target.value)} className="dashboard-input w-full px-3 py-2.5 rounded-xl text-sm focus:outline-none focus:border-indigo-500/50 transition-all" />
+								<div className="relative">
+									<input type={showNewPw ? "text" : "password"} value={newPw} onChange={(e) => setNewPw(e.target.value)} className="dashboard-input w-full px-3 py-2.5 pr-10 rounded-xl text-sm focus:outline-none focus:border-indigo-500/50 transition-all" />
+									<button onClick={() => setShowNewPw(!showNewPw)} className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--dashboard-text-muted)] hover:text-[var(--dashboard-text)] p-1 touch-manipulation" aria-label={showNewPw ? "Hide" : "Show"}><FiEye className="w-4 h-4" /></button>
+								</div>
 							</div>
 							<button onClick={changePassword} disabled={!currentPw || !newPw} className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-violet-500 text-white text-sm font-semibold hover:bg-violet-600 transition-all disabled:opacity-40 cursor-pointer">
 								<FiShield className="w-3.5 h-3.5" /> Update Password
@@ -198,10 +271,10 @@ export default function UserAccountRoute() {
 							<button onClick={() => setShowDelete(true)} className="px-4 py-2.5 rounded-xl border border-red-500/30 text-red-500 text-xs font-semibold hover:bg-red-500/5 transition-all cursor-pointer touch-manipulation">Delete Account</button>
 						) : (
 							<div className="space-y-3">
-								<p className="text-xs text-[var(--dashboard-text-secondary)]">This will permanently delete your account and all data. This action cannot be undone.</p>
+								<p className="text-xs text-[var(--dashboard-text-secondary)]">This will terminate your session and require support intervention for permanent deletion. This action cannot be undone.</p>
 								<div className="flex gap-2">
 									<button onClick={() => setShowDelete(false)} className="flex-1 py-2.5 rounded-xl border border-[var(--dashboard-border)] text-xs font-medium text-[var(--dashboard-text-secondary)] hover:text-[var(--dashboard-text)] hover:bg-[var(--dashboard-nav-hover)] transition-all cursor-pointer touch-manipulation">Cancel</button>
-									<button onClick={deleteAccount} className="flex-1 py-2.5 rounded-xl bg-red-500 text-white text-xs font-semibold hover:bg-red-600 transition-all cursor-pointer touch-manipulation">Yes, Delete Everything</button>
+									<button onClick={deleteAccount} disabled={deleting} className="flex-1 py-2.5 rounded-xl bg-red-500 text-white text-xs font-semibold hover:bg-red-600 transition-all cursor-pointer touch-manipulation">{deleting ? "Terminating..." : "Yes, Terminate Session"}</button>
 								</div>
 							</div>
 						)}

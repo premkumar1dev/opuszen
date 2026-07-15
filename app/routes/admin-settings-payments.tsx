@@ -262,10 +262,10 @@ export default function AdminSettingsPaymentsRoute() {
 	const isSubmitting = navigation.state === "submitting";
 
 	const defaultSettings = {
-		gateway_name: "KhiladiXPro",
+		gateway_name: "UPICheckout",
 		is_active: true,
 		api_key: "",
-		api_base_url: "https://khilaadixpro.shop",
+		api_base_url: "https://upicheckout.online",
 		create_order_endpoint: "/api/create-order",
 		check_status_endpoint: "/api/check-order-status",
 		webhook_secret: "",

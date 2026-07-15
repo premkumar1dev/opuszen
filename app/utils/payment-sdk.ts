@@ -51,21 +51,22 @@ export interface CheckOrderResponse {
 }
 
 /* ------------------------------------------------------------------ */
-/* Configuration */
-/* ------------------------------------------------------------------ */
-
-const PAYMENT_BASE_URL =
-	import.meta?.env?.VITE_PAYMENT_BASE_URL || "https://khilaadixpro.shop";
-
-/* ------------------------------------------------------------------ */
 /* SDK Class */
 /* ------------------------------------------------------------------ */
 
-class PaymentSDK {
+export class PaymentSDK {
 	private baseUrl: string;
+	private createOrderEndpoint: string;
+	private checkStatusEndpoint: string;
 
-	constructor(baseUrl: string = PAYMENT_BASE_URL) {
+	constructor(
+		baseUrl: string,
+		createOrderEndpoint: string,
+		checkStatusEndpoint: string
+	) {
 		this.baseUrl = baseUrl.replace(/\/$/, "");
+		this.createOrderEndpoint = createOrderEndpoint.startsWith("/") ? createOrderEndpoint : `/${createOrderEndpoint}`;
+		this.checkStatusEndpoint = checkStatusEndpoint.startsWith("/") ? checkStatusEndpoint : `/${checkStatusEndpoint}`;
 	}
 
 	/**
@@ -80,7 +81,7 @@ class PaymentSDK {
 				params.set(k, v);
 			}
 			const response: AxiosResponse<CreateOrderResponse> = await axios.post(
-				`${this.baseUrl}/api/create-order`,
+				`${this.baseUrl}${this.createOrderEndpoint}`,
 				params.toString(),
 				{
 					headers: {
@@ -90,16 +91,9 @@ class PaymentSDK {
 				}
 			);
 			return response.data;
-		} catch (error) {
-			if (axios.isAxiosError(error)) {
-				return (
-					error.response?.data || {
-						status: false,
-						message: "Network error",
-					}
-				);
-			}
-			return { status: false, message: "Unexpected error" };
+		} catch (error: any) {
+			const detail = error?.response?.data || error?.message || "Network error";
+			throw new Error(typeof detail === 'string' ? detail : JSON.stringify(detail));
 		}
 	}
 
@@ -115,7 +109,7 @@ class PaymentSDK {
 				params.set(k, v);
 			}
 			const response: AxiosResponse<CheckOrderResponse> = await axios.post(
-				`${this.baseUrl}/api/check-order-status`,
+				`${this.baseUrl}${this.checkStatusEndpoint}`,
 				params.toString(),
 				{
 					headers: {
@@ -135,12 +129,6 @@ class PaymentSDK {
 }
 
 /* ------------------------------------------------------------------ */
-/* Singleton */
-/* ------------------------------------------------------------------ */
-
-export const paymentSDK = new PaymentSDK();
-
-/* ------------------------------------------------------------------ */
 /* Helpers */
 /* ------------------------------------------------------------------ */
 
@@ -149,6 +137,7 @@ export function getPaymentUrl(
 ): string | null {
 	if (!response.result) return null;
 	const url =
+		response.result.payment_url ||
 		response.result.paymentUrl ||
 		response.result.payment_link ||
 		response.result.checkoutUrl ||
@@ -161,7 +150,10 @@ export function getPaymentUrl(
 /** Build a stable user token from Supabase user id */
 export function buildUserToken(userId: string): string {
 	const raw = `opuszen_${userId}_${Date.now().toString(36)}`;
-	return btoa(raw).replace(/[+/=]/g, "").slice(0, 32);
+	// Use TextEncoder to safely encode any string (avoids btoa() non-Latin1 crash)
+	const bytes = new TextEncoder().encode(raw);
+	const binary = Array.from(bytes, (b) => String.fromCharCode(b)).join("");
+	return btoa(binary).replace(/[+/=]/g, "").slice(0, 32);
 }
 
 /** Extract a phone-like string from a user profile */

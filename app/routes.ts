@@ -107,10 +107,6 @@ export default [
  file: "routes/user-my-keys.tsx",
  },
  {
- path: "/user/payment",
- file: "routes/payment.tsx",
- },
- {
  path: "/user/orders",
  file: "routes/user-orders.tsx",
  },
@@ -161,6 +157,10 @@ export default [
  {
  path: "/api/key-status",
  file: "routes/api.key-status.tsx",
+ },
+ {
+ path: "/api/payment",
+ file: "routes/api.payment.tsx",
  },
  {
  path: "/dashboard/*",

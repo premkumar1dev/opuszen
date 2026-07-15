@@ -70,8 +70,8 @@ export default function UserOrdersRoute() {
 		setLoading(true);
 		try {
 			const { data: { session } } = await supabase.auth.getSession();
-			if (!session) return;
-			const { data } = await supabase.from("orders").select("*").eq("user_id", session.user.id).order("created_at", { ascending: false });
+			if (!session || !session.user?.email) return;
+			const { data } = await supabase.from("orders").select("*").eq("username", session.user.email).order("created_at", { ascending: false });
 			if (data) setOrders(data as Order[]);
 		} catch { }
 		setLoading(false);

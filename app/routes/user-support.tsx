@@ -13,7 +13,11 @@ import {
 	FiLoader,
 	FiX,
 } from "react-icons/fi";
+import { FaWhatsapp } from "react-icons/fa";
 import { supabase } from "~/utils/supabase";
+
+const WHATSAPP_NUMBER = "918098830937"; // international format, no '+' or spaces
+const WHATSAPP_LINK = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent("Hi, I need support with Opuszen.")}`;
 import { useDashboardTheme } from "~/utils/theme";
 
 interface Ticket {
@@ -58,6 +62,9 @@ export default function UserSupportRoute() {
 	const [selected, setSelected] = useState<Ticket | null>(null);
 	const [search, setSearch] = useState("");
 
+	const filtered = tickets.filter((t) => !search || t.subject.toLowerCase().includes(search.toLowerCase()) || t.message.toLowerCase().includes(search.toLowerCase()));
+	const openCount = tickets.filter((t) => t.status === "open").length;
+
 	useEffect(() => {
 		supabase.auth.getUser().then(({ data }) => setUser(data.user));
 		fetchTickets();
@@ -85,9 +92,6 @@ export default function UserSupportRoute() {
 		} catch { }
 		setSubmitting(false);
 	}
-
-	const filtered = tickets.filter((t) => !search || t.subject.toLowerCase().includes(search.toLowerCase()) || t.message.toLowerCase().includes(search.toLowerCase()));
-	const openCount = tickets.filter((t) => t.status === "open").length;
 
 	return (
 		<div className="dashboard flex min-h-screen">
@@ -120,7 +124,7 @@ export default function UserSupportRoute() {
 					<div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-6 sm:mb-8">
 						{[
 							{ icon: FiBookOpen, title: "Documentation", desc: "Browse guides and API docs", to: "/docs" },
-							{ icon: FiMessageCircle, title: "Live Chat", desc: "Chat with our support team" },
+							{ icon: FaWhatsapp, title: "Live Chat", desc: "Chat with us on WhatsApp", action: () => window.open(WHATSAPP_LINK, "_blank") },
 							{ icon: FiMail, title: "Email Support", desc: "support@opuszen.com", action: () => window.location.href = "mailto:support@opuszen.com" },
 						].map((item, i) => (
 							<div key={i} onClick={item.action} className="dashboard-card p-4 sm:p-5 rounded-2xl dashboard-card-hover transition-all cursor-pointer touch-manipulation active:scale-[0.98]">

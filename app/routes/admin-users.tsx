@@ -175,7 +175,7 @@ function EditUserSheet({ user, isNew, onClose, onSave, onAdd, onDelete, saving }
 
 	useEffect(() => {
 		if (user) {
-			setForm({ ...user });
+			setForm({ ...user, password: "" });
 			setErrors({});
 		} else if (isNew) {
 			setForm({ username: "", password: "", name: "", email: "", phone_number: "", account_balance: 0, total_orders: 0, total_spent: 0 });
@@ -197,7 +197,8 @@ function EditUserSheet({ user, isNew, onClose, onSave, onAdd, onDelete, saving }
 		else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errs.email = "Enter a valid email address";
 		if (!username) errs.username = "Username is required";
 		else if (!/^[a-zA-Z0-9_]+$/.test(username)) errs.username = "Only letters, numbers, and underscores";
-		if (!password) errs.password = "Password is required";
+		// Password is required for new users, optional for edits (leave blank to keep current)
+		if (isNew && !password) errs.password = "Password is required";
 		if (password.length > 0 && password.length < 6) errs.password = "Minimum 6 characters";
 		if (!phone) errs.phone_number = "Phone number is required";
 		else if (!/^\+?[\d\s-]{7,15}$/.test(phone)) errs.phone_number = "Enter a valid phone number";
@@ -329,13 +330,13 @@ function EditUserSheet({ user, isNew, onClose, onSave, onAdd, onDelete, saving }
 
 		<div>
 		<label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
-		Password
+		{isNew ? "Password" : "New Password"}
 		</label>
 		<Input
 		type="password"
 		value={form.password ?? ""}
 		onChange={(e) => { setForm((f) => ({ ...f, password: e.target.value })); setErrors((e) => ({ ...e, password: "" })); }}
-		placeholder="Password"
+		placeholder={isNew ? "Min 6 characters" : "Leave blank to keep current"}
 		className={errors.password ? "border-red-500 focus-visible:ring-red-500" : ""}
 		/>
 		<FieldError field="password" />
@@ -465,8 +466,13 @@ function EditUserSheet({ user, isNew, onClose, onSave, onAdd, onDelete, saving }
 /* Server Actions (password hashing happens server-side) */
 /* ------------------------------------------------------------------ */
 
-function hashPassword(password: string): string {
-	return crypto.scryptSync(password, "opuszen-users-salt", 64).toString("hex");
+async function hashPassword(password: string): Promise<string> {
+	return new Promise((resolve, reject) => {
+		crypto.scrypt(password, "opuszen-users-salt", 64, (err, derivedKey) => {
+			if (err) reject(err);
+			else resolve(derivedKey.toString("hex"));
+		});
+	});
 }
 
 export async function action({ request }: ActionFunctionArgs) {
@@ -491,7 +497,7 @@ export async function action({ request }: ActionFunctionArgs) {
 				return data({ error: "Username, password, and name are required." }, { status: 400 });
 			}
 
-			const hashedPassword = hashPassword(password);
+			const hashedPassword = await hashPassword(password);
 
 			const { data: dbData, error } = await supabaseServer
 				.from("users")
@@ -581,7 +587,7 @@ export default function AdminUsersRoute() {
 
 	const refresh = useCallback(async () => {
 		setLoading(true);
-		const { data, error } = await supabase
+		const { data, error } = await supabaseServer
 			.from("users")
 			.select("*")
 			.order("created_at", { ascending: false });
@@ -603,11 +609,7 @@ export default function AdminUsersRoute() {
 		fd.set("total_spent", String(newUser.total_spent ?? 0));
 
 		await fetcher.submit(fd, { method: "post" });
-		if (fetcher.data?.user) {
-			setAllUsers((prev) => [fetcher.data.user as User, ...prev]);
-		} else if (fetcher.data?.error) {
-			alert("Failed: " + fetcher.data.error);
-		}
+		await refresh(); // reload from server for authoritative data
 		setSaving(false);
 	}, [fetcher]);
 
@@ -628,11 +630,7 @@ export default function AdminUsersRoute() {
 		fd.set("total_spent", String(updated.total_spent ?? 0));
 
 		await fetcher.submit(fd, { method: "post" });
-		if (!fetcher.data?.error) {
-			setAllUsers((prev) => prev.map((u) => (u.id === updated.id ? updated : u)));
-		} else {
-			alert("Failed to save: " + (fetcher.data?.error ?? "Unknown error"));
-		}
+		await refresh(); // reload from server for authoritative data
 		setSaving(false);
 	}, [fetcher]);
 
@@ -642,12 +640,7 @@ export default function AdminUsersRoute() {
 		fd.set("intent", "delete");
 		fd.set("id", id);
 		await fetcher.submit(fd, { method: "post" });
-		if (!fetcher.data?.error) {
-			setAllUsers((prev) => prev.filter((u) => u.id !== id));
-			setPage(1);
-		} else {
-			alert("Failed to delete: " + (fetcher.data?.error ?? "Unknown error"));
-		}
+		await refresh(); // reload from server
 		setSaving(false);
 	}, [fetcher]);
 
@@ -684,6 +677,7 @@ export default function AdminUsersRoute() {
 			setSortField(field);
 			setSortDir("asc");
 		}
+		setPage(1);
 	};
 
 	// Filter & sort
@@ -715,7 +709,10 @@ export default function AdminUsersRoute() {
 	});
 
 	const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
-	const paginated = sorted.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+	const safePage = Math.min(page, totalPages);
+	const paginated = sorted.length > 0
+		? sorted.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
+		: [];
 
 	const activeFilterCount = filters.search ? 1 : 0;
 
@@ -932,11 +929,6 @@ export default function AdminUsersRoute() {
 		</div>
 		</td>
 
-		{/* Password */}
-		<td className="px-4 py-3 font-mono text-xs text-muted-foreground">
-		{"•••••••••••"}
-		</td>
-
 		{/* Created At */}
 		<td className="px-4 py-3 text-xs text-muted-foreground">
 		{formatDate(user.created_at)}
@@ -1004,12 +996,15 @@ export default function AdminUsersRoute() {
 		>
 		<FiChevronLeft className="w-4 h-4" />
 		</Button>
-		{Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
-		const p = i + 1;
+{Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+		const maxVisible = Math.min(totalPages, 5);
+		const half = Math.floor(maxVisible / 2);
+		const start = Math.max(1, Math.min(safePage - half, totalPages - maxVisible + 1));
+		const p = start + i;
 		return (
 		<Button
 		key={p}
-		variant={page === p ? "default" : "ghost"}
+		variant={safePage === p ? "default" : "ghost"}
 		size="sm"
 		className="w-8 h-8 p-0"
 		onClick={() => setPage(p)}

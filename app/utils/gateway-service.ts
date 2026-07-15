@@ -120,7 +120,7 @@ function getProviderConfig(provider: string): ProviderConfig {
   for (const key of Object.keys(PROVIDER_CONFIGS)) {
   if (key.toLowerCase() === normalized) return PROVIDER_CONFIGS[key];
   }
-  return PROVIDER_CONFIGS['OpenAI'];
+  throw new Error(`Unsupported provider: "${provider}". Configure it in PROVIDER_CONFIGS.`);
 }
 
 // ---------------------------------------------------------------------------
@@ -218,7 +218,14 @@ function transformRequestBody(
  messages: otherMsgs.map((m) => {
  const role = m.role as string;
  if (role === 'assistant') return { role: 'assistant', content: m.content };
- if (role === 'tool') return { role: 'user', content: m.content } as any;
+ if (role === 'tool') {
+ const toolMsg = m as any;
+ return { role: 'user', content: [{
+ type: 'tool_result',
+ tool_use_id: toolMsg.tool_call_id || '',
+ content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content),
+ }]};
+ }
  return { role: 'user', content: m.content };
  }),
  stream: false,
@@ -244,9 +251,9 @@ function transformResponse(
  finish_reason: c.stop_reason ?? 'stop',
  })) ?? [],
  usage: body.usage ? {
- promptTokens: body.usage.input_tokens,
- completionTokens: body.usage.output_tokens,
- totalTokens: body.usage.input_tokens + body.usage.output_tokens,
+ promptTokens: Number(body.usage.input_tokens ?? 0),
+ completionTokens: Number(body.usage.output_tokens ?? 0),
+ totalTokens: Number(body.usage.input_tokens ?? 0) + Number(body.usage.output_tokens ?? 0),
  } : undefined,
  provider,
  };
@@ -273,9 +280,10 @@ function sanitizeErrorMessage(message: string, statusCode: number): string {
  if (statusCode === 402 || statusCode === 413) {
  return 'Request quota exceeded.';
  }
- // For client errors (400, 401, 403, 404), include limited info
+ // Client errors: return only the message (already filtered upstream)
+ // but cap at 200 chars to prevent information disclosure
  if (statusCode >= 400 && statusCode < 500) {
- return message;
+ return message.length > 200 ? message.slice(0, 197) + '...' : message;
  }
  return 'Request failed. Please try again.';
 }
@@ -364,12 +372,15 @@ export async function handleGatewayRequest(
  const fetchStart = Date.now();
  let response: Response;
  try {
+ const controller = new AbortController();
+ const timeoutId = setTimeout(() => controller.abort(), requestTimeoutMs);
  response = await fetch(url, {
  method: 'POST',
  headers,
  body: JSON.stringify(body),
- signal: AbortSignal.timeout(requestTimeoutMs),
+ signal: controller.signal,
  });
+ clearTimeout(timeoutId);
  } catch (fetchErr: any) {
  const errorMsg = fetchErr?.message ?? 'Network error';
  lastError = errorMsg;
@@ -401,7 +412,14 @@ export async function handleGatewayRequest(
  }
 
  const responseTimeMs = Date.now() - fetchStart;
- const responseBody = await response.json().catch(() => ({}));
+ let responseBody: any;
+ const contentType = response.headers.get('content-type') || '';
+ if (contentType.includes('application/json')) {
+ responseBody = await response.json().catch(() => ({}));
+ } else {
+ const text = await response.text().catch(() => '');
+ responseBody = { error: { message: text || `HTTP ${response.status}` } };
+ }
 
  if (response.ok) {
  // Success
@@ -434,19 +452,55 @@ export async function handleGatewayRequest(
  });
 
  if (rpcError) {
- // Fallback: if RPC doesn't exist, do best-effort update (still has race risk)
- const { data: updatedKey } = await supabase
+ // Fallback: atomic compare-and-swap to avoid lost-update race condition
+ // Step 1: Read current state
+ const { data: currentKey } = await supabase
+ .from('master_api_keys')
+ .select('used_credits, total_credits, remaining_credits')
+ .eq('id', candidate.id)
+ .single();
+
+ if (!currentKey) break;
+
+ const prevUsed = currentKey.used_credits ?? 0;
+ const totalCredits = currentKey.total_credits ?? 0;
+ const prevRemaining = currentKey.remaining_credits ?? 0;
+
+ if (prevRemaining <= 0) break; // no credits left
+
+ const newUsed = prevUsed + credits;
+ const newRemaining = Math.max(0, prevRemaining - credits);
+
+ // Step 2: Atomic compare-and-swap — update ONLY if values haven't changed
+ // since we read them (prevents concurrent writes from being overwritten)
+ const { error: updError, count } = await supabase
+ .from('master_api_keys')
+ .update({
+ used_credits: newUsed,
+ remaining_credits: newRemaining,
+ last_used: new Date().toISOString(),
+ })
+ .eq('id', candidate.id)
+ .eq('used_credits', prevUsed)
+ .eq('remaining_credits', prevRemaining);
+
+ if (updError || count === 0) {
+ // Compare-and-swap failed: concurrent write detected
+ // Re-read and re-derive remaining_credits from authoritative totals
+ const { data: refreshed } = await supabase
  .from('master_api_keys')
  .select('used_credits, total_credits')
  .eq('id', candidate.id)
  .single();
 
- if (updatedKey) {
- const newUsed = (updatedKey.used_credits ?? 0) + credits;
- await supabase.from('master_api_keys').update({
- remaining_credits: Math.max(0, (updatedKey.total_credits ?? 0) - newUsed),
- last_used: new Date().toISOString(),
- }).eq('id', candidate.id);
+ if (refreshed) {
+ await supabase
+ .from('master_api_keys')
+ .update({
+ remaining_credits: Math.max(0, (refreshed.total_credits ?? 0) - (refreshed.used_credits ?? 0)),
+ })
+ .eq('id', candidate.id);
+ }
  }
  }
 
@@ -467,7 +521,7 @@ export async function handleGatewayRequest(
 	 keyUpdates.total_completion_tokens = (existingKey.total_completion_tokens ?? 0) + usage.completionTokens;
  }
  try {
-	 await supabaseServer.from('user_api_keys').update(keyUpdates).eq('id', ctx.userApiKey.id);
+	 await supabase.from('user_api_keys').update(keyUpdates).eq('id', ctx.userApiKey.id);
  } catch { /* best-effort */ }
 
  await recordUserKeyUsage(ctx.userApiKey.id, usage.totalTokens, credits, true, planPricing);
@@ -655,10 +709,11 @@ export async function getKeyStatus(apiKey: string): Promise<any> {
  // If this looks like a remote official key, fetch from the official API
  if (apiKey.startsWith("sk-ant-opm-") || apiKey.startsWith("sk-ant-api") || apiKey.startsWith("sk-")) {
  try {
-  const res = await fetch(`https://api.opusmax.live/api/key-status?key=${encodeURIComponent(apiKey)}`, {
-  method: 'GET',
-  headers: { 'Content-Type': 'application/json' },
-  });
+ const res = await fetch("https://api.opusmax.live/api/key-status", {
+ method: "POST",
+ headers: { "Content-Type": "application/json" },
+ body: JSON.stringify({ key: apiKey }),
+ });
  if (res.ok) {
  const remoteData = await res.json();
  if (remoteData && remoteData.status !== "error") {
