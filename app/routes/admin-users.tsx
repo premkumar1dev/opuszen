@@ -51,7 +51,6 @@ export const meta: MetaFunction = () => {
 interface User {
 	id: string;
 	username: string;
-	password: string;
 	name: string;
 	email: string;
 	phone_number: string;
@@ -59,6 +58,7 @@ interface User {
 	total_orders: number;
 	total_spent: number;
 	created_at: string;
+	password: string; // present in DB but never rendered or exported
 }
 
 interface FilterState {
@@ -164,13 +164,12 @@ interface EditUserSheetProps {
 	onClose: () => void;
 	onSave: (user: User) => Promise<void>;
 	onAdd: (user: User) => Promise<void>;
-	onAdd: (user: User) => Promise<void>;
 	onDelete: (id: string) => Promise<void>;
 	saving: boolean;
 }
 
 function EditUserSheet({ user, isNew, onClose, onSave, onAdd, onDelete, saving }: EditUserSheetProps) {
-	const [form, setForm] = useState<Partial<UserForm>>({ password: "" });
+	const [form, setForm] = useState<Partial<User>>({ password: "" });
 	const [deleting, setDeleting] = useState(false);
 	const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -179,7 +178,7 @@ function EditUserSheet({ user, isNew, onClose, onSave, onAdd, onDelete, saving }
 			setForm({ ...user, password: "" });
 			setErrors({});
 		} else if (isNew) {
-			setForm({ id: "", username: "", password: "", name: "", email: "", phone_number: "", account_balance: 0, total_orders: 0, total_spent: 0 } as UserForm);
+			setForm({ id: "", username: "", password: "", name: "", email: "", phone_number: "", account_balance: 0, total_orders: 0, total_spent: 0 });
 			setDeleting(false);
 			setErrors({});
 		}
@@ -227,7 +226,7 @@ function EditUserSheet({ user, isNew, onClose, onSave, onAdd, onDelete, saving }
 		}
 
 		if (isNew) {
-			await onAdd({ ...(form as UserForm), password: form.password ?? "", id: crypto.randomUUID() } as unknown as User);
+			await onAdd({ ...(form as User), password: form.password ?? "", id: crypto.randomUUID() });
 		} else {
 			await onSave({ ...user, ...form, password: "" } as unknown as User);
 		}

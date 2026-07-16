@@ -36,16 +36,18 @@ export const meta: MetaFunction = () => [
 interface ApiKey {
 	id: string;
 	name: string;
-	key_prefix: string;
+	api_key: string;
 	plan_name: string;
-	is_active: boolean;
+	status: string;
 	total_requests: number;
 	tokens_used: number;
 	tokens_limit: number;
 	created_at: string;
-	last_used_at: string;
+	last_used: string;
 	expires_at: string;
-	rate_limit_rpm: number;
+	rate_limit: number;
+	allocated_credits: number;
+	remaining_credits: number;
 }
 
 interface PlanInfo {
@@ -121,6 +123,11 @@ const FALLBACK_PLANS: PlanOption[] = [
 	},
 ];
 
+function maskKey(key: string): string {
+	if (key.length <= 12) return key;
+	return `${key.slice(0, 8)}...${key.slice(-4)}`;
+}
+
 export default function UserMyKeysRoute() {
 	const { theme, toggleTheme } = useDashboardTheme();
 	const navigate = useNavigate();
@@ -147,6 +154,8 @@ export default function UserMyKeysRoute() {
 	searchParamsRef.current = searchParams;
 	const setSearchParamsRef = useRef(setSearchParams);
 	setSearchParamsRef.current = setSearchParams;
+	const userRef = useRef<any>(null);
+	userRef.current = user;
 
 	// Guard to prevent double-finalization of the same payment
 	const finalizedRef = useRef<Set<string>>(new Set());
@@ -155,11 +164,18 @@ export default function UserMyKeysRoute() {
 	const [verificationMessage, setVerificationMessage] = useState("");
 
 	useEffect(() => {
-		supabase.auth.getUser().then(({ data }) => setUser(data.user));
-		fetchKeys();
+		supabase.auth.getUser().then(({ data }) => {
+			setUser(data.user);
+		});
 		fetchPlans();
 		fetchGatewaySettings();
 	}, []);
+
+	useEffect(() => {
+		if (user?.id) {
+			fetchKeys();
+		}
+	}, [user?.id]);
 
 	useEffect(() => {
 		const paymentParam = searchParams.get("payment");
@@ -347,7 +363,7 @@ export default function UserMyKeysRoute() {
 	async function fetchKeys() {
 		setLoading(true);
 		try {
-			const { data, error } = await supabase.from("api_keys").select("*").order("created_at", { ascending: false });
+			const { data, error } = await supabase.from("user_api_keys").select("*").eq("user_id", user?.id).order("created_at", { ascending: false });
 			if (!error && data) setKeys(data as ApiKey[]);
 		} catch { }
 		setLoading(false);
@@ -413,15 +429,26 @@ export default function UserMyKeysRoute() {
 		date: string;
 		amount: string;
 	}) {
-		const fullKey = `sk-ant-api03-${Math.random().toString(36).slice(2, 20)}`;
-		const prefix = fullKey.slice(0, 16) + "...";
+		const fullKey = `sk_live_${Math.random().toString(36).slice(2, 20)}`;
 		const { data: sessionData } = await supabase.auth.getSession();
 		const userId = sessionData.session?.user.id;
 
-		// Update the specific order to "paid" — filter by DB UUID to avoid
-		// accidentally marking ALL of a user's pending orders as paid
+		// ── Guard: skip if this order was already finalized (DB-level idempotency) ──
 		const orderDbId = pendingOrderDbIdRef.current;
 		if (userId && orderDbId) {
+			const { data: existingOrder } = await supabase
+				.from("orders")
+				.select("status")
+				.eq("id", orderDbId)
+				.single();
+
+			if (existingOrder?.status === "paid") {
+				console.log("[finalizePaidOrder] Order", orderDbId, "already paid — skipping.");
+				pendingOrderDbIdRef.current = null;
+				await fetchKeys();
+				return;
+			}
+
 			await supabase
 				.from("orders")
 				.update({
@@ -433,44 +460,57 @@ export default function UserMyKeysRoute() {
 				})
 				.eq("id", orderDbId)
 				.eq("status", "pending");
-			// Clear the ref so retries don't double-match
 			pendingOrderDbIdRef.current = null;
 		}
 
-		// Create the API key with plan settings
+		// ── Insert the new API key into user_api_keys (the table used by validateUserApiKey) ──
 		const plan = successData.plan;
-		const { error } = await supabase.from("api_keys").insert({
+		const { error } = await supabase.from("user_api_keys").insert({
+			user_id: userId,
+			api_key: fullKey,
 			name: successData.keyName || "Default Key",
-			key_prefix: prefix,
-			full_key_hash: fullKey,
-			plan_name: buildPlanLabelFromMultiplier(plan.multiplier),
-			is_active: true,
-			total_requests: 0,
-			tokens_used: 0,
-			tokens_limit:
-				plan.multiplier >= 20
-					? 50_000_000
-					: plan.multiplier >= 10
-						? 15_000_000
-						: plan.multiplier >= 5
-							? 5_000_000
-							: 1_000_000,
-			rate_limit_rpm:
-				plan.multiplier >= 20
-					? 240
-					: plan.multiplier >= 10
-						? 120
-						: plan.multiplier >= 5
-							? 60
-							: 20,
-			expires_at: new Date(
+			status: "active",
+			allocated_credits: plan.isTokenPricing ? (plan.minCredits || 0) : 0,
+			used_credits: 0,
+			remaining_credits: plan.isTokenPricing ? (plan.minCredits || 0) : 0,
+			expiry_date: new Date(
 				Date.now() + plan.durationDays * 24 * 60 * 60 * 1000
 			).toISOString(),
+			rate_limit: plan.multiplier >= 20 ? 240 : plan.multiplier >= 10 ? 120 : plan.multiplier >= 5 ? 60 : 20,
+			allowed_models: [],
+			allowed_providers: [],
+			total_requests: 0,
+			success_requests: 0,
+			failed_requests: 0,
+			plan_name: buildPlanLabelFromMultiplier(plan.multiplier),
+			pricing_type: plan.isTokenPricing ? "per_token" : "flat",
+			price_per_1m_input_tokens: plan.pricePer1mInput || 0,
+			price_per_1m_output_tokens: plan.pricePer1mOutput || 0,
+			tokens_limit: plan.multiplier >= 20 ? 50_000_000 : plan.multiplier >= 10 ? 15_000_000 : plan.multiplier >= 5 ? 5_000_000 : 1_000_000,
 		});
 
+		// Record credit history for the allocation
 		if (!error) {
+			// Verify the key was actually written (RLS, triggers, etc. can silently reject)
+			const verify = await supabase.from("user_api_keys").select("id").eq("api_key", fullKey).maybeSingle();
+			if (verify.error || !verify.data) {
+				console.error("[finalizePaidOrder] Key insert appeared successful but verification read failed:", verify.error);
+				return;
+			}
+
+			const keyId = verify.data.id;
+			const allocated = plan.isTokenPricing ? (plan.minCredits || 0) : 0;
+			await supabase.from("user_credit_history").insert({
+				user_id: userId,
+				user_api_key_id: keyId,
+				action: "purchased",
+				amount: allocated,
+				balance_after: allocated,
+				description: `Plan purchased: ${buildPlanLabelFromMultiplier(plan.multiplier)}`,
+			});
+
 			setCreatedKey(fullKey);
-			fetchKeys();
+			await fetchKeys();
 		}
 	}
 
@@ -479,13 +519,13 @@ export default function UserMyKeysRoute() {
 	// "payment_last_success") was dead code — that key is never written.
 
 	async function deleteKey(id: string) {
-		try { await supabase.from("api_keys").delete().eq("id", id); setKeys((k) => k.filter((k) => k.id !== id)); } catch { }
+		try { await supabase.from("user_api_keys").delete().eq("id", id); setKeys((k) => k.filter((k) => k.id !== id)); } catch { }
 	}
 	function toggleActive(id: string, cur: boolean) {
 		const prev = keys;
 		const next = !cur;
-		setKeys((k) => k.map((k) => (k.id === id ? { ...k, is_active: next } : k)));
-		supabase.from("api_keys").update({ is_active: next }).eq("id", id)
+		setKeys((k) => k.map((k) => (k.id === id ? { ...k, status: next ? "active" : "disabled" } : k)));
+		supabase.from("user_api_keys").update({ status: next ? "active" : "disabled" }).eq("id", id)
 			.then(({ error }) => {
 				if (error) {
 					setKeys(prev);
@@ -495,7 +535,7 @@ export default function UserMyKeysRoute() {
 	}
 	const copy = (text: string, id: string) => { navigator.clipboard.writeText(text); setCopiedId(id); setTimeout(() => setCopiedId(null), 2000); };
 
-	const activeCount = keys.filter((k) => k.is_active).length;
+	const activeCount = keys.filter((k) => k.status === "active").length;
 	const totalReqs = keys.reduce((s, k) => s + (k.total_requests || 0), 0);
 	const expiringSoon = keys.filter((k) => { if (!k.expires_at) return false; const d = ((new Date(k.expires_at).getTime() - Date.now()) / 864e5); return d < 30 && d > 0; }).length;
 
@@ -566,30 +606,33 @@ export default function UserMyKeysRoute() {
 
 						{keys.map((key) => {
 							const isRevealed = revealed.has(key.id);
+							const isActive = key.status === "active";
+							const maskedKey = maskKey(key.api_key);
+							const displayKey = isRevealed ? key.api_key : maskedKey;
 							const usagePct = Math.min(100, ((key.tokens_used || 0) / (key.tokens_limit || 1)) * 100);
 							const daysLeft = key.expires_at ? Math.max(0, (new Date(key.expires_at).getTime() - Date.now()) / 864e5) : Infinity;
 							return (
 								<div key={key.id} className="dashboard-card p-4 sm:p-5 rounded-2xl dashboard-card-hover transition-all">
 									<div className="flex items-start justify-between gap-4">
 										<div className="flex items-start gap-3 min-w-0 flex-1">
-											<span className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${key.is_active ? "bg-emerald-500" : "bg-[var(--dashboard-text-muted)]"}`} />
+											<span className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${isActive ? "bg-emerald-500" : "bg-[var(--dashboard-text-muted)]"}`} />
 											<div className="min-w-0 flex-1">
 												<div className="flex items-center gap-2 flex-wrap">
 													<h3 className="text-sm font-semibold text-[var(--dashboard-text)] truncate">{key.name}</h3>
-													<span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border shrink-0 ${key.is_active ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" : "bg-[var(--dashboard-nav-hover)] text-[var(--dashboard-text-muted)] border-[var(--dashboard-border)]"}`}>
-														{key.is_active ? "Active" : "Inactive"}
+													<span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border shrink-0 ${isActive ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" : "bg-[var(--dashboard-nav-hover)] text-[var(--dashboard-text-muted)] border-[var(--dashboard-border)]"}`}>
+														{isActive ? "Active" : "Inactive"}
 													</span>
 												</div>
 												<div className="flex flex-wrap items-center gap-2 mt-1.5">
-													<code className="text-[11px] font-mono text-[var(--dashboard-text-muted)] bg-[var(--dashboard-input-bg)] px-2 py-0.5 rounded">{isRevealed ? key.key_prefix.replace("...", "....") : key.key_prefix}</code>
+													<code className="text-[11px] font-mono text-[var(--dashboard-text-muted)] bg-[var(--dashboard-input-bg)] px-2 py-0.5 rounded">{displayKey}</code>
 													<button onClick={() => setRevealed((s) => { const n = new Set(s); n.has(key.id) ? n.delete(key.id) : n.add(key.id); return n; })} className="text-[var(--dashboard-text-muted)] hover:text-[var(--dashboard-text)] transition-colors p-0.5" aria-label={isRevealed ? "Hide" : "Reveal"}>{isRevealed ? <FiEyeOff className="w-3.5 h-3.5" /> : <FiEye className="w-3.5 h-3.5" />}</button>
-													<button onClick={() => copy(key.key_prefix, key.id)} className="text-[var(--dashboard-text-muted)] hover:text-[var(--dashboard-text)] transition-colors p-0.5" aria-label="Copy"><FiCopy className="w-3.5 h-3.5" /></button>
+													<button onClick={() => copy(key.api_key, key.id)} className="text-[var(--dashboard-text-muted)] hover:text-[var(--dashboard-text)] transition-colors p-0.5" aria-label="Copy"><FiCopy className="w-3.5 h-3.5" /></button>
 													{copiedId === key.id && <span className="text-[10px] text-emerald-500 font-medium">Copied!</span>}
 												</div>
 											</div>
 										</div>
 										<div className="flex items-center gap-0.5 shrink-0">
-											<button onClick={() => toggleActive(key.id, key.is_active)} className={`p-2 rounded-lg transition-all cursor-pointer touch-manipulation ${key.is_active ? "text-[var(--dashboard-text-muted)] hover:text-amber-500 hover:bg-amber-500/5" : "text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/5"}`} title={key.is_active ? "Deactivate" : "Activate"}><FiShield className="w-4 h-4" /></button>
+											<button onClick={() => toggleActive(key.id, isActive)} className={`p-2 rounded-lg transition-all cursor-pointer touch-manipulation ${isActive ? "text-[var(--dashboard-text-muted)] hover:text-amber-500 hover:bg-amber-500/5" : "text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/5"}`} title={isActive ? "Deactivate" : "Activate"}><FiShield className="w-4 h-4" /></button>
 											<button onClick={() => deleteKey(key.id)} className="p-2 rounded-lg text-[var(--dashboard-text-muted)] hover:text-red-500 hover:bg-red-500/5 transition-all cursor-pointer touch-manipulation" title="Delete"><FiTrash2 className="w-4 h-4" /></button>
 										</div>
 									</div>
@@ -605,7 +648,7 @@ export default function UserMyKeysRoute() {
 									<div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-[var(--dashboard-text-muted)]">
 										<span className="flex items-center gap-1"><FiActivity className="w-3 h-3" />{(key.total_requests || 0).toLocaleString()} req</span>
 										<span className="flex items-center gap-1"><FiClock className="w-3 h-3" />{daysLeft < 30 && daysLeft > 0 ? `${Math.ceil(daysLeft)}d left` : daysLeft <= 0 ? "Expired" : "No expiry"}</span>
-										<span className="flex items-center gap-1"><FiShield className="w-3 h-3" />{key.rate_limit_rpm}/min</span>
+										<span className="flex items-center gap-1"><FiShield className="w-3 h-3" />{key.rate_limit}/min</span>
 										<span className="truncate">{key.plan_name}</span>
 									</div>
 								</div>
