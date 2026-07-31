@@ -19,16 +19,34 @@ const MAX_BODY_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
 export const meta: MetaFunction = () => [{ title: "API Gateway" }];
 
 export async function loader({ request }: LoaderFunctionArgs) {
+	const url = new URL(request.url);
+	if (url.pathname.endsWith("/models")) {
+		return data({
+			object: "list",
+			data: [
+				{ id: "claude-3-5-sonnet-20241022", object: "model", created: 1729641600, owned_by: "anthropic" },
+				{ id: "claude-3-opus-20240229", object: "model", created: 1709164800, owned_by: "anthropic" },
+				{ id: "claude-3-5-haiku-20241022", object: "model", created: 1729641600, owned_by: "anthropic" },
+				{ id: "gpt-4o", object: "model", created: 1715644800, owned_by: "openai" },
+				{ id: "gpt-4o-mini", object: "model", created: 1721260800, owned_by: "openai" },
+				{ id: "gemini-2.0-flash-exp", object: "model", created: 1734048000, owned_by: "google" },
+				{ id: "gemini-1.5-pro", object: "model", created: 1715644800, owned_by: "google" },
+				{ id: "llama-3.3-70b-versatile", object: "model", created: 1733443200, owned_by: "groq" },
+				{ id: "mistral-large-latest", object: "model", created: 1708905600, owned_by: "mistral" },
+			],
+		});
+	}
+
 	return data({
 		status: "ok",
 		service: "OpusZen API Gateway",
 		version: "1.3.1",
 		timestamp: new Date().toISOString(),
 		endpoints: {
-			chat: "/api/chat/completions",
+			chat: "/v1/chat/completions",
+			messages: "/v1/messages",
+			models: "/v1/models",
 			keyStatus: "/api/key-status",
-			models: "/api/models",
-			health: "/api/health",
 		},
 	});
 }
@@ -39,11 +57,11 @@ export async function action({ request }: ActionFunctionArgs) {
 
 	try {
 		// 1. Extract and validate user API key
-		const authHeader = request.headers.get("authorization") ?? request.headers.get("Authorization") ?? "";
+		const authHeader = request.headers.get("authorization") ?? request.headers.get("Authorization") ?? request.headers.get("x-api-key") ?? "";
 		const apiKey = authHeader.replace(/^Bearer\s+/i, "").trim();
 
 		if (!apiKey) {
-			return data({ error: "Missing API key. Provide Authorization: Bearer <key> header." }, { status: 401 });
+			return data({ error: "Missing API key. Provide Authorization: Bearer <key> or x-api-key header." }, { status: 401 });
 		}
 
 		const userKey = await import("~/utils/user-key-service").then(m => m.validateUserApiKey(apiKey));
@@ -65,11 +83,12 @@ export async function action({ request }: ActionFunctionArgs) {
 			return data({ error: "Invalid JSON body." }, { status: 400 });
 		}
 
-		// 3. Determine provider from model
+		// 3. Determine provider from model and request URL path
+		const urlPath = new URL(request.url).pathname;
 		const model = body.model ?? "";
 		let provider = 'OpenAI';
-		if (model.toLowerCase().includes('opuslive')) provider = 'opuslive';
-		else if (model.toLowerCase().includes('claude')) provider = 'Anthropic';
+		if (urlPath.includes('/messages') || model.toLowerCase().includes('claude')) provider = 'Anthropic';
+		else if (model.toLowerCase().includes('opuslive')) provider = 'opuslive';
 		else if (model.toLowerCase().includes('gemini')) provider = 'Google';
 		else if (model.toLowerCase().includes('llama') || model.toLowerCase().includes('mixtral')) provider = 'Groq';
 		else if (model.toLowerCase().includes('mistral')) provider = 'Mistral';

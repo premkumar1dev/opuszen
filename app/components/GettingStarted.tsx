@@ -8,18 +8,18 @@ import { BlurReveal } from "../components/motion/BlurScaleReveal";
 const steps = [
     {
         number: "01",
-        title: "Create an account",
-        description: "Sign up in seconds. No credit card required.",
+        title: "Select a Plan",
+        description: "Choose a plan based on your needs.",
     },
     {
         number: "02",
-        title: "Pay in INR",
-        description: "Top up your balance. Pay only for what you use.",
+        title: "Buy plan",
+        description: "Buy a plan using UPI. You get encrypted API Key immediately.",
     },
     {
         number: "03",
-        title: "Point your base URL here",
-        description: "Update your Anthropic client. That's it.",
+        title: "Use it",
+        description: "Use your OpusZen API Key. That's it.",
     },
 ];
 

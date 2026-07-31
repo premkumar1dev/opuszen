@@ -163,7 +163,48 @@ export default [
 		file: "routes/demo-buttons.tsx",
 	},
 	{
+		id: "api-chat-completions",
 		path: "/api/chat/completions",
+		file: "routes/api.chat.completions.tsx",
+	},
+	{
+		id: "v1-chat-completions",
+		path: "/v1/chat/completions",
+		file: "routes/api.chat.completions.tsx",
+	},
+	{
+		id: "v1-messages",
+		path: "/v1/messages",
+		file: "routes/api.chat.completions.tsx",
+	},
+	{
+		id: "v1-models",
+		path: "/v1/models",
+		file: "routes/api.chat.completions.tsx",
+	},
+	{
+		id: "v1-splat",
+		path: "/v1/*",
+		file: "routes/api.chat.completions.tsx",
+	},
+	{
+		id: "api-v1-chat-completions",
+		path: "/api/v1/chat/completions",
+		file: "routes/api.chat.completions.tsx",
+	},
+	{
+		id: "api-v1-messages",
+		path: "/api/v1/messages",
+		file: "routes/api.chat.completions.tsx",
+	},
+	{
+		id: "api-v1-models",
+		path: "/api/v1/models",
+		file: "routes/api.chat.completions.tsx",
+	},
+	{
+		id: "api-v1-splat",
+		path: "/api/v1/*",
 		file: "routes/api.chat.completions.tsx",
 	},
 	{

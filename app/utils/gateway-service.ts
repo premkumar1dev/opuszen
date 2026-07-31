@@ -37,7 +37,7 @@ import { calculateCredits, estimateTokens, recordUsage } from "~/utils/usage-ser
 import { getGatewayConfig } from "~/utils/gateway-config";
 
 // ---------------------------------------------------------------------------
-// Provider configurations
+// Provider configurations & domain validation
 // ---------------------------------------------------------------------------
 const ALLOWED_PROVIDER_DOMAINS = [
 	"api.openai.com",
@@ -48,6 +48,7 @@ const ALLOWED_PROVIDER_DOMAINS = [
 	"api.cohere.ai",
 	"api.opuszen.com",
 	"api.opuszen.live",
+	"api.opuszen.shop",
 ];
 
 const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
@@ -113,18 +114,25 @@ function getProviderConfig(provider: string): ProviderConfig {
 	if (provider.startsWith('http://') || provider.startsWith('https://')) {
 		const baseUrl = provider.endsWith('/') ? provider.slice(0, -1) : provider;
 
-		// SSRF protection: validate hostname against allowed provider domains
+		// SSRF protection: block local/internal IP ranges while allowing public API domains (e.g. api.domain, api.opuszen.shop, etc.)
 		try {
 			const parsed = new URL(baseUrl);
-			const isAllowed = ALLOWED_PROVIDER_DOMAINS.some(
-				(domain) => parsed.hostname === domain || parsed.hostname.endsWith('.' + domain)
-			);
-			if (!isAllowed) {
-				throw new Error('Provider URL not allowed: ' + parsed.hostname);
+			const hostname = parsed.hostname.toLowerCase();
+			const isInternal =
+				hostname === 'localhost' ||
+				hostname === '127.0.0.1' ||
+				hostname === '0.0.0.0' ||
+				hostname === '::1' ||
+				hostname.startsWith('169.254.') ||
+				hostname.startsWith('10.') ||
+				hostname.startsWith('192.168.') ||
+				(hostname.startsWith('172.') && parseInt(hostname.split('.')[1], 10) >= 16 && parseInt(hostname.split('.')[1], 10) <= 31);
+
+			if (isInternal) {
+				throw new Error('Internal network addresses are not allowed for provider URL: ' + hostname);
 			}
 		} catch (e) {
 			if (e instanceof Error && e.message.includes('not allowed')) throw e;
-			// If URL parsing fails, let it fall through to the default config
 		}
 
 		const isAnthropic = baseUrl.toLowerCase().includes('anthropic');
