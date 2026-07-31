@@ -85,14 +85,18 @@ export function getWhatsAppPlanUrl(plan: PlanOption): string {
 	];
 
 	if (plan.isTokenPricing) {
-		if (plan.pricePer1mInput > 0) {
-			lines.push(`• *Input Token Rate:* ${formatPrice(plan.pricePer1mInput, plan.currency)}/1M tokens`);
+		const priceInput = plan.pricePer1mInput ?? 0;
+		const priceOutput = plan.pricePer1mOutput ?? 0;
+		const minCredits = plan.minCredits ?? 0;
+
+		if (priceInput > 0) {
+			lines.push(`• *Input Token Rate:* ${formatPrice(priceInput, plan.currency)}/1M tokens`);
 		}
-		if (plan.pricePer1mOutput > 0) {
-			lines.push(`• *Output Token Rate:* ${formatPrice(plan.pricePer1mOutput, plan.currency)}/1M tokens`);
+		if (priceOutput > 0) {
+			lines.push(`• *Output Token Rate:* ${formatPrice(priceOutput, plan.currency)}/1M tokens`);
 		}
-		if (plan.minCredits > 0) {
-			lines.push(`• *Minimum Credits:* ${formatPrice(plan.minCredits, plan.currency)}`);
+		if (minCredits > 0) {
+			lines.push(`• *Minimum Credits:* ${formatPrice(minCredits, plan.currency)}`);
 		}
 	}
 
