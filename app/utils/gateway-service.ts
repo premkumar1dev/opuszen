@@ -49,6 +49,8 @@ const ALLOWED_PROVIDER_DOMAINS = [
 	"api.opuszen.com",
 	"api.opuszen.live",
 	"api.opuszen.shop",
+	"api.domain",
+	"api.domain.com",
 ];
 
 const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
