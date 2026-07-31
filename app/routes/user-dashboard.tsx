@@ -3,7 +3,7 @@ import UserDashboard from "../components/dashboard/user-dashboard";
 
 export const meta: MetaFunction = () => {
 	return [
-		{ title: "Dashboard | Opuszen" },
+		{ title: "Dashboard | OpusZen" },
 		{
 			name: "description",
 			content:

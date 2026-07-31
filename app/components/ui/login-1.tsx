@@ -60,9 +60,9 @@ const Login1 = ({
 	};
 
 	return (
-		<section className="bg-muted bg-background h-screen">
-			<div className="flex h-full items-center justify-center">
-				<div className="border-muted bg-background flex w-full max-w-sm flex-col items-center gap-y-8 rounded-md border px-6 py-12 shadow-md">
+		<section className="bg-background min-h-screen">
+			<div className="flex min-h-screen items-center justify-center px-4 py-8 sm:py-12">
+				<div className="border-border bg-card flex w-full max-w-sm flex-col items-center gap-y-6 rounded-2xl border px-6 py-10 sm:py-12 shadow-sm">
 					<div className="flex flex-col items-center gap-y-2">
 						<div className="flex items-center gap-3">
 							<a href={logo.url} className="flex items-center gap-3">

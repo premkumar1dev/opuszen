@@ -1,11 +1,11 @@
-import { type MetaFunction } from "react-router";
+import { type MetaFunction, type LoaderFunctionArgs, useLoaderData } from "react-router";
 import type { Route } from "./+types/status";
 import { Layout } from "../components/Layout";
 import { useState, useEffect } from "react";
 
 export const meta: MetaFunction = () => {
  return [
- { title: "Status | Opuszen" },
+ { title: "Status | OpusZen" },
  {
  name: "description",
  content: "System status and uptime for OpusZen API gateway.",
@@ -13,44 +13,102 @@ export const meta: MetaFunction = () => {
  ];
 };
 
-export default function StatusRoute() {
-  const [host, setHost] = useState("opuszen.shop");
+export type HealthService = {
+ name: string;
+ status: "operational" | "degraded" | "outage";
+ uptime: string;
+ description: string;
+};
 
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      setHost(window.location.host);
-    }
-  }, []);
+export async function loader({ request }: LoaderFunctionArgs) {
+ const host = request.headers.get("x-forwarded-host") || request.headers.get("host") || "localhost:3000";
+ const protocol = request.headers.get("x-forwarded-proto") || "http";
+ const baseUrl = protocol + "://" + host;
 
-  const protocol = typeof window !== "undefined" ? window.location.protocol : "https:";
-  const apiBaseUrl = `${protocol}//${host}`;
-
- const services = [
+ let services: HealthService[] = [
  {
  name: "API Gateway",
- status: "operational",
+ status: "operational" as const,
  uptime: "99.9%",
- description: "Main API endpoint for all Claude model requests",
+ description: "Main API endpoint for all model requests",
  },
  {
  name: "Web Search Tool",
- status: "operational",
+ status: "operational" as const,
  uptime: "99.8%",
  description: "Real-time web search functionality",
  },
  {
  name: "Image Analysis",
- status: "operational",
+ status: "operational" as const,
  uptime: "99.7%",
  description: "Image understanding and analysis",
  },
  {
  name: "SSE Streaming",
- status: "operational",
+ status: "operational" as const,
  uptime: "99.9%",
  description: "Server-Sent Events streaming",
  },
  ];
+
+ try {
+ const gatewayRes = await fetch(baseUrl + "/api/chat/completions", {
+ method: "OPTIONS",
+ signal: (() => {
+	 const controller = new AbortController();
+	 setTimeout(() => controller.abort(), 5000);
+	 return controller.signal;
+ })()
+ }).catch(() => null);
+ if (!gatewayRes || !gatewayRes.ok) {
+ services[0] = { ...services[0], status: "degraded" };
+ }
+ } catch {
+ services[0] = { ...services[0], status: "degraded" };
+ }
+
+ return {
+ services,
+ lastChecked: new Date().toISOString(),
+ baseUrl,
+ };
+}
+
+export default function StatusRoute() {
+ const loaderData = useLoaderData<typeof loader>();
+ const services = loaderData.services;
+ const lastChecked = loaderData.lastChecked;
+ const [healthStatuses, setHealthStatuses] = useState<Record<number, "operational" | "degraded" | "outage">>({});
+
+ useEffect(() => {
+ const statuses: Record<number, "operational" | "degraded" | "outage"> = {};
+ const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
+
+ services.forEach(async (service, index) => {
+ if (service.name === "API Gateway") {
+ try {
+ const res = await fetch(baseUrl + "/api/chat/completions", {
+ method: "OPTIONS",
+ signal: (() => {
+	 const controller = new AbortController();
+	 setTimeout(() => controller.abort(), 5000);
+	 return controller.signal;
+ })()
+ });
+ statuses[index] = res.ok ? "operational" : "degraded";
+ } catch {
+ statuses[index] = "outage";
+ }
+ }
+ setHealthStatuses(prev => ({ ...prev, ...statuses }));
+ });
+ }, [services]);
+
+ const currentServices = services.map((s, i) => ({
+ ...s,
+ status: healthStatuses[i] || s.status,
+ }));
 
  const statusColors = {
  operational: "text-emerald-600 dark:text-emerald-400",
@@ -75,9 +133,15 @@ export default function StatusRoute() {
  <div className="max-w-4xl mx-auto px-4 sm:px-6 py-16">
  {/* Header */}
  <div className="text-center mb-12">
- <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-sm font-semibold mb-4">
- <div className="w-2 h-2 rounded-full bg-emerald-500 dark:bg-emerald-400 animate-pulse" aria-hidden="true" />
- All systems operational
+ <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold mb-4 ${
+ currentServices.every(s => s.status === "operational")
+ ? "bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400"
+ : currentServices.some(s => s.status === "outage")
+ ? "bg-red-500/10 dark:bg-red-500/20 text-red-600 dark:text-red-400"
+ : "bg-amber-500/10 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400"
+ }`}>
+ <div className={`w-2 h-2 rounded-full animate-pulse ${currentServices.every(s => s.status === "operational") ? "bg-emerald-500 dark:bg-emerald-400" : currentServices.some(s => s.status === "outage") ? "bg-red-500" : "bg-amber-500 dark:bg-amber-400"}`} aria-hidden="true" />
+ {currentServices.every(s => s.status === "operational") ? "All systems operational" : "Some services degraded"}
  </div>
  <h1 className="text-4xl sm:text-5xl font-bold tracking-tight text-foreground mb-4">
  System Status
@@ -85,11 +149,16 @@ export default function StatusRoute() {
  <p className="text-muted-foreground text-lg max-w-xl mx-auto">
  Real-time status and uptime information for OpusZen services.
  </p>
+ {lastChecked && (
+ <p className="text-xs text-muted-foreground mt-2">
+ Last checked: {new Date(lastChecked).toLocaleString()}
+ </p>
+ )}
  </div>
 
  {/* Status cards */}
  <div className="grid gap-4 md:grid-cols-2 mb-12">
- {services.map((service) => (
+ {currentServices.map((service) => (
  <div
  key={service.name}
  className="p-6 rounded-2xl border border-border bg-card dark:bg-card/60 hover:border-primary/30 transition-all"
@@ -126,11 +195,11 @@ export default function StatusRoute() {
  API Base URL
  </h2>
  <div className="flex items-center gap-3 p-4 rounded-xl bg-muted/30 dark:bg-muted/10 border border-border/50">
- <code className="text-sm font-mono text-primary dark:text-violet-400">
- {apiBaseUrl}
+ <code className="text-sm font-mono text-primary dark:text-primary">
+ {loaderData.baseUrl}
  </code>
  <button
- onClick={() => navigator.clipboard.writeText(apiBaseUrl)}
+ onClick={() => navigator.clipboard.writeText(loaderData.baseUrl)}
  className="ml-auto p-2 rounded-lg hover:bg-muted/50 transition-colors"
  aria-label="Copy API URL"
  >

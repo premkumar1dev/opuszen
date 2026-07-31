@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
-import { useNavigate, useSearchParams } from "react-router";
-import { type MetaFunction } from "react-router";
+import { useNavigate, useSearchParams, data } from "react-router";
+import { type MetaFunction, type ActionFunctionArgs } from "react-router";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,9 +29,10 @@ import {
 } from "~/components/ui/plan-purchase-modal";
 
 export const meta: MetaFunction = () => [
-	{ title: "My Keys | Opuszen" },
+	{ title: "My Keys | OpusZen" },
 	{ name: "description", content: "Manage your OpusZen API keys." },
 ];
+
 
 interface ApiKey {
 	id: string;
@@ -61,6 +62,17 @@ interface PlanInfo {
 	pricePer1mInput?: number;
 	pricePer1mOutput?: number;
 	minCredits?: number;
+}
+
+/** CSPRNG key generation — works in both browser and Node (18+) */
+async function generateSecureClientKey(prefix: string, length: number): Promise<string> {
+	const bytes = new Uint8Array(Math.ceil(length / 2));
+	if (typeof crypto !== "undefined" && crypto.getRandomValues) {
+		crypto.getRandomValues(bytes);
+	} else {
+		for (let i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256);
+	}
+	return prefix + Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("").slice(0, length);
 }
 
 /* Plans fetched from the plans table, with a fallback */
@@ -133,6 +145,15 @@ export default function UserMyKeysRoute() {
 	const navigate = useNavigate();
 	const [searchParams, setSearchParams] = useSearchParams();
 	const [user, setUser] = useState<any>(null);
+
+	const handleLogout = async () => {
+		try {
+			await supabase.auth.signOut();
+			navigate("/auth/login");
+		} catch (err) {
+			console.error("Logout failed:", err);
+		}
+	};
 	const [keys, setKeys] = useState<ApiKey[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -183,17 +204,76 @@ export default function UserMyKeysRoute() {
 		const gatewayOrderId = searchParams.get("gatewayOrderId");
 
 		if (paymentParam === "verify" && orderId) {
+			const orderKey = gatewayOrderId || orderId;
+			if (finalizedRef.current.has(orderKey)) {
+				return;
+			}
+
+			const priceVal = parseFloat(searchParams.get("price") || "0");
+			if (priceVal === 0) {
+				// Instant activation for ₹0 / Free Trial plan
+				finalizedRef.current.add(orderKey);
+				setVerificationStatus("success");
+				setVerificationMessage("Activating your trial plan & generating API key...");
+
+				const sp2 = searchParamsRef.current;
+				const planId = sp2.get("planId") || "";
+				const planName = sp2.get("planName") || "Trial Plan";
+				const duration = parseInt(sp2.get("duration") || "7");
+				const multiplier = parseFloat(sp2.get("multiplier") || "1");
+				const keyName = sp2.get("keyName") || "Trial Key";
+				const tokenPricing = sp2.get("tokenPricing") === "1";
+				const pricePer1mInput = parseFloat(sp2.get("pricePer1mInput") || "0");
+				const pricePer1mOutput = parseFloat(sp2.get("pricePer1mOutput") || "0");
+				const minCredits = parseFloat(sp2.get("minCredits") || "0");
+				const method = sp2.get("method") || "FREE";
+
+				const storedGatewayOrderId = sessionStorage.getItem(`gateway_order_${orderId}`) || gatewayOrderId || `ORD-FREE-${Date.now()}`;
+				const currentUserId = userRef.current?.id;
+
+				finalizePaidOrderWithFallback({
+					orderId: storedGatewayOrderId,
+					plan: {
+						id: planId,
+						name: planName,
+						durationDays: duration,
+						multiplier: multiplier,
+						isTokenPricing: tokenPricing,
+						pricePer1mInput: pricePer1mInput,
+						pricePer1mOutput: pricePer1mOutput,
+						minCredits: minCredits,
+					} as any,
+					paymentMethod: method,
+					txnRef: "FREE_TRIAL",
+					keyName: keyName,
+					utr: "FREE_TRIAL",
+					date: new Date().toISOString(),
+					amount: "0",
+					userId: currentUserId || "",
+				}).then(async (keyCreated) => {
+					if (keyCreated) {
+						await fetchKeys();
+						setTimeout(() => {
+							setVerificationStatus("idle");
+							setSearchParamsRef.current({});
+						}, 2500);
+					} else {
+						setVerificationStatus("failed");
+						setVerificationMessage("Failed to generate API key. Please try again.");
+						setTimeout(() => {
+							setVerificationStatus("idle");
+							setSearchParamsRef.current({});
+						}, 5000);
+					}
+				});
+				return;
+			}
+
 			setVerificationStatus("verifying");
 			setVerificationMessage("Verifying your payment with the gateway. Please wait...");
 
 			let pollCount = 0;
 			const maxPolls = 120;
-
-			// Idempotency guard: skip if this order was already finalized
-			const orderKey = gatewayOrderId || orderId;
-			if (finalizedRef.current.has(orderKey)) {
-				return;
-			}
 
 			const interval = setInterval(async () => {
 				pollCount++;
@@ -212,6 +292,8 @@ export default function UserMyKeysRoute() {
 					const oid = sp.get("orderId");
 					const gid = sp.get("gatewayOrderId");
 					const storedGatewayOrderId = sessionStorage.getItem(`gateway_order_${oid}`) || gid || "";
+
+					const currentUserId = userRef.current?.id;
 
 					formData.set("order_id", storedGatewayOrderId);
 
@@ -263,7 +345,7 @@ export default function UserMyKeysRoute() {
 						const minCredits = parseFloat(sp2.get("minCredits") || "0");
 						const method = sp2.get("method") || "PAY0";
 
-						await finalizePaidOrder({
+						const keyCreated = await finalizePaidOrderWithFallback({
 							orderId: storedGatewayOrderId,
 							plan: {
 								id: planId,
@@ -281,17 +363,29 @@ export default function UserMyKeysRoute() {
 							utr: result.result?.utr || "",
 							date: result.result?.date || new Date().toISOString(),
 							amount: result.result?.amount || "0",
+							userId: currentUserId || "",
 						});
 
 						if (oid) sessionStorage.removeItem(`gateway_order_${oid}`);
 
-						// Refresh keys list to show the newly created key
-						await fetchKeys();
-
-						setTimeout(() => {
-							setVerificationStatus("idle");
-							setSearchParamsRef.current({});
-						}, 3000);
+						if (keyCreated) {
+							// Refresh keys list to show the newly created key
+							await fetchKeys();
+							setTimeout(() => {
+								setVerificationStatus("idle");
+								setSearchParamsRef.current({});
+							}, 3000);
+						} else {
+							// Payment succeeded but key generation failed
+							clearInterval(interval);
+							setVerificationStatus("failed");
+							setVerificationMessage("Payment verified but key generation failed. Please contact support with your Order ID: " + (oid || orderId));
+							if (oid) sessionStorage.removeItem(`gateway_order_${oid}`);
+							setTimeout(() => {
+								setVerificationStatus("idle");
+								setSearchParamsRef.current({});
+							}, 8000);
+						}
 
 					} else if (txnStatus === "FAILED" || gwStatus === "FAILED") {
 						clearInterval(interval);
@@ -414,11 +508,14 @@ export default function UserMyKeysRoute() {
 		}
 
 		// Store DB ID so finalizePaidOrder targets the correct record
-	pendingOrderDbIdRef.current = orderRow.id;
-	return orderRow;
+		// Persist to sessionStorage as a fallback if the component re-mounts
+		pendingOrderDbIdRef.current = orderRow.id;
+		sessionStorage.setItem("pending_order_db_id", orderRow.id);
+		return orderRow;
 	}
 
 	/* Process a successful payment return - finalize the API key */
+	/* Returns true if a new key was created, false otherwise. */
 	async function finalizePaidOrder(successData: {
 		orderId: string;
 		plan: PlanInfo;
@@ -428,44 +525,73 @@ export default function UserMyKeysRoute() {
 		utr: string;
 		date: string;
 		amount: string;
-	}) {
-		const fullKey = `sk_live_${Math.random().toString(36).slice(2, 20)}`;
-		const { data: sessionData } = await supabase.auth.getSession();
-		const userId = sessionData.session?.user.id;
+		userId: string;
+	}): Promise<boolean> {
+		const fullKey = await generateSecureClientKey("sk_live_", 18);
+		let userId = successData.userId || userRef.current?.id;
+		if (!userId) {
+			const { data: sessionData } = await supabase.auth.getSession();
+			userId = sessionData.session?.user?.id;
+		}
 
-		// ── Guard: skip if this order was already finalized (DB-level idempotency) ──
-		const orderDbId = pendingOrderDbIdRef.current;
-		if (userId && orderDbId) {
+		if (!userId) {
+			console.error("[finalizePaidOrder] No user ID provided — cannot create API key.");
+			return false;
+		}
+
+		// ── Resolve the order: prefer the in-memory ref, fall back to sessionStorage ──
+		let orderDbId = pendingOrderDbIdRef.current;
+		if (!orderDbId) {
+			// Component may have re-mounted — try to recover from sessionStorage
+			const storedOrderId = sessionStorage.getItem("pending_order_db_id");
+			if (storedOrderId) {
+				orderDbId = storedOrderId;
+				pendingOrderDbIdRef.current = orderDbId;
+			}
+		}
+		if (!orderDbId) {
+			console.warn("[finalizePaidOrder] No pending order ID found in ref or sessionStorage. Proceeding with key generation...");
+		}
+
+		// ── Check if already finalized (idempotency) ──
+		if (orderDbId) {
 			const { data: existingOrder } = await supabase
 				.from("orders")
 				.select("status")
 				.eq("id", orderDbId)
 				.single();
 
-			if (existingOrder?.status === "paid") {
-				console.log("[finalizePaidOrder] Order", orderDbId, "already paid — skipping.");
+			if (existingOrder?.status === "completed") {
+				console.log("[finalizePaidOrder] Order", orderDbId, "already completed — skipping key generation.");
 				pendingOrderDbIdRef.current = null;
+				sessionStorage.removeItem("pending_order_db_id");
 				await fetchKeys();
-				return;
+				return true;
 			}
 
-			await supabase
+			// ── Mark order as completed ──
+			const { error: orderError } = await supabase
 				.from("orders")
 				.update({
-					status: "paid",
+					status: "completed",
 					payment_ref: successData.utr || successData.txnRef || null,
-					notes: `Order ${successData.orderId} — PAY0 confirmed${
+					notes: `Order ${successData.orderId} — confirmed${
 						successData.utr ? ` (UTR ${successData.utr})` : ""
 					}`,
 				})
 				.eq("id", orderDbId)
 				.eq("status", "pending");
+
+			if (orderError) {
+				console.warn("[finalizePaidOrder] Note on order update:", orderError.message);
+			}
 			pendingOrderDbIdRef.current = null;
+			sessionStorage.removeItem("pending_order_db_id");
 		}
 
-		// ── Insert the new API key into user_api_keys (the table used by validateUserApiKey) ──
+		// ── Insert the new API key into user_api_keys ──
 		const plan = successData.plan;
-		const { error } = await supabase.from("user_api_keys").insert({
+		const { error: keyError } = await supabase.from("user_api_keys").insert({
 			user_id: userId,
 			api_key: fullKey,
 			name: successData.keyName || "Default Key",
@@ -489,29 +615,95 @@ export default function UserMyKeysRoute() {
 			tokens_limit: plan.multiplier >= 20 ? 50_000_000 : plan.multiplier >= 10 ? 15_000_000 : plan.multiplier >= 5 ? 5_000_000 : 1_000_000,
 		});
 
-		// Record credit history for the allocation
-		if (!error) {
-			// Verify the key was actually written (RLS, triggers, etc. can silently reject)
-			const verify = await supabase.from("user_api_keys").select("id").eq("api_key", fullKey).maybeSingle();
-			if (verify.error || !verify.data) {
-				console.error("[finalizePaidOrder] Key insert appeared successful but verification read failed:", verify.error);
-				return;
-			}
-
-			const keyId = verify.data.id;
-			const allocated = plan.isTokenPricing ? (plan.minCredits || 0) : 0;
-			await supabase.from("user_credit_history").insert({
-				user_id: userId,
-				user_api_key_id: keyId,
-				action: "purchased",
-				amount: allocated,
-				balance_after: allocated,
-				description: `Plan purchased: ${buildPlanLabelFromMultiplier(plan.multiplier)}`,
-			});
-
-			setCreatedKey(fullKey);
-			await fetchKeys();
+		if (keyError) {
+			console.error("[finalizePaidOrder] Failed to insert API key:", keyError);
+			return false;
 		}
+
+		// Verify the key was actually written
+		const verify = await supabase.from("user_api_keys").select("id").eq("api_key", fullKey).maybeSingle();
+		if (verify.error || !verify.data) {
+			console.error("[finalizePaidOrder] Key insert verification failed:", verify.error);
+			return false;
+		}
+
+		const keyId = verify.data.id;
+		const allocated = plan.isTokenPricing ? (plan.minCredits || 0) : 0;
+		await supabase.from("user_credit_history").insert({
+			user_id: userId,
+			user_api_key_id: keyId,
+			action: "purchased",
+			amount: allocated,
+			balance_after: allocated,
+			description: `Plan purchased: ${buildPlanLabelFromMultiplier(plan.multiplier)}`,
+		});
+
+		setCreatedKey(fullKey);
+		await fetchKeys();
+		return true;
+	}
+
+	/* Server-side fallback using service-role (bypasses RLS) */
+	async function finalizePaidOrderServer(successData: {
+		orderId: string;
+		plan: PlanInfo;
+		paymentMethod: string;
+		txnRef: string;
+		keyName: string;
+		utr: string;
+		date: string;
+		amount: string;
+		userId: string;
+	}): Promise<boolean> {
+		const plan = successData.plan;
+		const fd = new FormData();
+		fd.set("orderId", successData.orderId);
+		fd.set("planId", plan.id);
+		fd.set("planName", plan.name);
+		fd.set("duration", String(plan.durationDays));
+		fd.set("multiplier", String(plan.multiplier));
+		fd.set("keyName", successData.keyName);
+		fd.set("tokenPricing", plan.isTokenPricing ? "1" : "0");
+		fd.set("pricePer1mInput", String(plan.pricePer1mInput || 0));
+		fd.set("pricePer1mOutput", String(plan.pricePer1mOutput || 0));
+		fd.set("minCredits", String(plan.minCredits || 0));
+		fd.set("method", successData.paymentMethod);
+		fd.set("txnRef", successData.txnRef);
+		fd.set("utr", successData.utr);
+		fd.set("amount", successData.amount);
+		fd.set("userId", successData.userId);
+
+		try {
+			const res = await fetch("/api/finalize-key", { method: "POST", body: fd });
+			const result = await res.json();
+			if (result.success) {
+				await fetchKeys();
+				return true;
+			}
+			console.error("[finalizePaidOrderServer] Server returned failure:", result.error);
+			return false;
+		} catch (err) {
+			console.error("[finalizePaidOrderServer] Network error:", err);
+			return false;
+		}
+	}
+
+	/* Tries client-side first (fast path), falls back to server action */
+	async function finalizePaidOrderWithFallback(successData: {
+		orderId: string;
+		plan: PlanInfo;
+		paymentMethod: string;
+		txnRef: string;
+		keyName: string;
+		utr: string;
+		date: string;
+		amount: string;
+		userId: string;
+	}): Promise<boolean> {
+		const clientResult = await finalizePaidOrder(successData);
+		if (clientResult) return true;
+		console.warn("[finalizePaidOrderWithFallback] Client-side insert failed, falling back to server action");
+		return await finalizePaidOrderServer(successData);
 	}
 
 	// Payment success is handled entirely by the ?payment=verify polling effect above.
@@ -543,10 +735,10 @@ export default function UserMyKeysRoute() {
 		<div className="dashboard flex min-h-screen">
 			{sidebarOpen && <div className="fixed inset-0 z-[55] dashboard-overlay backdrop-blur-sm md:hidden" onClick={() => setSidebarOpen(false)} />}
 			<div className={`fixed top-0 left-0 z-[60] h-full md:hidden transform transition-transform duration-300 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
-				<DashboardSidebar collapsed={false} onToggle={() => setSidebarOpen(false)} userEmail={user?.email} theme={theme} onThemeToggle={toggleTheme} />
+				<DashboardSidebar collapsed={false} onToggle={() => setSidebarOpen(false)} userEmail={user?.email} theme={theme} onThemeToggle={toggleTheme} onLogout={handleLogout} />
 			</div>
 			<div className="hidden md:block">
-				<DashboardSidebar collapsed={false} onToggle={() => { }} userEmail={user?.email} theme={theme} onThemeToggle={toggleTheme} />
+				<DashboardSidebar collapsed={false} onToggle={() => { }} userEmail={user?.email} theme={theme} onThemeToggle={toggleTheme} onLogout={handleLogout} />
 			</div>
 
 			<main className="flex-1 min-h-screen md:ml-[240px]">
@@ -566,7 +758,7 @@ export default function UserMyKeysRoute() {
 								<FiRefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
 								<span className="hidden sm:inline">Refresh</span>
 							</button>
-							<button onClick={() => setShowPlanModal(true)} className="flex items-center gap-2 px-3 sm:px-4 py-1.5 rounded-lg text-xs font-semibold bg-indigo-500 text-white hover:bg-indigo-600 transition-all">
+							<button onClick={() => setShowPlanModal(true)} className="flex items-center gap-2 px-3 sm:px-4 py-1.5 rounded-lg text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-all">
 								<FiPlus className="w-3.5 h-3.5" /><span className="hidden sm:inline">New Key</span>
 							</button>
 						</div>
@@ -586,7 +778,7 @@ export default function UserMyKeysRoute() {
 						</div>
 						<div className="dashboard-card p-4 rounded-2xl dashboard-card-hover transition-all">
 							<p className="text-[10px] font-semibold text-[var(--dashboard-text-muted)] uppercase tracking-wider">Total Requests</p>
-							<p className="text-xl sm:text-2xl font-bold text-indigo-500 mt-1">{totalReqs.toLocaleString()}</p>
+							<p className="text-xl sm:text-2xl font-bold text-primary mt-1">{totalReqs.toLocaleString()}</p>
 						</div>
 						<div className="dashboard-card p-4 rounded-2xl dashboard-card-hover transition-all">
 							<p className="text-[10px] font-semibold text-[var(--dashboard-text-muted)] uppercase tracking-wider">Expiring Soon</p>
@@ -642,7 +834,7 @@ export default function UserMyKeysRoute() {
 											<span className="text-[11px] font-mono text-[var(--dashboard-text-secondary)]">{(key.tokens_used || 0).toLocaleString()} / {(key.tokens_limit || 0).toLocaleString()}</span>
 										</div>
 										<div className="w-full bg-[var(--dashboard-input-bg)] rounded-full h-1.5 sm:h-2 overflow-hidden">
-											<div className={`h-full rounded-full transition-all ${usagePct > 80 ? "bg-rose-500" : usagePct > 50 ? "bg-amber-500" : "bg-indigo-500"}`} style={{ width: `${usagePct}%` }} />
+											<div className={`h-full rounded-full transition-all ${usagePct > 80 ? "bg-rose-500" : usagePct > 50 ? "bg-amber-500" : "bg-primary"}`} style={{ width: `${usagePct}%` }} />
 										</div>
 									</div>
 									<div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-[var(--dashboard-text-muted)]">
@@ -660,12 +852,10 @@ export default function UserMyKeysRoute() {
 
 			{/* ─── Plan Purchase Modal ─── */}
 			<PlanPurchaseModal
-				open={showPlanModal}
-				plans={plans}
-				loading={plansLoading}
-				onClose={() => setShowPlanModal(false)}
-				onConfirm={handlePlanPurchase}
-			/>
+					open={showPlanModal}
+					onClose={() => setShowPlanModal(false)}
+					onConfirm={handlePlanPurchase}
+				/>
 
 			{/* ─── Payment Verification Overlay Modal ─── */}
 			{verificationStatus !== "idle" && (
@@ -674,7 +864,7 @@ export default function UserMyKeysRoute() {
 						<div className="flex flex-col items-center justify-center space-y-4">
 							{verificationStatus === "verifying" && (
 								<>
-									<FiRefreshCw className="w-12 h-12 text-indigo-500 animate-spin" />
+									<FiRefreshCw className="w-12 h-12 text-primary animate-spin" />
 									<h2 className="text-lg font-bold text-[var(--dashboard-text)]">Verifying Payment</h2>
 									<p className="text-xs text-[var(--dashboard-text-muted)] leading-relaxed">{verificationMessage}</p>
 								</>

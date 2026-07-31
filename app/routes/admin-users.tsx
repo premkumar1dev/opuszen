@@ -1,7 +1,8 @@
 import { useState, useCallback, useEffect } from "react";
-import { type LoaderFunctionArgs, type MetaFunction, type ActionFunctionArgs, redirect, data } from "react-router";
+import { type LoaderFunctionArgs, type MetaFunction, type ActionFunctionArgs, redirect, data, useLocation } from "react-router";
 import { useLoaderData, useFetcher } from "react-router";
 import { verifyAdminSession } from "~/utils/admin-auth";
+import { requireAdmin } from "~/utils/admin-actions";
 import { supabase } from "~/utils/supabase";
 import { supabaseServer } from "~/utils/supabase.server";
 import { AdminSidebar } from "~/components/admin/admin-sidebar";
@@ -38,7 +39,6 @@ import {
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { motion, AnimatePresence } from "framer-motion";
-import crypto from "node:crypto";
 
 export const meta: MetaFunction = () => {
 	return [{ title: "Manage Users | Admin | OpusZen" }];
@@ -224,9 +224,8 @@ function EditUserSheet({ user, isNew, onClose, onSave, onAdd, onDelete, saving }
 			setErrors((e) => ({ ...e, username: "Username already taken" }));
 			return;
 		}
-
 		if (isNew) {
-			await onAdd({ ...(form as User), password: form.password ?? "", id: crypto.randomUUID() });
+			await onAdd({ ...(form as User), password: form.password ?? "", id: self.crypto.randomUUID() });
 		} else {
 			await onSave({ ...user, ...form, password: "" } as unknown as User);
 		}
@@ -467,10 +466,11 @@ function EditUserSheet({ user, isNew, onClose, onSave, onAdd, onDelete, saving }
 /* ------------------------------------------------------------------ */
 
 async function hashPassword(password: string): Promise<string> {
+	const cryptoObj = await import("node:crypto");
 	return new Promise((resolve, reject) => {
 		// Per-user random salt prevents rainbow-table attacks
-		const salt = crypto.randomBytes(16).toString("hex");
-		crypto.scrypt(password, salt, 64, (err, derivedKey) => {
+		const salt = cryptoObj.randomBytes(16).toString("hex");
+		cryptoObj.scrypt(password, salt, 64, (err, derivedKey) => {
 			if (err) reject(err);
 			else resolve(salt + "$" + derivedKey.toString("hex"));
 		});
@@ -478,22 +478,22 @@ async function hashPassword(password: string): Promise<string> {
 }
 
 async function verifyPassword(password: string, stored: string): Promise<boolean> {
+	const cryptoObj = await import("node:crypto");
 	return new Promise((resolve, reject) => {
 		const [salt] = stored.split("$");
-		crypto.scrypt(password, salt, 64, (err, derivedKey) => {
+		cryptoObj.scrypt(password, salt, 64, (err, derivedKey) => {
 			if (err) return reject(err);
 			// Constant-time comparison
 			const expected = derivedKey.toString("hex");
 			const match = expected.length === stored.length - 33 &&
-				crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(stored.slice(33)));
+				cryptoObj.timingSafeEqual(Buffer.from(expected), Buffer.from(stored.slice(33)));
 			resolve(match);
 		});
 	});
 }
 
 export async function action({ request }: ActionFunctionArgs) {
-	const adminCheck = await verifyAdminSession(request);
-	if (!adminCheck.isAdmin) return redirect("/auth/admin");
+	const admin = await requireAdmin(request);
 
 	const formData = await request.formData();
 	const intent = formData.get("intent")?.toString();
@@ -588,6 +588,7 @@ export default function AdminUsersRoute() {
 	}>();
 
 	const fetcher = useFetcher();
+	const location = useLocation();
 	const [allUsers, setAllUsers] = useState<User[]>(initialUsers);
 	const [loading, setLoading] = useState(false);
 	const [saving, setSaving] = useState(false);
@@ -600,10 +601,16 @@ export default function AdminUsersRoute() {
 	const [selectedUser, setSelectedUser] = useState<User | null>(null);
 	const [isNewUser, setIsNewUser] = useState(false);
 	const [showFilters, setShowFilters] = useState(false);
+	const [mobileOpen, setMobileOpen] = useState(false);
+
+	// Close mobile sidebar on route change
+	useEffect(() => {
+		setMobileOpen(false);
+	}, [location.pathname]);
 
 	const refresh = useCallback(async () => {
 		setLoading(true);
-		const { data, error } = await supabaseServer
+		const { data, error } = await supabase
 			.from("users")
 			.select("*")
 			.order("created_at", { ascending: false });
@@ -759,9 +766,18 @@ export default function AdminUsersRoute() {
 
 	return (
 		<div className="min-h-screen bg-background text-foreground">
-		<AdminSidebar collapsed={false} onToggle={() => {}} adminEmail={adminEmail || undefined} />
-		<main className="ml-[220px] min-h-screen">
-		<div className="max-w-[1200px]">
+		<AdminSidebar collapsed={false} onToggle={() => {}} adminEmail={adminEmail || undefined} mobileOpen={mobileOpen} onMobileToggle={() => setMobileOpen((v) => !v)} />
+		<main className="min-h-screen md:ml-[220px]">
+		{/* Mobile header bar with hamburger */}
+		<div className="sticky top-0 z-30 flex items-center gap-3 px-4 h-14 border-b border-border/60 bg-background/95 backdrop-blur md:hidden">
+			<button onClick={() => setMobileOpen(true)} className="p-2 -ml-2 rounded-lg hover:bg-muted text-muted-foreground transition-colors" aria-label="Open menu">
+				<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+					<path d="M4 6h16M4 12h16M4 18h16" />
+				</svg>
+			</button>
+			<span className="text-sm font-semibold">Users</span>
+		</div>
+		<div className="max-w-[1200px] px-4 sm:px-6 lg:px-8">
 		{/* Header */}
 		<div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
 		<div>

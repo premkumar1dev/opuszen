@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "~/utils/supabase";
 import {
@@ -40,11 +40,6 @@ export interface PlanOption {
 
 interface PlanPurchaseModalProps {
 	open: boolean;
-	plans: PlanOption[];
-	defaultPlanId?: string;
-	loading?: boolean;
-	userName?: string;
-	gatewayName?: string;
 	onClose: () => void;
 	onConfirm: (data: {
 		plan: PlanOption;
@@ -73,13 +68,13 @@ type PaymentMethod =
 // PAYMENT_METHODS is now defined dynamically inside the PaymentForm component
 
 const PLAN_COLORS = [
-	"from-indigo-500 to-violet-600",
-	"from-violet-500 to-fuchsia-600",
-	"from-fuchsia-500 to-pink-600",
-	"from-pink-500 to-rose-600",
-	"from-cyan-500 to-blue-600",
+	"from-primary to-primary/80",
+	"from-primary to-primary/80",
+	"from-violet-500 to-purple-500",
+	"from-primary to-primary/80",
+	"from-primary to-primary/80",
 	"from-emerald-500 to-teal-600",
-	"from-amber-500 to-orange-600",
+	"from-chart-2 to-primary",
 ];
 
 function getPlanIcon(index: number) {
@@ -117,18 +112,15 @@ function formatCurrency(n: number, currency = "INR"): string {
 
 export function PlanPurchaseModal({
 	open,
-	plans,
-	defaultPlanId,
-	loading,
-	userName,
-	gatewayName,
 	onClose,
 	onConfirm,
 	onPaymentInitiated,
 }: PlanPurchaseModalProps) {
-	const [selectedPlanId, setSelectedPlanId] = useState<string>(
-		defaultPlanId ?? plans[0]?.id ?? ""
-	);
+	const [plans, setPlans] = useState<PlanOption[]>([]);
+	const [plansLoading, setPlansLoading] = useState(false);
+	const [plansError, setPlansError] = useState<string | null>(null);
+	const [gatewayName, setGatewayName] = useState("PAY0");
+	const [selectedPlanId, setSelectedPlanId] = useState<string>("");
 	const [selectedMethod, setSelectedMethod] =
 		useState<PaymentMethod>("PAY0");
 	const [txnRef, setTxnRef] = useState("");
@@ -136,17 +128,79 @@ export function PlanPurchaseModal({
 	const [step, setStep] = useState<"select" | "pay">("select");
 	const [keyName, setKeyName] = useState("");
 
-	const navigate = useNavigate();
+	/* ── Fetch plans from API when modal opens ── */
+	useEffect(() => {
+		if (!open) return;
+		let cancelled = false;
 
+		async function fetchPlans() {
+			setPlansLoading(true);
+			setPlansError(null);
+			try {
+				const { data, error } = await supabase
+					.from("plans")
+					.select("*")
+					.eq("is_active", true)
+					.order("sort_order", { ascending: true });
+
+				if (error) throw error;
+				if (!cancelled) {
+					const mapped: PlanOption[] = (data ?? []).map((p: any) => ({
+						id: p.id,
+						name: p.name,
+						description: p.description ?? undefined,
+						multiplier: p.multiplier ?? 1,
+						price: p.price ?? 0,
+						currency: p.currency ?? "INR",
+						durationDays: p.duration_days ?? 30,
+						features: p.features ?? undefined,
+						isPopular: p.is_popular ?? false,
+						color: p.color ?? undefined,
+						isTokenPricing: (p.price_per_1m_input_tokens ?? 0) > 0 || (p.price_per_1m_output_tokens ?? 0) > 0,
+						pricePer1mInput: p.price_per_1m_input_tokens ?? 0,
+						pricePer1mOutput: p.price_per_1m_output_tokens ?? 0,
+						minCredits: p.min_credits ?? 0,
+					}));
+					setPlans(mapped);
+					if (mapped.length > 0) {
+						setSelectedPlanId(mapped[0].id);
+					}
+				}
+			} catch (err: any) {
+				if (!cancelled) setPlansError(err.message ?? "Failed to load plans");
+			} finally {
+				if (!cancelled) setPlansLoading(false);
+			}
+		}
+
+		fetchPlans();
+		return () => { cancelled = true; };
+	}, [open]);
+
+	/* ── Fetch gateway name ── */
+	useEffect(() => {
+		if (!open) return;
+		let cancelled = false;
+		supabase
+			.from("payment_gateway_settings")
+			.select("gateway_name")
+			.eq("is_active", true)
+			.maybeSingle()
+			.then(({ data }) => {
+				if (!cancelled && data?.gateway_name) setGatewayName(data.gateway_name);
+			});
+		return () => { cancelled = true; };
+	}, [open]);
+
+	/* ── Reset form state on open ── */
 	useEffect(() => {
 		if (open) {
-			setSelectedPlanId(defaultPlanId ?? plans[0]?.id ?? "");
 			setSelectedMethod("PAY0");
 			setTxnRef("");
 			setKeyName("");
 			setStep("select");
 		}
-	}, [open, defaultPlanId, plans]);
+	}, [open]);
 
 	const selectedPlan =
 		plans.find((p) => p.id === selectedPlanId) ?? plans[0];
@@ -207,7 +261,18 @@ export function PlanPurchaseModal({
 			});
 			const redirectUrl = `${window.location.origin}/user/my-keys?${returnParams.toString()}`;
 
-			// 5. Invoke gateway order creation API
+			// Direct instant activation for ₹0 / Free Trial plan (bypasses payment gateway API)
+			if (selectedPlan.price === 0) {
+				sessionStorage.setItem(`gateway_order_${orderId}`, gatewayOrderId);
+				if (onPaymentInitiated) {
+					onPaymentInitiated(orderId, gatewayOrderId, selectedPlan, keyName.trim());
+				}
+				onClose();
+				window.location.href = redirectUrl;
+				return;
+			}
+
+			// 5. Invoke gateway order creation API for paid plans
 			const formData = new FormData();
 			formData.set("intent", "create_order");
 			formData.set("customer_mobile", customerMobile);
@@ -258,10 +323,10 @@ export function PlanPurchaseModal({
 		}
 	};
 
-	return (
+	return createPortal(
 		<AnimatePresence>
 			<div
-				className="fixed inset-0 z-[80] flex items-center justify-center p-3 sm:p-4"
+				className="dashboard dark fixed inset-0 z-[80] flex items-center justify-center p-3 sm:p-4"
 				role="dialog"
 				aria-modal="true"
 			>
@@ -286,16 +351,16 @@ export function PlanPurchaseModal({
 					{/* Header */}
 					<div className="flex items-start justify-between gap-4 p-5 sm:p-6 border-b border-[var(--dashboard-border)] shrink-0">
 						<div className="min-w-0">
-							<div className="inline-flex items-center gap-1.5 mb-2 px-2.5 py-0.5 rounded-full bg-violet-500/10 border border-violet-500/20 text-[10px] font-mono font-semibold text-violet-600 dark:text-violet-400 uppercase tracking-wider">
+							<div className="inline-flex items-center gap-1.5 mb-2 px-2.5 py-0.5 rounded-full bg-primary/10 border border-primary/20 text-[10px] font-mono font-semibold text-primary dark:text-primary uppercase tracking-wider">
 								<FiZap className="w-3 h-3" />
 								Upgrade Plan
 							</div>
 							<h2 className="text-lg sm:text-xl font-bold text-[var(--dashboard-text)] truncate">
-								{step === "select" ? "Choose a Plan" : "Complete Payment"}
+								{step === "select" ? "Rent a Plan" : "Complete Payment"}
 							</h2>
 							<p className="text-xs text-[var(--dashboard-text-muted)] mt-0.5">
 								{step === "select"
-									? "Select a plan and rate multiplier for your API key."
+									? "Rent an API key plan — pick a rate and duration."
 									: `Pay ${formatCurrency(
 										selectedPlan.price,
 										selectedPlan.currency
@@ -313,8 +378,8 @@ export function PlanPurchaseModal({
 					</div>
 
 					{/* Body */}
-					<div className="overflow-y-auto flex-1 p-5 sm:p-6">
-						{loading ? (
+					<div className="overflow-y-auto flex-1 p-5 sm:p-6 custom-scrollbar">
+						{plansLoading && plans.length === 0 ? (
 							<div className="flex items-center justify-center py-16">
 								<FiLoader className="w-7 h-7 animate-spin text-[var(--dashboard-text-muted)]" />
 							</div>
@@ -352,9 +417,9 @@ export function PlanPurchaseModal({
 						{step === "select" ? (
 							<button
 								onClick={handleProceedToPay}
-								disabled={!selectedPlan || loading}
+								disabled={!selectedPlan || plansLoading}
 								type="button"
-								className="px-5 py-2.5 rounded-xl bg-indigo-500 text-white text-sm font-semibold hover:bg-indigo-600 transition-all cursor-pointer touch-manipulation disabled:opacity-50 inline-flex items-center gap-2"
+								className="px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-all cursor-pointer touch-manipulation disabled:opacity-50 inline-flex items-center gap-2"
 							>
 								Continue with Pay
 								<span className="hidden sm:inline">→</span>
@@ -382,7 +447,8 @@ export function PlanPurchaseModal({
 					</div>
 				</motion.div>
 			</div>
-		</AnimatePresence>
+		</AnimatePresence>,
+		document.body
 	);
 }
 
@@ -421,7 +487,7 @@ function PlanGrid({
 						key={plan.id}
 						className={`rounded-xl border-2 overflow-hidden transition-all duration-200 ${
 							isSelected
-								? "border-indigo-500 bg-indigo-500/5 shadow-md"
+								? "border-primary bg-primary/5 shadow-md"
 								: "border-[var(--dashboard-border)] hover:border-[var(--dashboard-text-muted)]/40 bg-[var(--dashboard-card)]"
 						}`}
 					>
@@ -441,7 +507,7 @@ function PlanGrid({
 											{plan.name}
 										</h3>
 										{plan.multiplier !== 1 && (
-											<span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-500 border border-indigo-500/20">
+											<span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">
 												{plan.multiplier}x Rate
 											</span>
 										)}
@@ -490,7 +556,7 @@ function PlanGrid({
 								<div
 									className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${
 										isSelected
-											? "border-indigo-500 bg-indigo-500"
+											? "border-primary bg-primary"
 											: "border-[var(--dashboard-border)]"
 									}`}
 								>
@@ -589,7 +655,7 @@ function PaymentForm({
 			label: gatewayName || "PAY0",
 			description: "All methods — UPI, GPay, PhonePe, Paytm, Cards",
 			icon: <FiZap className="w-5 h-5" />,
-			color: "from-indigo-500 to-violet-600",
+			color: "from-primary to-amber-500",
 			recommended: true,
 		},
 	];
@@ -602,7 +668,7 @@ function PaymentForm({
 						Order Summary
 					</span>
 					{plan.multiplier !== 1 && (
-						<span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-indigo-500/10 text-indigo-500 border border-indigo-500/20">
+						<span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-primary/10 text-primary border border-primary/20">
 							{plan.multiplier}x Rate
 						</span>
 					)}
@@ -639,7 +705,7 @@ function PaymentForm({
 					onChange={(e) => onKeyNameChange(e.target.value)}
 					placeholder="e.g. Production, Dev, Testing..."
 					maxLength={50}
-					className="dashboard-input w-full px-3 py-2.5 rounded-xl text-sm focus:outline-none focus:border-indigo-500/50 transition-all"
+					className="dashboard-input w-full px-3 py-2.5 rounded-xl text-sm focus:outline-none focus:border-primary/50 transition-all"
 				/>
 			</div>
 
@@ -650,9 +716,9 @@ function PaymentForm({
 				</label>
 
 				{/* Integrated gateway banner */}
-				<div className="mb-3 p-3 rounded-xl bg-gradient-to-r from-indigo-500/10 via-violet-500/10 to-fuchsia-500/10 border border-indigo-500/20">
+				<div className="mb-3 p-3 rounded-xl bg-gradient-to-r from-primary/10 via-amber-500/10 to-primary/10 border border-primary/20">
 					<div className="flex items-center gap-2">
-						<FiZap className="w-4 h-4 text-indigo-500 shrink-0" />
+						<FiZap className="w-4 h-4 text-primary shrink-0" />
 						<p className="text-[11px] text-[var(--dashboard-text-secondary)] leading-relaxed">
 							<strong className="text-[var(--dashboard-text)]">
 								{gatewayName || "PAY0"}
@@ -673,12 +739,12 @@ function PaymentForm({
 								onClick={() => onMethodChange(m.id)}
 								className={`relative flex items-center gap-3 p-3 rounded-xl border-2 transition-all cursor-pointer text-left ${
 									isSelected
-										? "border-indigo-500 bg-indigo-500/5"
+										? "border-primary bg-primary/5"
 										: "border-[var(--dashboard-border)] hover:border-[var(--dashboard-text-muted)]/40"
 								}`}
 							>
 								{m.recommended && (
-									<span className="absolute -top-2 right-2 px-1.5 py-0.5 rounded-md bg-indigo-500 text-[8px] font-bold text-white uppercase tracking-wider">
+									<span className="absolute -top-2 right-2 px-1.5 py-0.5 rounded-md bg-primary text-[8px] font-bold text-white uppercase tracking-wider">
 										Recommended
 									</span>
 								)}
@@ -698,7 +764,7 @@ function PaymentForm({
 								<div
 									className={`w-4 h-4 rounded-full border-2 shrink-0 ${
 										isSelected
-											? "border-indigo-500 bg-indigo-500"
+											? "border-primary bg-primary"
 											: "border-[var(--dashboard-border)]"
 									}`}
 								>
@@ -716,8 +782,8 @@ function PaymentForm({
 
 			{/* Transaction reference or gateway redirect message */}
 			{method === "PAY0" ? (
-				<div className="p-4 rounded-xl border border-indigo-500/20 bg-indigo-500/5 flex items-start gap-2.5">
-					<FiLock className="w-4 h-4 text-indigo-500 shrink-0 mt-0.5" />
+				<div className="p-4 rounded-xl border border-primary/20 bg-primary/5 flex items-start gap-2.5">
+					<FiLock className="w-4 h-4 text-primary shrink-0 mt-0.5" />
 					<div>
 						<p className="text-xs font-semibold text-[var(--dashboard-text)]">
 							Automatic Verification
@@ -749,7 +815,7 @@ function PaymentForm({
 								? "e.g. 123456789012 (12-digit UTR)"
 								: "e.g. Transaction ID from payment receipt"
 						}
-						className="dashboard-input w-full px-3 py-2.5 rounded-xl text-sm focus:outline-none focus:border-indigo-500/50 transition-all font-mono"
+						className="dashboard-input w-full px-3 py-2.5 rounded-xl text-sm focus:outline-none focus:border-primary/50 transition-all font-mono"
 					/>
 
 					<div className="mt-2 flex items-start gap-1.5 p-2.5 rounded-lg bg-amber-500/5 border border-amber-500/20">

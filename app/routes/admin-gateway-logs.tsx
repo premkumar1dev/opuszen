@@ -2,8 +2,8 @@
  * Admin - Request Logs
  * Route: /auth/admin/gateway/logs
  */
-import { useState, useCallback } from "react";
-import { type LoaderFunctionArgs, type MetaFunction, redirect } from "react-router";
+import { useState, useCallback, useEffect } from "react";
+import { type LoaderFunctionArgs, type MetaFunction, redirect, Form, useSearchParams, useRevalidator, useLocation } from "react-router";
 import { useLoaderData } from "react-router";
 import { verifyAdminSession } from "~/utils/admin-auth";
 import { AdminSidebar } from "~/components/admin/admin-sidebar";
@@ -33,39 +33,62 @@ export async function loader({ request }: LoaderFunctionArgs) {
  const adminCheck = await verifyAdminSession(request);
  if (!adminCheck.isAdmin) throw redirect("/auth/admin");
 
+ const url = new URL(request.url);
+ const page = parseInt(url.searchParams.get("page") || "1", 10);
+ const search = url.searchParams.get("search") || "";
+ const provider = url.searchParams.get("provider") || "";
+
  let logs: ApiRequestLogRow[] = [];
  let total = 0;
  try {
- const result = await (await import("~/utils/logging-service")).getRequestLogs({}, 1, PAGE_SIZE);
+ const { getRequestLogs } = await import("~/utils/logging-service");
+ const result = await getRequestLogs({
+ search: search || undefined,
+ provider: provider || undefined,
+ }, page, PAGE_SIZE);
  logs = result.logs;
  total = result.total;
- } catch { /* table may not exist */ }
+ } catch (err) {
+ console.error("Failed to load logs:", err);
+ }
 
- return { logs, total, page: 1, adminEmail: adminCheck.adminEmail };
+ return { logs, total, page, search, provider, adminEmail: adminCheck.adminEmail };
 }
 
 export default function AdminRequestLogsRoute() {
- const { logs: initialLogs, total: initialTotal, adminEmail } = useLoaderData<typeof loader>();
- const [logs, setLogs] = useState<ApiRequestLogRow[]>(initialLogs);
- const [total, setTotal] = useState(initialTotal);
- const [page, setPage] = useState(1);
- const [loading, setLoading] = useState(false);
- const [filters, setFilters] = useState<{ search: string; provider: string; model: string; status: 'success' | 'error' | '' }>({ search: '', provider: '', model: '', status: '' });
+ const { logs, total, page, search, provider, adminEmail } = useLoaderData<typeof loader>();
+ const [searchParams, setSearchParams] = useSearchParams();
+ const location = useLocation();
+ const revalidator = useRevalidator();
+ const [mobileOpen, setMobileOpen] = useState(false);
+
+ useEffect(() => {
+ setMobileOpen(false);
+ }, [location.pathname]);
+
+ const loading = revalidator.state === "loading";
 
  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
- const refresh = useCallback(async () => {
- setLoading(true);
- try {
-  const result = await (await import("~/utils/logging-service")).getRequestLogs({
-    ...filters,
-    status: filters.status === '' ? undefined : filters.status
-  }, page, PAGE_SIZE);
- setLogs(result.logs);
- setTotal(result.total);
- } catch { /* ignore */ }
- setLoading(false);
- }, [filters, page]);
+ const refresh = useCallback(() => {
+ revalidator.revalidate();
+ }, [revalidator]);
+
+ const handlePageChange = useCallback((newPage: number) => {
+ setSearchParams((prev) => {
+ prev.set("page", String(newPage));
+ return prev;
+ });
+ }, [setSearchParams]);
+
+ const handleClear = useCallback(() => {
+ setSearchParams((prev) => {
+ prev.delete("search");
+ prev.delete("provider");
+ prev.set("page", "1");
+ return prev;
+ });
+ }, [setSearchParams]);
 
  const handleExport = useCallback(() => {
  if (logs.length === 0) return;
@@ -98,9 +121,18 @@ export default function AdminRequestLogsRoute() {
 
  return (
  <div className="min-h-screen bg-background text-foreground">
- <AdminSidebar collapsed={false} onToggle={() => {}} adminEmail={adminEmail || undefined} />
- <main className="ml-[220px] min-h-screen">
- <div className="max-w-[1400px] space-y-6">
+ <AdminSidebar collapsed={false} onToggle={() => {}} adminEmail={adminEmail || undefined} mobileOpen={mobileOpen} onMobileToggle={() => setMobileOpen((v) => !v)} />
+ <main className="min-h-screen md:ml-[220px]">
+ {/* Mobile header bar with hamburger */}
+ <div className="sticky top-0 z-30 flex items-center gap-3 px-4 h-14 border-b border-border/60 bg-background/95 backdrop-blur md:hidden">
+ <button onClick={() => setMobileOpen(true)} className="p-2 -ml-2 rounded-lg hover:bg-muted text-muted-foreground transition-colors" aria-label="Open menu">
+ <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+ <path d="M4 6h16M4 12h16M4 18h16" />
+ </svg>
+ </button>
+ <span className="text-sm font-semibold">Gateway Logs</span>
+ </div>
+ <div className="max-w-[1400px] px-4 sm:px-6 lg:px-8 space-y-6">
  {/* Header */}
  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
  <div>
@@ -120,19 +152,20 @@ export default function AdminRequestLogsRoute() {
  </div>
 
  {/* Filters */}
- <div className="p-4 rounded-xl border border-border bg-card/60 flex flex-wrap gap-3 items-end">
+ <Form method="get" className="p-4 rounded-xl border border-border bg-card/60 flex flex-wrap gap-3 items-end w-full">
  <div className="flex-1 min-w-[200px]">
  <label className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Search</label>
- <Input placeholder="Model, provider, error..." value={filters.search} onChange={(e) => setFilters(f => ({ ...f, search: e.target.value }))} />
+ <Input name="search" placeholder="Model, provider, error..." defaultValue={search} />
  </div>
  <div className="w-40">
  <label className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Provider</label>
- <Input placeholder="OpenAI..." value={filters.provider} onChange={(e) => setFilters(f => ({ ...f, provider: e.target.value }))} />
+ <Input name="provider" placeholder="OpenAI..." defaultValue={provider} />
  </div>
- <Button variant="ghost" size="sm" onClick={() => { setFilters({ search: '', provider: '', model: '', status: '' }); setPage(1); }} className="h-9">
+ <Button type="submit" size="sm" className="h-9">Apply Filters</Button>
+ <Button type="button" variant="ghost" size="sm" onClick={handleClear} className="h-9">
  <FiRefreshCw className="w-3.5 h-3.5 mr-1" /> Clear
  </Button>
- </div>
+ </Form>
 
  {/* Logs Table */}
  <div className="rounded-2xl border border-border bg-card/60 overflow-hidden">
@@ -201,19 +234,19 @@ export default function AdminRequestLogsRoute() {
  Page {page} of {totalPages} ({total} total)
  </p>
  <div className="flex items-center gap-1">
- <Button variant="outline" size="sm" className="w-8 h-8 p-0" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}>
+ <Button variant="outline" size="sm" className="w-8 h-8 p-0" onClick={() => handlePageChange(Math.max(1, page - 1))} disabled={page === 1}>
  ←
  </Button>
  {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
  const p = i + 1;
  return (
- <Button key={p} variant={page === p ? "default" : "ghost"} size="sm" className="w-8 h-8 p-0 text-xs" onClick={() => setPage(p)}>
+ <Button key={p} variant={page === p ? "default" : "ghost"} size="sm" className="w-8 h-8 p-0 text-xs" onClick={() => handlePageChange(p)}>
  {p}
  </Button>
  );
  })}
  {totalPages > 5 && <span className="px-1 text-xs text-muted-foreground">…</span>}
- <Button variant="outline" size="sm" className="w-8 h-8 p-0" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}>
+ <Button variant="outline" size="sm" className="w-8 h-8 p-0" onClick={() => handlePageChange(Math.min(totalPages, page + 1))} disabled={page === totalPages}>
  →
  </Button>
  </div>

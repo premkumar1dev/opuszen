@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { type MetaFunction } from "react-router";
+import { type MetaFunction, data, type ActionFunctionArgs, useNavigate } from "react-router";
 import { DashboardSidebar } from "../components/dashboard/dashboard-sidebar";
 import {
 	FiUsers,
@@ -10,6 +10,7 @@ import {
 	FiMail,
 } from "react-icons/fi";
 import { supabase } from "~/utils/supabase";
+import { supabaseServer } from "~/utils/supabase.server";
 import { useDashboardTheme } from "~/utils/theme";
 
 interface Referral {
@@ -23,15 +24,62 @@ interface Referral {
 }
 
 export const meta: MetaFunction = () => [
-	{ title: "Refer & Earn | Opuszen" },
+	{ title: "Refer & Earn | OpusZen" },
 	{ name: "description", content: "Refer friends and earn rewards with OpusZen." },
 ];
 
 const REWARD = 10;
 
+// Server-side session validation helper
+async function getCurrentUser(request: Request) {
+	const cookieHeader = request.headers.get("Cookie") || "";
+	const accessTokenMatch = cookieHeader.match(/sb-access-token=([^;]+)/);
+	if (!accessTokenMatch) return null;
+	const { data, error } = await supabaseServer.auth.getUser(accessTokenMatch[1]);
+	if (error || !data.user) return null;
+	return data.user;
+}
+
+// Server action: submit a referral scoped to the authenticated user
+export async function action({ request }: ActionFunctionArgs) {
+	const user = await getCurrentUser(request);
+	if (!user) return data({ error: "Unauthorized" }, { status: 401 });
+
+	const formData = await request.formData();
+	const intent = formData.get("intent");
+
+	if (intent === "submitReferral") {
+		const referredEmail = formData.get("referredEmail");
+		if (!referredEmail || typeof referredEmail !== "string" || !referredEmail.trim()) {
+			return data({ error: "Referral email is required" }, { status: 400 });
+		}
+		const { error } = await supabaseServer.from("referrals").insert({
+			referrer_id: user.id,
+			referred_email: referredEmail.trim(),
+			status: "pending",
+			reward_amount: REWARD,
+			reward_status: "pending",
+		});
+		if (error) return data({ error: error.message }, { status: 500 });
+		return data({ success: true, message: "Referral submitted successfully." });
+	}
+
+	return data({ error: "Unknown intent" }, { status: 400 });
+}
+
 export default function UserReferEarnRoute() {
 	const { theme, toggleTheme } = useDashboardTheme();
+	const navigate = useNavigate();
 	const [user, setUser] = useState<any>(null);
+
+	const handleLogout = async () => {
+		try {
+			await supabase.auth.signOut();
+			navigate("/auth/login");
+		} catch (err) {
+			console.error("Logout failed:", err);
+		}
+	};
 	const [referrals, setReferrals] = useState<Referral[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [copied, setCopied] = useState(false);
@@ -57,18 +105,23 @@ export default function UserReferEarnRoute() {
 
 	const totalEarned = referrals.filter((r) => r.reward_status === "paid").reduce((s, r) => s + r.reward_amount, 0);
 	const pendingEarned = referrals.filter((r) => r.reward_status === "pending").reduce((s, r) => s + r.reward_amount, 0);
-	const link = `${window.location.origin}/auth/signup?ref=${code}`;
+	const [link, setLink] = useState("");
+	useEffect(() => {
+		if (typeof window !== "undefined") {
+			setLink(`${window.location.origin}/auth/signup?ref=${code}`);
+		}
+	}, [code]);
 
-	const copyLink = () => { navigator.clipboard.writeText(link); setCopied(true); setTimeout(() => setCopied(false), 2000); };
+	const copyLink = () => { if (link) { navigator.clipboard.writeText(link); setCopied(true); setTimeout(() => setCopied(false), 2000); } };
 
 	return (
 		<div className="dashboard flex min-h-screen">
 			{sidebarOpen && <div className="fixed inset-0 z-[55] dashboard-overlay backdrop-blur-sm md:hidden" onClick={() => setSidebarOpen(false)} />}
 			<div className={`fixed top-0 left-0 z-[60] h-full md:hidden transform transition-transform duration-300 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
-				<DashboardSidebar collapsed={false} onToggle={() => setSidebarOpen(false)} userEmail={user?.email} theme={theme} onThemeToggle={toggleTheme} />
+				<DashboardSidebar collapsed={false} onToggle={() => setSidebarOpen(false)} userEmail={user?.email} theme={theme} onThemeToggle={toggleTheme} onLogout={handleLogout} />
 			</div>
 			<div className="hidden md:block">
-				<DashboardSidebar collapsed={false} onToggle={() => { }} userEmail={user?.email} theme={theme} onThemeToggle={toggleTheme} />
+				<DashboardSidebar collapsed={false} onToggle={() => { }} userEmail={user?.email} theme={theme} onThemeToggle={toggleTheme} onLogout={handleLogout} />
 			</div>
 
 			<main className="flex-1 min-h-screen md:ml-[240px]">
@@ -88,14 +141,14 @@ export default function UserReferEarnRoute() {
 
 				<div className="p-4 sm:p-6 lg:p-8 max-w-[1000px] mx-auto w-full">
 					{/* Hero */}
-					<div className="p-4 sm:p-6 lg:p-8 rounded-2xl border border-[var(--dashboard-border)] bg-gradient-to-br from-indigo-500/10 via-violet-500/5 to-transparent mb-6 sm:mb-8">
+					<div className="p-4 sm:p-6 lg:p-8 rounded-2xl border border-[var(--dashboard-border)] bg-gradient-to-br from-primary/10 via-primary/5 to-transparent mb-6 sm:mb-8">
 						<div className="flex items-start gap-3 sm:gap-4">
-							<div className="p-2.5 sm:p-3 rounded-xl bg-indigo-500/10 border border-indigo-500/20 shrink-0">
-								<FiGift className="w-5 h-5 sm:w-6 sm:h-6 text-indigo-500" />
+							<div className="p-2.5 sm:p-3 rounded-xl bg-primary/10 border border-primary/20 shrink-0">
+								<FiGift className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
 							</div>
 							<div className="min-w-0">
 								<h2 className="text-base sm:text-xl font-bold text-[var(--dashboard-text)] mb-1">Share OpusZen, Earn Rewards</h2>
-								<p className="text-xs sm:text-sm text-[var(--dashboard-text-secondary)]">Refer friends to OpusZen and earn <strong className="text-indigo-500">${REWARD}</strong> in credits for each friend who signs up and makes their first payment.</p>
+								<p className="text-xs sm:text-sm text-[var(--dashboard-text-secondary)]">Refer friends to OpusZen and earn <strong className="text-primary">${REWARD}</strong> in credits for each friend who signs up and makes their first payment.</p>
 							</div>
 						</div>
 					</div>
@@ -116,7 +169,7 @@ export default function UserReferEarnRoute() {
 						</div>
 						<div className="dashboard-card p-3 sm:p-5 rounded-2xl dashboard-card-hover transition-all">
 							<p className="text-[10px] font-semibold text-[var(--dashboard-text-muted)] uppercase tracking-wider">Reward per ref</p>
-							<p className="text-xl sm:text-3xl font-bold text-indigo-500 mt-1">${REWARD}</p>
+							<p className="text-xl sm:text-3xl font-bold text-primary mt-1">${REWARD}</p>
 						</div>
 					</div>
 
@@ -130,8 +183,8 @@ export default function UserReferEarnRoute() {
 								{ icon: FiGift, title: "You Earn", desc: `Get $${REWARD} credit when they pay` },
 							].map((step, i) => (
 								<div key={i} className="flex items-start gap-3">
-									<div className="p-2 rounded-lg bg-indigo-500/10 border border-indigo-500/20 shrink-0">
-										<step.icon className="w-4 h-4 text-indigo-500" />
+									<div className="p-2 rounded-lg bg-primary/10 border border-primary/20 shrink-0">
+										<step.icon className="w-4 h-4 text-primary" />
 									</div>
 									<div>
 										<p className="text-xs font-semibold text-[var(--dashboard-text)]">{step.title}</p>
@@ -151,7 +204,7 @@ export default function UserReferEarnRoute() {
 								<code className="text-[10px] sm:text-xs font-mono text-[var(--dashboard-text-secondary)] truncate">{link}</code>
 							</div>
 							<div className="flex items-center gap-2 shrink-0">
-								<button onClick={copyLink} className="flex items-center justify-center gap-2 flex-1 sm:flex-none px-4 py-2.5 rounded-xl bg-indigo-500 text-white text-xs font-semibold hover:bg-indigo-600 transition-all cursor-pointer touch-manipulation">
+								<button onClick={copyLink} className="flex items-center justify-center gap-2 flex-1 sm:flex-none px-4 py-2.5 rounded-xl bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-all cursor-pointer touch-manipulation">
 									<FiCopy className="w-3.5 h-3.5" />
 									{copied ? "Copied!" : "Copy"}
 								</button>

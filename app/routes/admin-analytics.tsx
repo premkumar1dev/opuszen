@@ -1,6 +1,6 @@
-import { type LoaderFunctionArgs, type MetaFunction, redirect } from "react-router";
+import { type LoaderFunctionArgs, type MetaFunction, redirect, useLocation } from "react-router";
 import { useLoaderData } from "react-router";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { verifyAdminSession } from "~/utils/admin-auth";
 import { supabase } from "~/utils/supabase";
 import { AdminSidebar } from "~/components/admin/admin-sidebar";
@@ -183,6 +183,13 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
 export default function AdminAnalyticsRoute() {
 	const { stats, chartData, modelData, statusDist, hourlyData, adminEmail } = useLoaderData<LoaderData>();
+	const location = useLocation();
+	const [mobileOpen, setMobileOpen] = useState(false);
+
+	useEffect(() => {
+		setMobileOpen(false);
+	}, [location.pathname]);
+
 	const [chartTab, setChartTab] = useState<"requests" | "latency" | "tokens">("requests");
 
 	const dataKey = chartTab === "requests" ? "requests" : chartTab === "latency" ? "latency" : "tokens";
@@ -191,8 +198,17 @@ export default function AdminAnalyticsRoute() {
 
 	return (
 		<div className="min-h-screen bg-background text-foreground">
-			<AdminSidebar collapsed={false} onToggle={() => {}} adminEmail={adminEmail || undefined} />
-			<main className="ml-[220px] min-h-screen">
+			<AdminSidebar collapsed={false} onToggle={() => {}} adminEmail={adminEmail || undefined} mobileOpen={mobileOpen} onMobileToggle={() => setMobileOpen((v) => !v)} />
+			<main className="min-h-screen md:ml-[220px]">
+				{/* Mobile header bar with hamburger */}
+				<div className="sticky top-0 z-30 flex items-center gap-3 px-4 h-14 border-b border-border/60 bg-background/95 backdrop-blur md:hidden">
+					<button onClick={() => setMobileOpen(true)} className="p-2 -ml-2 rounded-lg hover:bg-muted text-muted-foreground transition-colors" aria-label="Open menu">
+						<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+							<path d="M4 6h16M4 12h16M4 18h16" />
+						</svg>
+					</button>
+					<span className="text-sm font-semibold">Analytics</span>
+				</div>
 				<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 					<div className="max-w-[1400px] space-y-6">
 						{/* Header */}

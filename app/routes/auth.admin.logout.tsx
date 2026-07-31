@@ -10,6 +10,7 @@ export async function action({ request }: ActionFunctionArgs) {
 
 	const headers = new Headers();
 	headers.append("Set-Cookie", "admin_session=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT");
+	headers.append("Set-Cookie", "admin_bypass=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT");
 	headers.append("Set-Cookie", "sb-access-token=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT");
 	headers.append("Set-Cookie", "sb-refresh-token=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT");
 

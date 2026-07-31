@@ -1,7 +1,8 @@
-import { useState, useCallback } from "react";
-import { type LoaderFunctionArgs, type MetaFunction, redirect } from "react-router";
+import { useState, useEffect, useCallback } from "react";
+import { type LoaderFunctionArgs, type MetaFunction, type ActionFunctionArgs, redirect, useLocation } from "react-router";
 import { useLoaderData } from "react-router";
 import { verifyAdminSession } from "~/utils/admin-auth";
+import { requireAdmin } from "~/utils/admin-actions";
 import { supabase } from "~/utils/supabase";
 import { AdminSidebar } from "~/components/admin/admin-sidebar";
 import { cn } from "@/lib/utils";
@@ -97,6 +98,11 @@ export async function loader({ request }: LoaderFunctionArgs) {
  error: error ? error.message : null,
  adminEmail: adminCheck.adminEmail,
  };
+}
+
+export async function action({ request }: ActionFunctionArgs) {
+ const admin = await requireAdmin(request);
+ return { success: true };
 }
 
 /* ------------------------------------------------------------------ */
@@ -543,6 +549,12 @@ export default function AdminPlansRoute() {
  error: string | null;
  adminEmail: string | null;
  }>();
+ const location = useLocation();
+ const [mobileOpen, setMobileOpen] = useState(false);
+
+ useEffect(() => {
+ setMobileOpen(false);
+ }, [location.pathname]);
 
  const [plans, setPlans] = useState<Plan[]>(initialPlans);
  const [loading, setLoading] = useState(false);
@@ -680,9 +692,18 @@ export default function AdminPlansRoute() {
 
  return (
  <div className="min-h-screen bg-background text-foreground">
- <AdminSidebar collapsed={false} onToggle={() => {}} adminEmail={adminEmail || undefined} />
+ <AdminSidebar collapsed={false} onToggle={() => {}} adminEmail={adminEmail || undefined} mobileOpen={mobileOpen} onMobileToggle={() => setMobileOpen((v) => !v)} />
 
- <main className="ml-[220px] min-h-screen">
+ <main className="min-h-screen md:ml-[220px]">
+ {/* ── Mobile header bar with hamburger ── */}
+ <div className="sticky top-0 z-30 flex items-center gap-3 px-4 h-14 border-b border-border/60 bg-background/95 backdrop-blur md:hidden">
+ <button onClick={() => setMobileOpen(true)} className="p-2 -ml-2 rounded-lg hover:bg-muted text-muted-foreground transition-colors" aria-label="Open menu">
+ <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+ <path d="M4 6h16M4 12h16M4 18h16" />
+ </svg>
+ </button>
+ <span className="text-sm font-semibold">Plans</span>
+ </div>
  {/* ── Header ── */}
  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
  <div>

@@ -39,8 +39,8 @@ export async function action({ request }: ActionFunctionArgs) {
     });
 
     if (resetError) {
-      console.error("[Forgot password Supabase error]:", resetError.message);
-      return Response.json({ error: resetError.message }, { status: 400 });
+      console.error("[forgot-password] Supabase error (dev only):", resetError.message);
+      return Response.json({ error: "If an account exists with that email, a reset link has been sent." }, { status: 200 });
     }
 
     return Response.json({ success: true });
@@ -58,19 +58,19 @@ export default function ForgotPasswordRoute() {
   const data = fetcher.data as { success?: boolean; error?: string } | undefined;
 
   return (
-    <section className="bg-muted bg-background h-screen">
-      <div className="flex h-full items-center justify-center">
-        <div className="border-muted bg-background flex w-full max-w-sm flex-col items-center gap-y-8 rounded-md border px-6 py-12 shadow-md">
+    <section className="bg-background min-h-screen">
+      <div className="flex min-h-screen items-center justify-center px-4 py-8 sm:py-12">
+        <div className="border-border bg-card flex w-full max-w-sm flex-col items-center gap-y-6 rounded-2xl border px-5 sm:px-6 py-10 sm:py-12 shadow-sm">
           <div className="flex flex-col items-center gap-y-2">
             {/* Logo and Site Name */}
             <div className="flex items-center gap-3">
               <Link to="/" className="flex items-center gap-3">
                 <img
                   src="/logo-blue.png"
-                  alt="Opuszen Logo"
+                  alt="OpusZen Logo"
                   className="h-10 w-10"
                 />
-                <span className="text-2xl font-bold tracking-tight text-foreground">Opuszen</span>
+                <span className="text-2xl font-bold tracking-tight text-foreground">OpusZen</span>
               </Link>
             </div>
             <h1 className="text-xl font-semibold mt-2">Reset password</h1>

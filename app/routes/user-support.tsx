@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { type MetaFunction } from "react-router";
+import { type MetaFunction, data, type ActionFunctionArgs, useNavigate } from "react-router";
 import { DashboardSidebar } from "../components/dashboard/dashboard-sidebar";
 import {
 	FiHelpCircle,
@@ -15,10 +15,11 @@ import {
 } from "react-icons/fi";
 import { FaWhatsapp } from "react-icons/fa";
 import { supabase } from "~/utils/supabase";
+import { supabaseServer } from "~/utils/supabase.server";
+import { useDashboardTheme } from "~/utils/theme";
 
 const WHATSAPP_NUMBER = "918098830937"; // international format, no '+' or spaces
-const WHATSAPP_LINK = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent("Hi, I need support with Opuszen.")}`;
-import { useDashboardTheme } from "~/utils/theme";
+const WHATSAPP_LINK = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent("Hi, I need support with OpusZen.")}`;
 
 interface Ticket {
 	id: string;
@@ -31,12 +32,51 @@ interface Ticket {
 }
 
 export const meta: MetaFunction = () => [
-	{ title: "Support | Opuszen" },
+	{ title: "Support | OpusZen" },
 	{ name: "description", content: "Get support for your OpusZen account." },
 ];
 
+// Server-side session validation helper
+async function getCurrentUser(request: Request) {
+	const cookieHeader = request.headers.get("Cookie") || "";
+	const accessTokenMatch = cookieHeader.match(/sb-access-token=([^;]+)/);
+	if (!accessTokenMatch) return null;
+	const { data, error } = await supabaseServer.auth.getUser(accessTokenMatch[1]);
+	if (error || !data.user) return null;
+	return data.user;
+}
+
+// Server action: submit a support ticket scoped to the authenticated user
+export async function action({ request }: ActionFunctionArgs) {
+	const user = await getCurrentUser(request);
+	if (!user) return data({ error: "Unauthorized" }, { status: 401 });
+
+	const formData = await request.formData();
+	const subject = formData.get("subject");
+	const message = formData.get("message");
+	const priority = formData.get("priority") || "medium";
+
+	if (!subject || typeof subject !== "string" || !subject.trim()) {
+		return data({ error: "Subject is required" }, { status: 400 });
+	}
+	if (!message || typeof message !== "string" || !message.trim()) {
+		return data({ error: "Message is required" }, { status: 400 });
+	}
+
+	const { error } = await supabaseServer.from("support_tickets").insert({
+		user_id: user.id,
+		subject: subject.trim(),
+		message: message.trim(),
+		priority,
+		status: "open",
+	});
+
+	if (error) return data({ error: error.message }, { status: 500 });
+	return data({ success: true, message: "Ticket submitted successfully." });
+}
+
 const STATUS: Record<string, { label: string; bg: string; text: string; border: string }> = {
-	open: { label: "Open", bg: "bg-blue-500/10", text: "text-blue-500", border: "border-blue-500/20" },
+	open: { label: "Open", bg: "bg-primary/10", text: "text-primary", border: "border-primary/20" },
 	in_progress: { label: "In Progress", bg: "bg-amber-500/10", text: "text-amber-500", border: "border-amber-500/20" },
 	resolved: { label: "Resolved", bg: "bg-emerald-500/10", text: "text-emerald-500", border: "border-emerald-500/20" },
 	closed: { label: "Closed", bg: "bg-[var(--dashboard-nav-hover)]", text: "text-[var(--dashboard-text-muted)]", border: "border-[var(--dashboard-border)]" },
@@ -50,7 +90,17 @@ const PRIORITY: Record<string, { label: string; color: string }> = {
 
 export default function UserSupportRoute() {
 	const { theme, toggleTheme } = useDashboardTheme();
+	const navigate = useNavigate();
 	const [user, setUser] = useState<any>(null);
+
+	const handleLogout = async () => {
+		try {
+			await supabase.auth.signOut();
+			navigate("/auth/login");
+		} catch (err) {
+			console.error("Logout failed:", err);
+		}
+	};
 	const [tickets, setTickets] = useState<Ticket[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -77,7 +127,9 @@ export default function UserSupportRoute() {
 			if (!session) return;
 			const { data } = await supabase.from("support_tickets").select("*").eq("user_id", session.user.id).order("created_at", { ascending: false });
 			if (data) setTickets(data as Ticket[]);
-		} catch { }
+		} catch (err) {
+			console.error("[user-support] Failed to fetch tickets:", err);
+		}
 		setLoading(false);
 	}
 
@@ -89,7 +141,10 @@ export default function UserSupportRoute() {
 			if (!session) return;
 			const { error } = await supabase.from("support_tickets").insert({ subject, message, priority, status: "open", user_id: session.user.id });
 			if (!error) { setSubject(""); setMessage(""); setPriority("medium"); setShowNew(false); fetchTickets(); }
-		} catch { }
+		} catch (err) {
+			console.error("[user-support] Failed to submit ticket:", err);
+			setSubmitting(false);
+		}
 		setSubmitting(false);
 	}
 
@@ -97,10 +152,10 @@ export default function UserSupportRoute() {
 		<div className="dashboard flex min-h-screen">
 			{sidebarOpen && <div className="fixed inset-0 z-[55] dashboard-overlay backdrop-blur-sm md:hidden" onClick={() => setSidebarOpen(false)} />}
 			<div className={`fixed top-0 left-0 z-[60] h-full md:hidden transform transition-transform duration-300 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
-				<DashboardSidebar collapsed={false} onToggle={() => setSidebarOpen(false)} userEmail={user?.email} theme={theme} onThemeToggle={toggleTheme} />
+				<DashboardSidebar collapsed={false} onToggle={() => setSidebarOpen(false)} userEmail={user?.email} theme={theme} onThemeToggle={toggleTheme} onLogout={handleLogout} />
 			</div>
 			<div className="hidden md:block">
-				<DashboardSidebar collapsed={false} onToggle={() => { }} userEmail={user?.email} theme={theme} onThemeToggle={toggleTheme} />
+				<DashboardSidebar collapsed={false} onToggle={() => { }} userEmail={user?.email} theme={theme} onThemeToggle={toggleTheme} onLogout={handleLogout} />
 			</div>
 
 			<main className="flex-1 min-h-screen md:ml-[240px]">
@@ -115,7 +170,7 @@ export default function UserSupportRoute() {
 								<p className="text-[11px] text-[var(--dashboard-text-muted)] hidden sm:block">{openCount} open ticket{openCount !== 1 ? "s" : ""}</p>
 							</div>
 						</div>
-						<button onClick={() => setShowNew(true)} className="flex items-center gap-2 px-3 sm:px-4 py-1.5 rounded-lg text-xs font-semibold bg-indigo-500 text-white hover:bg-indigo-600 transition-all touch-manipulation shrink-0"><FiSend className="w-3.5 h-3.5" /><span className="hidden sm:inline">New Ticket</span></button>
+						<button onClick={() => setShowNew(true)} className="flex items-center gap-2 px-3 sm:px-4 py-1.5 rounded-lg text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-all touch-manipulation shrink-0"><FiSend className="w-3.5 h-3.5" /><span className="hidden sm:inline">New Ticket</span></button>
 					</div>
 				</header>
 
@@ -128,7 +183,7 @@ export default function UserSupportRoute() {
 							{ icon: FiMail, title: "Email Support", desc: "support@opuszen.com", action: () => window.location.href = "mailto:support@opuszen.com" },
 						].map((item, i) => (
 							<div key={i} onClick={item.action} className="dashboard-card p-4 sm:p-5 rounded-2xl dashboard-card-hover transition-all cursor-pointer touch-manipulation active:scale-[0.98]">
-								<div className="p-2 rounded-lg bg-indigo-500/10 border border-indigo-500/20 w-fit mb-3"><item.icon className="w-4 h-4 text-indigo-500" /></div>
+								<div className="p-2 rounded-lg bg-primary/10 border border-primary/20 w-fit mb-3"><item.icon className="w-4 h-4 text-primary" /></div>
 								<p className="text-sm font-semibold text-[var(--dashboard-text)]">{item.title}</p>
 								<p className="text-[11px] text-[var(--dashboard-text-muted)] mt-0.5">{item.desc}</p>
 							</div>
@@ -144,7 +199,7 @@ export default function UserSupportRoute() {
 							</div>
 							<div className="relative w-full sm:w-auto">
 								<FiSearch className="w-3.5 h-3.5 text-[var(--dashboard-text-muted)] absolute left-3 top-1/2 -translate-y-1/2" />
-								<input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search..." className="dashboard-input pl-8 pr-3 py-2 rounded-lg text-xs focus:outline-none focus:border-indigo-500/50 transition-all w-full sm:w-40" />
+								<input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search..." className="dashboard-input pl-8 pr-3 py-2 rounded-lg text-xs focus:outline-none focus:border-primary/50 transition-all w-full sm:w-40" />
 							</div>
 						</div>
 
@@ -165,7 +220,7 @@ export default function UserSupportRoute() {
 										<div key={t.id} onClick={() => setSelected(t)} className="flex flex-wrap sm:flex-nowrap items-start sm:items-center justify-between gap-2 sm:gap-3 px-4 sm:px-5 py-4 hover:bg-[var(--dashboard-nav-hover)] transition-all cursor-pointer touch-manipulation active:bg-[var(--dashboard-nav-hover)]">
 											<div className="flex items-start gap-3 min-w-0 flex-1">
 												<div className={`p-1.5 rounded-lg shrink-0 ${cfg.bg}`}>
-													{t.status === "resolved" || t.status === "closed" ? <FiCheckCircle className="w-4 h-4 text-emerald-500" /> : t.status === "in_progress" ? <FiClock className="w-4 h-4 text-amber-500" /> : <FiHelpCircle className="w-4 h-4 text-blue-500" />}
+													{t.status === "resolved" || t.status === "closed" ? <FiCheckCircle className="w-4 h-4 text-emerald-500" /> : t.status === "in_progress" ? <FiClock className="w-4 h-4 text-amber-500" /> : <FiHelpCircle className="w-4 h-4 text-primary" />}
 												</div>
 												<div className="min-w-0 flex-1">
 													<p className="text-sm font-medium text-[var(--dashboard-text)] truncate">{t.subject}</p>
@@ -186,7 +241,7 @@ export default function UserSupportRoute() {
 				{showNew && (
 					<div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4" role="dialog" aria-modal="true">
 						<div className="absolute inset-0 dashboard-overlay backdrop-blur-sm" onClick={() => setShowNew(false)} />
-						<div className="dashboard-modal-bg dashboard-card relative w-full max-w-lg rounded-2xl p-5 sm:p-6 shadow-2xl border border-[var(--dashboard-border)] max-h-[90vh] sm:max-h-[85vh] overflow-y-auto">
+						<div className="dashboard-modal-bg dashboard-card relative w-full max-w-lg rounded-2xl p-5 sm:p-6 shadow-2xl border border-[var(--dashboard-border)] max-h-[90vh] sm:max-h-[85vh] overflow-y-auto custom-scrollbar">
 							<div className="flex items-center justify-between mb-5 sm:mb-6">
 								<h2 className="text-base sm:text-lg font-bold text-[var(--dashboard-text)]">New Support Ticket</h2>
 								<button onClick={() => setShowNew(false)} className="p-1.5 rounded-lg text-[var(--dashboard-text-muted)] hover:text-[var(--dashboard-text)] hover:bg-[var(--dashboard-nav-hover)] transition-all" aria-label="Close"><FiX className="w-4 h-4" /></button>
@@ -194,23 +249,23 @@ export default function UserSupportRoute() {
 							<div className="space-y-4">
 								<div>
 									<label className="block text-xs font-semibold text-[var(--dashboard-text-secondary)] mb-1.5">Subject</label>
-									<input type="text" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Brief description..." className="dashboard-input w-full px-3 py-2.5 rounded-xl text-sm focus:outline-none focus:border-indigo-500/50 transition-all" autoFocus />
+									<input type="text" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Brief description..." className="dashboard-input w-full px-3 py-2.5 rounded-xl text-sm focus:outline-none focus:border-primary/50 transition-all" autoFocus />
 								</div>
 								<div>
 									<label className="block text-xs font-semibold text-[var(--dashboard-text-secondary)] mb-1.5">Priority</label>
 									<div className="grid grid-cols-3 gap-2">
 										{(["low", "medium", "high"] as const).map((p) => (
-											<button key={p} onClick={() => setPriority(p)} className={`py-2.5 rounded-xl text-xs font-medium border transition-all cursor-pointer touch-manipulation ${priority === p ? "bg-indigo-500/15 text-indigo-500 border-indigo-500/30" : "border-[var(--dashboard-border)] text-[var(--dashboard-text-secondary)] hover:bg-[var(--dashboard-nav-hover)]"}`}>{p.charAt(0).toUpperCase() + p.slice(1)}</button>
+											<button key={p} onClick={() => setPriority(p)} className={`py-2.5 rounded-xl text-xs font-medium border transition-all cursor-pointer touch-manipulation ${priority === p ? "bg-primary/15 text-primary border-primary/30" : "border-[var(--dashboard-border)] text-[var(--dashboard-text-secondary)] hover:bg-[var(--dashboard-nav-hover)]"}`}>{p.charAt(0).toUpperCase() + p.slice(1)}</button>
 										))}
 									</div>
 								</div>
 								<div>
 									<label className="block text-xs font-semibold text-[var(--dashboard-text-secondary)] mb-1.5">Message</label>
-									<textarea value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Describe your issue..." rows={5} className="dashboard-input w-full px-3 py-2.5 rounded-xl text-sm focus:outline-none focus:border-indigo-500/50 transition-all resize-none" />
+									<textarea value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Describe your issue..." rows={5} className="dashboard-input w-full px-3 py-2.5 rounded-xl text-sm focus:outline-none focus:border-primary/50 transition-all resize-none" />
 								</div>
 								<div className="flex gap-2 pt-2">
 									<button onClick={() => setShowNew(false)} className="flex-1 py-2.5 rounded-xl border border-[var(--dashboard-border)] text-sm font-medium text-[var(--dashboard-text-secondary)] hover:text-[var(--dashboard-text)] hover:bg-[var(--dashboard-nav-hover)] transition-all cursor-pointer touch-manipulation">Cancel</button>
-									<button onClick={submit} disabled={!subject.trim() || !message.trim() || submitting} className="flex-1 py-2.5 rounded-xl bg-indigo-500 text-white text-sm font-semibold hover:bg-indigo-600 transition-all disabled:opacity-40 cursor-pointer flex items-center justify-center gap-2 touch-manipulation">
+									<button onClick={submit} disabled={!subject.trim() || !message.trim() || submitting} className="flex-1 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-all disabled:opacity-40 cursor-pointer flex items-center justify-center gap-2 touch-manipulation">
 										{submitting ? <FiLoader className="w-3.5 h-3.5 animate-spin" /> : <FiSend className="w-3.5 h-3.5" />}
 										{submitting ? "Submitting..." : "Submit"}
 									</button>
@@ -224,7 +279,7 @@ export default function UserSupportRoute() {
 				{selected && (
 					<div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4" role="dialog" aria-modal="true">
 						<div className="absolute inset-0 dashboard-overlay backdrop-blur-sm" onClick={() => setSelected(null)} />
-						<div className="dashboard-modal-bg dashboard-card relative w-full max-w-md rounded-2xl p-5 sm:p-6 shadow-2xl border border-[var(--dashboard-border)] max-h-[85vh] overflow-y-auto">
+						<div className="dashboard-modal-bg dashboard-card relative w-full max-w-md rounded-2xl p-5 sm:p-6 shadow-2xl border border-[var(--dashboard-border)] max-h-[85vh] overflow-y-auto custom-scrollbar">
 							<div className="flex items-center justify-between mb-4">
 								<h2 className="text-base sm:text-lg font-bold text-[var(--dashboard-text)]">Ticket Details</h2>
 								<button onClick={() => setSelected(null)} className="p-1.5 rounded-lg text-[var(--dashboard-text-muted)] hover:text-[var(--dashboard-text)] hover:bg-[var(--dashboard-nav-hover)] transition-all" aria-label="Close"><FiX className="w-4 h-4" /></button>

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { type MetaFunction } from "react-router";
+import { type MetaFunction, data, type ActionFunctionArgs, useNavigate } from "react-router";
 import { DashboardSidebar } from "../components/dashboard/dashboard-sidebar";
 import {
 	FiShoppingBag,
@@ -9,6 +9,7 @@ import {
 } from "react-icons/fi";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "~/utils/supabase";
+import { supabaseServer } from "~/utils/supabase.server";
 import { useDashboardTheme } from "~/utils/theme";
 
 interface Order {
@@ -30,16 +31,45 @@ interface Order {
 }
 
 export const meta: MetaFunction = () => [
-	{ title: "My Orders | Opuszen" },
+	{ title: "My Orders | OpusZen" },
 	{ name: "description", content: "View and manage your orders." },
 ];
+
+// Server-side session validation helper
+async function getCurrentUser(request: Request) {
+	const cookieHeader = request.headers.get("Cookie") || "";
+	const accessTokenMatch = cookieHeader.match(/sb-access-token=([^;]+)/);
+	if (!accessTokenMatch) return null;
+	const { data, error } = await supabaseServer.auth.getUser(accessTokenMatch[1]);
+	if (error || !data.user) return null;
+	return data.user;
+}
+
+// Server loader: fetches orders scoped to the authenticated user
+export async function loader({ request }: { request: Request }) {
+	const user = await getCurrentUser(request);
+	if (!user) {
+		return data({ orders: [] });
+	}
+
+	const { data: ordersData, error } = await supabaseServer
+		.from("orders")
+		.select("*")
+		.eq("username", user.email)
+		.order("created_at", { ascending: true });
+
+	if (error) {
+		return data({ orders: [] });
+	}
+	return data({ orders: ordersData });
+}
 
 const STATUS: Record<string, { label: string; bg: string; text: string; border: string; dot: string }> = {
 	completed: { label: "Completed", bg: "bg-emerald-500/10", text: "text-emerald-500", border: "border-emerald-500/20", dot: "bg-emerald-500" },
 	pending: { label: "Pending", bg: "bg-amber-500/10", text: "text-amber-500", border: "border-amber-500/20", dot: "bg-amber-500 animate-pulse" },
 	failed: { label: "Failed", bg: "bg-red-500/10", text: "text-red-500", border: "border-red-500/20", dot: "bg-red-500" },
 	cancelled: { label: "Cancelled", bg: "bg-zinc-500/10", text: "text-zinc-400", border: "border-zinc-500/20", dot: "bg-zinc-400" },
-	refunded: { label: "Refunded", bg: "bg-violet-500/10", text: "text-violet-400", border: "border-violet-500/20", dot: "bg-violet-400" },
+	refunded: { label: "Refunded", bg: "bg-primary/10", text: "text-primary", border: "border-primary/20", dot: "bg-primary" },
 };
 
 function fmtDate(iso: string | null): string {
@@ -54,7 +84,17 @@ function fmtCurrency(n: number, c = "USD"): string {
 
 export default function UserOrdersRoute() {
 	const { theme, toggleTheme } = useDashboardTheme();
+	const navigate = useNavigate();
 	const [user, setUser] = useState<any>(null);
+
+	const handleLogout = async () => {
+		try {
+			await supabase.auth.signOut();
+			navigate("/auth/login");
+		} catch (err) {
+			console.error("Logout failed:", err);
+		}
+	};
 	const [orders, setOrders] = useState<Order[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [filter, setFilter] = useState<"all" | "pending" | "completed" | "failed" | "cancelled" | "refunded">("all");
@@ -71,7 +111,7 @@ export default function UserOrdersRoute() {
 		try {
 			const { data: { session } } = await supabase.auth.getSession();
 			if (!session || !session.user?.email) return;
-			const { data } = await supabase.from("orders").select("*").eq("username", session.user.email).order("created_at", { ascending: false });
+			const { data } = await supabase.from("orders").select("*").eq("username", session.user.email).order("created_at", { ascending: true });
 			if (data) setOrders(data as Order[]);
 		} catch { }
 		setLoading(false);
@@ -86,12 +126,12 @@ export default function UserOrdersRoute() {
 
 			{/* Mobile sidebar drawer */}
 			<div className={`fixed top-0 left-0 z-[60] h-full md:hidden transform transition-transform duration-300 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
-				<DashboardSidebar collapsed={false} onToggle={() => setSidebarOpen(false)} userEmail={user?.email} theme={theme} onThemeToggle={toggleTheme} />
+				<DashboardSidebar collapsed={false} onToggle={() => setSidebarOpen(false)} userEmail={user?.email} theme={theme} onThemeToggle={toggleTheme} onLogout={handleLogout} />
 			</div>
 
 			{/* Desktop sidebar */}
 			<div className="hidden md:block">
-				<DashboardSidebar collapsed={false} onToggle={() => { }} userEmail={user?.email} theme={theme} onThemeToggle={toggleTheme} />
+				<DashboardSidebar collapsed={false} onToggle={() => { }} userEmail={user?.email} theme={theme} onThemeToggle={toggleTheme} onLogout={handleLogout} />
 			</div>
 
 			{/* Main content — offset by sidebar width */}
@@ -131,14 +171,14 @@ export default function UserOrdersRoute() {
 						</div>
 						<div className="dashboard-card p-4 rounded-2xl dashboard-card-hover transition-all">
 							<p className="text-[10px] font-semibold text-[var(--dashboard-text-muted)] uppercase tracking-wider">Total Spent</p>
-							<p className="text-base sm:text-xl font-bold text-indigo-500 mt-1 truncate">{fmtCurrency(orders.filter((o) => o.status === "completed").reduce((s, o) => s + o.final_amount, 0))}</p>
+							<p className="text-base sm:text-xl font-bold text-primary mt-1 truncate">{fmtCurrency(orders.filter((o) => o.status === "completed").reduce((s, o) => s + o.final_amount, 0))}</p>
 						</div>
 					</div>
 
 					{/* Filter tabs */}
 					<div className="flex items-center gap-1 mb-6 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-none">
 						{(["all", "pending", "completed", "failed", "cancelled", "refunded"] as const).map((f) => (
-							<button key={f} onClick={() => setFilter(f)} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap touch-manipulation shrink-0 ${filter === f ? "bg-indigo-500/15 text-indigo-500 border border-indigo-500/30" : "text-[var(--dashboard-text-muted)] hover:text-[var(--dashboard-text)] hover:bg-[var(--dashboard-nav-hover)] border border-transparent"}`}>
+							<button key={f} onClick={() => setFilter(f)} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap touch-manipulation shrink-0 ${filter === f ? "bg-primary/15 text-primary border border-primary/30" : "text-[var(--dashboard-text-muted)] hover:text-[var(--dashboard-text)] hover:bg-[var(--dashboard-nav-hover)] border border-transparent"}`}>
 								{f === "all" ? "All" : STATUS[f]?.label || f}
 								{f !== "all" && <span className="ml-1 text-[10px] opacity-60">({orders.filter((o) => o.status === f).length})</span>}
 							</button>
@@ -224,7 +264,7 @@ export default function UserOrdersRoute() {
 														<td className="px-4 py-3 hidden lg:table-cell"><span className="text-[11px] text-[var(--dashboard-text-secondary)]">{order.payment_method || "—"}</span></td>
 														<td className="px-4 py-3 hidden lg:table-cell"><span className="text-[11px] text-[var(--dashboard-text-muted)]">{fmtDate(order.created_at)}</span></td>
 														<td className="px-4 py-3 text-center">
-															<button onClick={(e) => { e.stopPropagation(); setSelected(order); }} className="p-1.5 rounded-lg hover:bg-indigo-500/10 text-[var(--dashboard-text-muted)] hover:text-indigo-500 transition-colors cursor-pointer" aria-label="View"><FiEye className="w-3.5 h-3.5" /></button>
+															<button onClick={(e) => { e.stopPropagation(); setSelected(order); }} className="p-1.5 rounded-lg hover:bg-primary/10 text-[var(--dashboard-text-muted)] hover:text-primary transition-colors cursor-pointer" aria-label="View"><FiEye className="w-3.5 h-3.5" /></button>
 														</td>
 													</tr>
 												);

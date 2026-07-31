@@ -3,9 +3,10 @@
  * Route: /auth/admin/gateway/settings
  */
 import { useState, useCallback, useEffect } from "react";
-import { type LoaderFunctionArgs, type MetaFunction, redirect } from "react-router";
+import { type LoaderFunctionArgs, type ActionFunctionArgs, type MetaFunction, redirect, data, useLocation } from "react-router";
 import { useLoaderData } from "react-router";
 import { verifyAdminSession } from "~/utils/admin-auth";
+import { requireAdmin } from "~/utils/admin-actions";
 import { AdminSidebar } from "~/components/admin/admin-sidebar";
 import { cn } from "~/lib/utils";
 import {
@@ -38,24 +39,49 @@ export async function loader({ request }: LoaderFunctionArgs) {
  if (!adminCheck.isAdmin) throw redirect("/auth/admin");
 
  let settings: GatewaySetting[] = [];
+ let defaults: Record<string, any> = {};
  try {
- const result = await (await import("~/utils/gateway-config")).loadGatewayConfig();
+ const { loadGatewayConfig, getAllDefaultConfigs } = await import("~/utils/gateway-config");
+ const result = await loadGatewayConfig();
+ defaults = getAllDefaultConfigs();
  for (const [key, value] of Object.entries(result)) {
- const def = (await import("~/utils/gateway-config")).getDefaultConfig(key);
+ const def = defaults[key];
  settings.push({
  key,
  value: String(value),
- value_type: def ? (typeof def === 'number' ? 'number' : typeof def === 'boolean' ? 'boolean' : 'string') : 'string',
+ value_type: def !== undefined ? (typeof def === 'number' ? 'number' : typeof def === 'boolean' ? 'boolean' : 'string') : 'string',
  description: key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
  });
  }
  } catch { /* table may not exist */ }
 
- return { settings, adminEmail: adminCheck.adminEmail };
+ return { settings, defaults, adminEmail: adminCheck.adminEmail };
+}
+
+export async function action({ request }: ActionFunctionArgs) {
+ const admin = await requireAdmin(request);
+ const body = await request.json();
+ const { settings } = body;
+
+ if (!settings || typeof settings !== "object") {
+ return data({ error: "Invalid settings payload" }, { status: 400 });
+ }
+
+ try {
+ const { updateGatewayConfig } = await import("~/utils/gateway-config");
+ for (const [key, setting] of Object.entries(settings) as [string, any][]) {
+ await updateGatewayConfig(key, setting.value, setting.value_type);
+ }
+ return data({ success: true });
+ } catch (err: any) {
+ return data({ error: err.message }, { status: 500 });
+ }
 }
 
 export default function AdminGatewaySettingsRoute() {
- const { settings: initialSettings, adminEmail } = useLoaderData<typeof loader>();
+ const { settings: initialSettings, defaults, adminEmail } = useLoaderData<typeof loader>();
+ const location = useLocation();
+ const [mobileOpen, setMobileOpen] = useState(false);
  const [settings, setSettings] = useState<Record<string, GatewaySetting>>(() => {
  const map: Record<string, GatewaySetting> = {};
  for (const s of initialSettings) map[s.key] = s;
@@ -64,12 +90,23 @@ export default function AdminGatewaySettingsRoute() {
  const [saving, setSaving] = useState(false);
  const [saved, setSaved] = useState(false);
 
+ useEffect(() => {
+ setMobileOpen(false);
+ }, [location.pathname]);
+
  const handleSave = useCallback(async () => {
  setSaving(true);
  try {
- for (const [key, setting] of Object.entries(settings)) {
- const { updateGatewayConfig } = await import("~/utils/gateway-config");
- await updateGatewayConfig(key, setting.value, setting.value_type as any);
+ const res = await fetch("", {
+ method: "POST",
+ headers: {
+ "Content-Type": "application/json",
+ },
+ body: JSON.stringify({ settings }),
+ });
+ if (!res.ok) {
+ const errData = await res.json();
+ throw new Error(errData.error || "Failed to save settings");
  }
  setSaved(true);
  setTimeout(() => setSaved(false), 3000);
@@ -79,15 +116,15 @@ export default function AdminGatewaySettingsRoute() {
  setSaving(false);
  }, [settings]);
 
- const handleReset = useCallback(async (key: string) => {
- const def = (await import("~/utils/gateway-config")).getDefaultConfig(key);
+ const handleReset = useCallback((key: string) => {
+ const def = defaults[key];
  if (def !== undefined) {
  setSettings((prev) => ({
  ...prev,
- [key]: { ...prev[key], value: typeof def === 'boolean' ? String(def) : String(def) },
+ [key]: { ...prev[key], value: String(def) },
  }));
  }
- }, []);
+ }, [defaults]);
 
  const handleChange = useCallback((key: string, value: string) => {
  setSettings((prev) => ({
@@ -114,9 +151,18 @@ export default function AdminGatewaySettingsRoute() {
 
  return (
  <div className="min-h-screen bg-background text-foreground">
- <AdminSidebar collapsed={false} onToggle={() => {}} adminEmail={adminEmail || undefined} />
- <main className="ml-[220px] min-h-screen">
- <div className="max-w-[900px] space-y-6">
+ <AdminSidebar collapsed={false} onToggle={() => {}} adminEmail={adminEmail || undefined} mobileOpen={mobileOpen} onMobileToggle={() => setMobileOpen((v) => !v)} />
+ <main className="min-h-screen md:ml-[220px]">
+ {/* Mobile header bar with hamburger */}
+ <div className="sticky top-0 z-30 flex items-center gap-3 px-4 h-14 border-b border-border/60 bg-background/95 backdrop-blur md:hidden">
+ <button onClick={() => setMobileOpen(true)} className="p-2 -ml-2 rounded-lg hover:bg-muted text-muted-foreground transition-colors" aria-label="Open menu">
+ <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+ <path d="M4 6h16M4 12h16M4 18h16" />
+ </svg>
+ </button>
+ <span className="text-sm font-semibold">Gateway Settings</span>
+ </div>
+ <div className="max-w-[900px] px-4 sm:px-6 lg:px-8 space-y-6">
  {/* Header */}
  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
  <div>

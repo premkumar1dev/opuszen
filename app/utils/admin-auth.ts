@@ -160,8 +160,12 @@ export async function destroyAdminSession(): Promise<void> {
 	try {
 		if (typeof document !== "undefined") {
 			const expiration = new Date(0).toUTCString();
-			document.cookie = "admin_session=; path=/; max-age=0; expires=" + expiration + "; SameSite=Strict";
-			document.cookie = "admin_bypass=; path=/; max-age=0; expires=" + expiration + "; SameSite=Strict";
+			const cookieParts = [
+				"admin_session=; path=/; max-age=0; expires=" + expiration + "; HttpOnly; SameSite=Strict",
+				"admin_bypass=; path=/; max-age=0; expires=" + expiration + "; HttpOnly; SameSite=Strict",
+			];
+			document.cookie = cookieParts[0];
+			document.cookie = cookieParts[1];
 		}
 	} catch {
 		// best-effort cleanup

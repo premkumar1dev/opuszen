@@ -2,3 +2,14 @@
 build
 node_modules
 README.md
+.env
+.env.*
+.git
+.gitignore
+.vercel
+.agents/
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+version.txt

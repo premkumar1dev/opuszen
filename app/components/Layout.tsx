@@ -3,21 +3,22 @@ import { NavLink, useLocation } from 'react-router'
 
 export function Layout({ children }: { children: React.ReactNode }) {
  const [mobileOpen, setMobileOpen] = useState(false)
- const [darkMode, setDarkMode] = useState(() => {
- if (typeof window !== 'undefined') {
+ const [darkMode, setDarkMode] = useState(false)
+ const [scrolled, setScrolled] = useState(false)
+ const tickingRef = useRef(false)
+
+ useEffect(() => {
  try {
- const saved = localStorage.getItem('dark-mode')
- if (saved !== null) return JSON.parse(saved)
- return window.matchMedia('(prefers-color-scheme: dark)').matches
- } catch {
- return window.matchMedia('(prefers-color-scheme: dark)').matches
+ const saved = localStorage.getItem('dark-mode');
+ if (saved !== null) {
+ setDarkMode(JSON.parse(saved));
+ } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+ setDarkMode(true);
  }
- }
- return false
- })
+ } catch {}
+ }, []);
  const mobileNavRef = useRef<HTMLElement>(null)
  const location = useLocation()
- const loginUrl = '/auth/login';
 
  // Apply dark mode class to html element
  useEffect(() => {
@@ -28,6 +29,21 @@ export function Layout({ children }: { children: React.ReactNode }) {
  }
  localStorage.setItem('dark-mode', JSON.stringify(darkMode))
  }, [darkMode])
+
+ // Navbar scroll effect
+ useEffect(() => {
+ const onScroll = () => {
+ if (tickingRef.current) { return }
+ tickingRef.current = true
+ requestAnimationFrame(() => {
+ setScrolled(window.scrollY > 20)
+ tickingRef.current = false
+ })
+ }
+ window.addEventListener('scroll', onScroll, { passive: true })
+ onScroll()
+ return () => window.removeEventListener('scroll', onScroll)
+ }, [])
 
  // Close mobile nav on route change
  useEffect(() => {
@@ -77,7 +93,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
  Skip to main content
  </a>
 
- <header className="fixed top-0 z-50 w-full backdrop-blur-xl bg-background/80 dark:bg-background/80 border-b border-border">
+ <header
+ className={`fixed top-0 z-50 w-full backdrop-blur-xl bg-background/80 dark:bg-background/80 border-b transition-all duration-500 ease-out ${
+ scrolled ? 'navbar-scrolled border-border/50 bg-background/95' : 'border-transparent'
+ }`}
+ >
  <div className="mx-auto max-w-7xl px-4 sm:px-6">
  <nav className="flex items-center h-14">
  {/* Left - Logo */}
@@ -85,15 +105,14 @@ export function Layout({ children }: { children: React.ReactNode }) {
  <NavLink
  to="/"
  className="flex items-center gap-3 font-bold text-foreground tracking-tight text-[16px] hover:opacity-70 transition-opacity cursor-pointer"
- aria-label="Opuszen home"
+ aria-label="OpusZen home"
  >
  <img
- src="/logo-blue.png"
- alt="Opuszen"
+ src="/logo.png"
+ alt="OpusZen"
  className="w-9 h-9"
- style={{ filter: 'hue-rotate(210deg) saturate(2)' }}
  />
- <span>Opuszen</span>
+ <span>OpusZen</span>
  </NavLink>
  </div>
 
@@ -109,22 +128,22 @@ export function Layout({ children }: { children: React.ReactNode }) {
  Documentation
  </NavLink>
  <NavLink
+ to="/pricing"
+ className="text-sm font-medium transition-colors text-muted-foreground hover:text-foreground cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded px-2 py-1"
+ >
+ Pricing
+ </NavLink>
+ <NavLink
  to="/status"
  className="text-sm font-medium transition-colors text-muted-foreground hover:text-foreground cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded px-2 py-1"
  >
  Status
  </NavLink>
- <a
- href={loginUrl}
- className="text-sm font-medium transition-colors text-muted-foreground hover:text-foreground cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded px-2 py-1"
- >
- Login
- </a>
  <NavLink
  to="/key-status"
  className="text-sm font-semibold bg-primary text-primary-foreground px-5 py-1.5 rounded-full hover:bg-primary/90 transition-all cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
  >
- Check Usage
+ Key Status
  </NavLink>
  </div>
 
@@ -158,12 +177,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
  <circle cx={12} cy={12} r={5} />
  <line x1={12} y1={1} x2={12} y2={3} />
  <line x1={12} y1={21} x2={12} y2={23} />
- <line x1={4.22} y1={4.22} x2={5.64} y2={5.64} />
- <line x1={18.36} y1={18.36} x2={19.78} y2={19.78} />
+ <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+ <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
  <line x1={1} y1={12} x2={3} y2={12} />
  <line x1={21} y1={12} x2={23} y2={12} />
- <line x1={4.22} y1={19.78} x2={5.64} y2={18.36} />
- <line x1={18.36} y1={5.64} x2={19.78} y2={4.22} />
+ <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+ <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
  </svg>
 
  {/* Moon icon - visible in dark mode */}
@@ -251,7 +270,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
  >
  {/* Drawer handle bar */}
  <div className="flex justify-center pt-3 pb-2" aria-hidden="true">
- <div className="w-8 h-1.5 rounded-full bg-gradient-to-r from-primary to-violet-500" />
+ <div className="w-8 h-1.5 rounded-full bg-gradient-to-r from-primary to-primary/80" />
  </div>
 
  {/* Close button */}
@@ -304,6 +323,27 @@ export function Layout({ children }: { children: React.ReactNode }) {
  Documentation
  </NavLink>
  <NavLink
+ to="/pricing"
+ className="flex items-center gap-3 px-4 py-3 rounded-xl text-[15px] font-medium text-foreground hover:bg-primary/10 transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+ >
+ <svg
+ xmlns="http://www.w3.org/2000/svg"
+ width={18}
+ height={18}
+ viewBox="0 0 24 24"
+ fill="none"
+ stroke="currentColor"
+ strokeWidth={2}
+ strokeLinecap="round"
+ strokeLinejoin="round"
+ className="text-primary"
+ aria-hidden="true"
+ >
+ <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+ </svg>
+ Pricing
+ </NavLink>
+ <NavLink
  to="/status"
  className="flex items-center gap-3 px-4 py-3 rounded-xl text-[15px] font-medium text-foreground hover:bg-primary/10 transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
  >
@@ -324,29 +364,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
  </svg>
  Status
  </NavLink>
- <a
- href={loginUrl}
- className="flex items-center gap-3 px-4 py-3 rounded-xl text-[15px] font-medium text-foreground hover:bg-primary/10 transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
- >
- <svg
- xmlns="http://www.w3.org/2000/svg"
- width={18}
- height={18}
- viewBox="0 0 24 24"
- fill="none"
- stroke="currentColor"
- strokeWidth={2}
- strokeLinecap="round"
- strokeLinejoin="round"
- className="text-primary"
- aria-hidden="true"
- >
- <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
- <polyline points="10 17 15 12 10 7" />
- <line x1="15" y1="12" x2="3" y2="12" />
- </svg>
- Login
- </a>
 
  {/* Divider */}
  <div className="my-2 border-t border-border" aria-hidden="true" />
@@ -365,13 +382,13 @@ export function Layout({ children }: { children: React.ReactNode }) {
  strokeWidth={2}
  strokeLinecap="round"
  strokeLinejoin="round"
- className="text-primary-foreground"
+ className="text-white"
  aria-hidden="true"
  >
  <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
  <path d="M7 11V7a5 5 0 0 1 10 0v4" />
  </svg>
- Check Usage
+ Key Status
  </NavLink>
  </nav>
  </aside>
@@ -384,18 +401,18 @@ export function Layout({ children }: { children: React.ReactNode }) {
  <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-6">
  <div className="flex items-center gap-3">
  <img
- src="/logo-blue.png"
- alt="Opuszen"
+ src="/logo.png"
+ alt="OpusZen"
  className="w-8 h-8"
  />
  <div>
- <span className="text-sm font-bold text-foreground">Opuszen</span>
- <span className="text-xs text-muted-foreground ml-2">Anthropic-compatible API gateway</span>
+ <span className="text-sm font-bold text-foreground">OpusZen</span>
+ <span className="text-xs text-muted-foreground ml-2">Anthropic-compatible API gateway for Claude</span>
  </div>
  </div>
  <nav className="flex items-center gap-5 text-xs text-muted-foreground" aria-label="Footer navigation">
  <NavLink to="/docs" className="hover:text-primary transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded">Docs</NavLink>
- <NavLink to="/key-status" className="hover:text-primary transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded">Usage</NavLink>
+ <NavLink to="/key-status" className="hover:text-primary transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded">Key Status</NavLink>
  <NavLink to="/status" className="hover:text-primary transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded">Status</NavLink>
  <NavLink to="/terms" className="hover:text-primary transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded">Terms</NavLink>
  <NavLink to="/privacy" className="hover:text-primary transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded">Privacy</NavLink>

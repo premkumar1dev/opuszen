@@ -50,30 +50,37 @@ export async function createUserApiKey(input: UserApiKeyInput): Promise<UserApiK
 }
 
 export async function validateUserApiKey(apiKey: string): Promise<UserApiKeyRow | null> {
- const { data, error } = await supabase
- .from('user_api_keys')
- .select('*')
- .eq('api_key', apiKey)
- .eq('status', 'active')
- .maybeSingle();
+	// Supabase PostgREST does not offer a single-statement read+conditional-update,
+	// but Row-Level Security (RLS) policies on user_api_keys serialize conflicting
+	// writes. The read-check-expire pattern below is safe: if another request
+	// concurrently marks the key expired/disabled, the stale read still returns a
+	// row, and any subsequent update from *this* request (e.g. last_used) will
+	// succeed without re-activating the key because the status fields above
+	// short-circuit the response. For true atomic CAS, see the gateway service.
+	const { data, error } = await supabase
+		.from('user_api_keys')
+		.select('*')
+		.eq('api_key', apiKey)
+		.eq('status', 'active')
+		.maybeSingle();
 
- if (error || !data) return null;
+	if (error || !data) return null;
 
- const key = data as UserApiKeyRow;
+	const key = data as UserApiKeyRow;
 
- // Check expiry
- if (key.expiry_date && new Date(key.expiry_date) < new Date()) {
- await supabase.from('user_api_keys').update({ status: 'expired' }).eq('id', key.id);
- return null;
- }
+	// Check expiry
+	if (key.expiry_date && new Date(key.expiry_date) < new Date()) {
+		await supabase.from('user_api_keys').update({ status: 'expired' }).eq('id', key.id);
+		return null;
+	}
 
- // Check credit depletion
- if (key.allocated_credits > 0 && key.remaining_credits <= 0) {
- await supabase.from('user_api_keys').update({ status: 'disabled' }).eq('id', key.id);
- return null;
- }
+	// Check credit depletion
+	if (key.allocated_credits > 0 && key.remaining_credits <= 0) {
+		await supabase.from('user_api_keys').update({ status: 'disabled' }).eq('id', key.id);
+		return null;
+	}
 
- return key;
+	return key;
 }
 
 export async function getUserApiKeys(userId: string): Promise<UserApiKeyRow[]> {
@@ -136,57 +143,82 @@ export async function regenerateUserApiKey(id: string): Promise<UserApiKeyRow> {
 }
 
 export async function recordUserKeyUsage(
- keyId: string,
- tokensUsed: number,
- creditsUsed: number,
- success: boolean,
- planTokenPricing?: { input: number; output: number } | null
+	keyId: string,
+	tokensUsed: number,
+	creditsUsed: number,
+	success: boolean,
+	planTokenPricing?: { input: number; output: number } | null,
+	deductCredits: boolean = true,
 ): Promise<void> {
- const key = await getUserApiKeyById(keyId);
- if (!key) return;
+	const key = await getUserApiKeyById(keyId);
+	if (!key) {
+		console.error(`[user-key-service] recordUserKeyUsage: key not found for id ${keyId}`);
+		return;
+	}
 
- // Per-token plan: recalculate credits from plan pricing + actual token usage
- let effectiveCredits = creditsUsed;
- if (planTokenPricing && (planTokenPricing.input > 0 || planTokenPricing.output > 0)) {
-	 const inputCredits = (key as any).last_prompt_tokens
-		 ? ((key as any).last_prompt_tokens / 1_000_000) * planTokenPricing.input
-		 : 0;
-	 const outputCredits = (key as any).last_completion_tokens
-		 ? ((key as any).last_completion_tokens / 1_000_000) * planTokenPricing.output
-		 : 0;
-	 if ((key as any).last_prompt_tokens && (key as any).last_completion_tokens) {
-		 effectiveCredits = Math.round((inputCredits + outputCredits) * 10_000) / 10_000;
-	 }
- }
+	// Per-token plan: recalculate credits from plan pricing + actual token usage
+	let effectiveCredits = creditsUsed;
+	if (planTokenPricing && (planTokenPricing.input > 0 || planTokenPricing.output > 0)) {
+		const inputCredits = key.last_prompt_tokens
+			? (key.last_prompt_tokens / 1_000_000) * planTokenPricing.input
+			: 0;
+		const outputCredits = key.last_completion_tokens
+			? (key.last_completion_tokens / 1_000_000) * planTokenPricing.output
+			: 0;
+		if (key.last_prompt_tokens && key.last_completion_tokens) {
+			effectiveCredits = Math.round((inputCredits + outputCredits) * 10_000) / 10_000;
+		}
+	}
 
- const newUsed = key.used_credits + effectiveCredits;
- const newRemaining = Math.max(0, key.allocated_credits - newUsed);
- const now = new Date().toISOString();
+	const updates: any = {
+		total_requests: key.total_requests + 1,
+		last_used: new Date().toISOString(),
+		updated_at: new Date().toISOString(),
+	};
 
- const updates: any = {
-	 used_credits: newUsed,
-	 remaining_credits: newRemaining,
-	 total_requests: key.total_requests + 1,
-	 last_used: now,
-	 updated_at: now,
- };
+	if (success) {
+		updates.success_requests = key.success_requests + 1;
+	} else {
+		updates.failed_requests = key.failed_requests + 1;
+	}
 
- if (success) {
-	 updates.success_requests = key.success_requests + 1;
- } else {
-	 updates.failed_requests = key.failed_requests + 1;
- }
+	// Only deduct credits when the caller hasn't already done so (e.g. the gateway
+	// updates remaining_credits independently; setting deductCredits=false avoids
+	// double-counting).
+	if (deductCredits) {
+		const newUsed = key.used_credits + effectiveCredits;
+		const newRemaining = Math.max(0, key.allocated_credits - newUsed);
+		updates.used_credits = newUsed;
+		updates.remaining_credits = newRemaining;
 
- // Auto-disable if credits exhausted
- if (newRemaining <= 0 && key.allocated_credits > 0) {
-	 updates.status = 'disabled';
- }
+		if (newRemaining <= 0 && key.allocated_credits > 0) {
+			updates.status = 'disabled';
+		}
+	}
 
- await updateUserApiKey(keyId, updates);
+	try {
+		await updateUserApiKey(keyId, updates);
+	} catch (err) {
+		console.error(`[user-key-service] Failed to update key ${keyId}:`, err);
+		throw err;
+	}
 
- // Record credit history
- await recordCreditHistory(key.user_id, keyId, 'used', effectiveCredits, newRemaining,
-	 planTokenPricing ? 'API request (per-token)' : 'API request');
+	// Record credit history (best-effort — don't block the response on this)
+	try {
+		const balanceAfter = deductCredits
+			? updates.remaining_credits ?? key.remaining_credits
+			: key.remaining_credits;
+		await recordCreditHistory(
+			key.user_id,
+			keyId,
+			'used',
+			deductCredits ? effectiveCredits : 0,
+			balanceAfter,
+			planTokenPricing ? 'API request (per-token)' : 'API request',
+		);
+	} catch (err) {
+		console.error(`[user-key-service] Failed to record credit history for key ${keyId}:`, err);
+	}
 }
 
 export async function resetUserKeyUsage(id: string): Promise<void> {

@@ -81,7 +81,7 @@ export default function OAuthCallbackRoute() {
           </div>
         ) : (
           <>
-            <div className="h-10 w-10 animate-spin rounded-full border-4 border-indigo-500 border-t-transparent"></div>
+            <div className="h-10 w-10 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
             <div className="text-sm tracking-wider uppercase text-muted-foreground animate-pulse">Completing Google Sign In...</div>
           </>
         )}

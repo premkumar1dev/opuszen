@@ -1,11 +1,13 @@
 import { useState } from 'react';
+import { motion } from 'framer-motion';
+import { Link } from 'react-router';
 
 export function ReadyIn60Seconds() {
  const [host, setHost] = useState(() => {
  if (typeof window !== 'undefined') {
  return window.location.host;
  }
- return 'opuszen.shop';
+ return 'opuszen.live';
  });
 
  const steps = [
@@ -30,7 +32,7 @@ export function ReadyIn60Seconds() {
  ];
 
  return (
- <section className="relative py-24 px-4" aria-labelledby="steps-heading">
+ <section className="relative py-24 px-4 bg-background" aria-labelledby="steps-heading">
  <div className="max-w-4xl mx-auto">
  <div className="text-center mb-16">
  <h2 id="steps-heading" className="text-3xl sm:text-4xl font-bold tracking-tight text-foreground mb-4">
@@ -41,25 +43,28 @@ export function ReadyIn60Seconds() {
  </p>
  </div>
 
- <ol className="space-y-0" role="list">
+ <div className="space-y-0">
  {steps.map((step, index) => (
- <li
+ <motion.div
  key={step.number}
- className="flex gap-6 sm:gap-8 py-8 border-b border-border/50 dark:border-border/40 last:border-0 group transition-colors"
- style={{ animationDelay: `${index * 100}ms` }}
+ initial={{ opacity: 0, y: 20 }}
+ whileInView={{ opacity: 1, y: 0 }}
+ viewport={{ once: true }}
+ transition={{ duration: 0.5, delay: index * 0.1 }}
+ className="flex gap-6 sm:gap-8 py-8 border-b border-border last:border-0 group card-lift"
  >
  <div className="flex-shrink-0">
- <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br from-primary/10 to-primary/5 dark:from-primary/20 dark:to-primary/10 flex items-center justify-center text-2xl group-hover:scale-110 group-hover:shadow-lg group-hover:shadow-primary/20 dark:group-hover:shadow-primary/10 transition-all duration-300`}>
+ <div className="w-14 h-14 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center text-2xl group-hover:scale-110 group-hover:border-primary/30 transition-all duration-300">
  {step.icon}
  </div>
  </div>
  <div className="flex-1 pt-1">
  <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4">
- <span className="text-4xl font-black text-primary/10 dark:text-primary/20 tabular-nums transition-colors group-hover:text-primary/20 dark:group-hover:text-primary/30">
+ <span className="text-4xl font-black text-primary/10 tabular-nums">
  {step.number}
  </span>
  <div>
- <h3 className="text-lg font-semibold text-foreground transition-colors group-hover:text-primary dark:group-hover:text-violet-400">
+ <h3 className="text-lg font-semibold text-foreground transition-colors">
  {step.title}
  </h3>
  <p className="text-muted-foreground text-sm leading-relaxed mt-1">
@@ -68,9 +73,9 @@ export function ReadyIn60Seconds() {
  </div>
  </div>
  </div>
- </li>
+ </motion.div>
  ))}
- </ol>
+ </div>
  </div>
  </section>
  )

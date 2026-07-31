@@ -1,49 +1,18 @@
-import React, { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { motion } from "framer-motion";
 import { Link } from "react-router";
-import { MagneticButton } from "@/components/ui/motion-footer";
+import { TextRevealLine } from "../components/motion/TextReveal";
+import { BlurReveal } from "../components/motion/BlurScaleReveal";
+import { useParallax } from "../hooks/useCounterAnimation";
 
-const STYLES = `
-.hero-aurora {
- background: radial-gradient(
- circle at 50% 30%,
- color-mix(in oklch, var(--primary) 15%, transparent) 0%,
- color-mix(in oklch, var(--color-accent, var(--primary)) 10%, transparent) 50%,
- transparent 80%
- );
-}
-
-@keyframes hero-breathe {
- 0% { transform: translate(-50%, -30%) scale(1); opacity: 0.7; }
- 100% { transform: translate(-50%, -30%) scale(1.15); opacity: 1; }
-}
-
-.animate-hero-breathe {
- animation: hero-breathe 8s ease-in-out infinite alternate;
-}
-
-.hero-bg-grid {
- background-size: 60px 60px;
- background-image:
- linear-gradient(to right, color-mix(in oklch, var(--foreground) 4%, transparent) 1px, transparent 1px),
- linear-gradient(to bottom, color-mix(in oklch, var(--foreground) 4%, transparent) 1px, transparent 1px);
- mask-image: radial-gradient(circle at 50% 50%, black 60%, transparent 100%);
- -webkit-mask-image: radial-gradient(circle at 50% 50%, black 60%, transparent 100%);
-}
-
-.hero-giant-bg-text {
- font-size: 20vw;
- line-height: 0.75;
- font-weight: 900;
- letter-spacing: -0.05em;
- color: transparent;
- -webkit-text-stroke: 1px color-mix(in oklch, var(--foreground) 4%, transparent);
- background: linear-gradient(180deg, color-mix(in oklch, var(--foreground) 8%, transparent) 0%, transparent 80%);
- -webkit-background-clip: text;
- background-clip: text;
-}
-`;
+const DOTS = [
+ { color: "bg-red-500", label: "API" },
+ { color: "bg-yellow-500", label: "SDK" },
+ { color: "bg-green-500", label: "live" },
+];
 
 export default function Hero() {
+ const [cursorVisible, setCursorVisible] = useState(true);
  const wrapperRef = useRef<HTMLDivElement>(null);
  const auroraRef = useRef<HTMLDivElement>(null);
  const gridRef = useRef<HTMLDivElement>(null);
@@ -53,6 +22,9 @@ export default function Hero() {
  const subheadlineRef = useRef<HTMLParagraphElement>(null);
  const buttonsRef = useRef<HTMLDivElement>(null);
  const codeRef = useRef<HTMLDivElement>(null);
+ const terminalRef = useRef<HTMLDivElement>(null);
+
+ const giantOffset = useParallax(-0.15);
 
  useEffect(() => {
  if (typeof window === "undefined") return;
@@ -60,196 +32,295 @@ export default function Hero() {
  let ctx: any;
 
  (async () => {
-  const { gsap } = await import("gsap");
-  const { ScrollTrigger } = await import("gsap/ScrollTrigger");
-  gsap.registerPlugin(ScrollTrigger);
+ const { gsap } = await import("gsap");
+ const { ScrollTrigger } = await import("gsap/ScrollTrigger");
+ gsap.registerPlugin(ScrollTrigger);
 
-  ctx = gsap.context(() => {
-  // 1. Entrance Stagger Animation
-  gsap.fromTo(
-  [
-  badgeRef.current,
-  headingRef.current,
-  subheadlineRef.current,
-  buttonsRef.current,
-  codeRef.current
-  ],
-  { y: 40, opacity: 0 },
-  {
-  y: 0,
-  opacity: 1,
-  duration: 0.8,
-  stagger: 0.12,
-  ease: "power3.out",
-  }
-  );
+ ctx = gsap.context(() => {
+ // 1. Entrance Stagger Animation
+ gsap.fromTo(
+ [
+ badgeRef.current,
+ headingRef.current,
+ subheadlineRef.current,
+ buttonsRef.current,
+ codeRef.current
+ ],
+ { y: 40, opacity: 0 },
+ {
+ y: 0,
+ opacity: 1,
+ duration: 0.8,
+ stagger: 0.12,
+ ease: "power3.out",
+ }
+ );
 
-  // 2. Parallax Animations on Scroll (only if wrapper and giant text exist)
-  if (giantTextRef.current && wrapperRef.current) {
-  gsap.fromTo(
-  giantTextRef.current,
-  { y: "5vh", scale: 0.95 },
-  {
-  y: "-15vh",
-  scale: 1.05,
-  scrollTrigger: {
-  trigger: wrapperRef.current,
-  start: "top top",
-  end: "bottom top",
-  scrub: true,
-  }
-  }
-  );
-  }
+ // 2. Parallax Animations on Scroll
+ if (giantTextRef.current && wrapperRef.current) {
+ gsap.fromTo(
+ giantTextRef.current,
+ { y: "5vh", scale: 0.95 },
+ {
+ y: "-15vh",
+ scale: 1.05,
+ scrollTrigger: {
+ trigger: wrapperRef.current,
+ start: "top top",
+ end: "bottom top",
+ scrub: 1.5,
+ },
+ }
+ );
+ }
 
-  if (auroraRef.current && wrapperRef.current) {
-  gsap.fromTo(
-  auroraRef.current,
-  { y: 0, scale: 1 },
-  {
-  y: "8vh",
-  scale: 1.1,
-  scrollTrigger: {
-  trigger: wrapperRef.current,
-  start: "top top",
-  end: "bottom top",
-  scrub: true,
-  }
-  }
-  );
-  }
+ // 3. Grid Parallax
+ if (gridRef.current) {
+ gsap.to(gridRef.current, {
+ scrollTrigger: {
+ trigger: wrapperRef.current,
+ start: "top top",
+ end: "bottom top",
+ scrub: 1,
+ },
+ y: 100,
+ opacity: 0.3,
+ });
+ }
 
-  if (gridRef.current && wrapperRef.current) {
-  gsap.fromTo(
-  gridRef.current,
-  { y: 0 },
-  {
-  y: "5vh",
-  scrollTrigger: {
-  trigger: wrapperRef.current,
-  start: "top top",
-  end: "bottom top",
-  scrub: true,
-  }
-  }
-  );
-  }
-  }, wrapperRef);
+ // 4. Aurora Animation
+ if (auroraRef.current) {
+ gsap.to(auroraRef.current, {
+ rotation: 45,
+ scale: 1.5,
+ scrollTrigger: {
+ trigger: wrapperRef.current,
+ start: "top top",
+ end: "bottom top",
+ scrub: 2,
+ },
+ });
+ }
+ }, wrapperRef);
 
-  requestAnimationFrame(() => ScrollTrigger.refresh());
+ return () => ctx.revert();
  })();
 
- return () => { if (ctx) ctx.revert(); };
+ const interval = setInterval(() => {
+ setCursorVisible((v) => !v);
+ }, 530);
+ return () => clearInterval(interval);
+ }, []);
+
+ // Cursor-follow light on terminal
+ useEffect(() => {
+ const terminal = terminalRef.current;
+ if (!terminal) return;
+
+ const handleMouseMove = (e: MouseEvent) => {
+ const rect = terminal.getBoundingClientRect();
+ const x = ((e.clientX - rect.left) / rect.width) * 100;
+ const y = ((e.clientY - rect.top) / rect.height) * 100;
+ terminal.style.setProperty("--cursor-x", `${x}%`);
+ terminal.style.setProperty("--cursor-y", `${y}%`);
+ };
+
+ terminal.addEventListener("mousemove", handleMouseMove);
+ return () => terminal.removeEventListener("mousemove", handleMouseMove);
  }, []);
 
  return (
- <>
- <style dangerouslySetInnerHTML={{ __html: STYLES }} />
  <section
  ref={wrapperRef}
- className="relative h-full min-h-[90vh] flex items-center justify-center overflow-hidden bg-background pt-24 pb-16 md:pt-28 md:pb-20"
+ className="relative min-h-[90vh] flex items-center justify-center bg-background pt-24 pb-16 overflow-hidden"
  >
- {/* Breathing Aurora Layer */}
- <div
- ref={auroraRef}
- className="hero-aurora absolute left-1/2 top-1/3 h-[50vh] w-[80vw] animate-hero-breathe rounded-[50%] blur-[100px] pointer-events-none z-0"
- />
-
- {/* Masked Grid Backdrop */}
+ {/* Background grid */}
  <div
  ref={gridRef}
- className="hero-bg-grid absolute inset-0 z-0 pointer-events-none opacity-80"
+ className="absolute inset-0 opacity-40 pointer-events-none"
+ style={{
+ backgroundImage:
+ "linear-gradient(rgba(61,57,41,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(61,57,41,0.04) 1px, transparent 1px)",
+ backgroundSize: "60px 60px",
+ }}
  />
 
- {/* Giant Outlined Parallax Text */}
+ {/* Animated aurora blobs */}
  <div
- ref={giantTextRef}
- className="hero-giant-bg-text absolute top-1/3 left-1/2 -translate-x-1/2 whitespace-nowrap z-0 pointer-events-none select-none"
- >
- OPUSZEN
- </div>
+ ref={auroraRef}
+ className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[600px] h-[400px] rounded-full pointer-events-none blur-3xl blob-1"
+ style={{
+ background: "radial-gradient(circle, rgba(201,100,66,0.1) 0%, transparent 70%)",
+ }}
+ />
+ <div
+ className="absolute bottom-1/4 right-1/4 w-[400px] h-[300px] rounded-full pointer-events-none blur-3xl blob-2"
+ style={{
+ background: "radial-gradient(circle, rgba(156,135,245,0.07) 0%, transparent 70%)",
+ }}
+ />
 
- {/* Hero Content */}
- <div className="relative text-center px-4 max-w-5xl mx-auto z-10 flex flex-col items-center">
+ <div className="relative z-10 max-w-7xl mx-auto px-6 text-center">
  {/* Badge */}
  <div
  ref={badgeRef}
- className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-border bg-card/60 backdrop-blur-md text-sm text-muted-foreground mb-8 shadow-sm"
+ className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-primary/20 bg-primary/10 text-primary text-sm mb-8"
  >
- <div className="w-2 h-2 rounded-full bg-emerald-500 dark:bg-emerald-400 animate-pulse" aria-hidden="true" />
- <span className="font-medium">All Claude models available now</span>
+ <span className="relative flex h-2 w-2">
+ <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+ <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+ </span>
+ New — Fable 5 & Sonnet 5, live
+ </div>
+
+ {/* Giant parallax text */}
+ <div
+ ref={giantTextRef}
+ className="absolute inset-0 flex items-center justify-center pointer-events-none select-none z-0"
+ aria-hidden="true"
+ style={{ transform: `translateY(${giantOffset}px)` }}
+ >
+ <span className="text-[18vw] font-bold whitespace-nowrap" style={{ color: "rgba(61,57,41,0.07)" }}>
+ Opus Zen
+ </span>
  </div>
 
  {/* Headline */}
  <h1
  ref={headingRef}
- id="hero-heading"
- className="text-5xl sm:text-7xl lg:text-8xl font-black tracking-tight text-foreground mb-6 leading-[1.05]"
+ className="relative text-5xl md:text-7xl lg:text-8xl font-bold leading-[0.95] tracking-tight text-foreground mb-6"
  >
- One key.<br />
- <span className="bg-gradient-to-r from-primary via-violet-500 to-fuchsia-500 dark:from-primary dark:via-violet-400 dark:to-fuchsia-400 bg-clip-text text-transparent">
- Every model.
- </span>
+ <TextRevealLine>The whole Claude lineup.</TextRevealLine>
+ <br />
+ <TextRevealLine className="bg-clip-text text-transparent bg-gradient-to-r from-primary via-orange-500 to-amber-500 inline-block font-extrabold">
+   One key. No waitlist.
+ </TextRevealLine>
  </h1>
 
- {/* Subheadline */}
+ {/* Subtext */}
  <p
  ref={subheadlineRef}
- className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto mb-10 leading-relaxed"
+ className="text-xl text-muted-foreground max-w-2xl mx-auto mb-10 leading-relaxed"
  >
- Access Opus 4.8, Sonnet, and Haiku through a single Anthropic-compatible endpoint. Swap your base URL — your code stays the same.
+ Access every Claude model — from Haiku to Fable 5 — through a single API
+ key. Pay per token with transparent pricing, rolling budgets, and zero markups.
  </p>
 
- {/* CTA Buttons wrapped in MagneticButton */}
+ {/* CTAs */}
+ <div ref={buttonsRef} className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12">
+ <Link
+ to="/auth/signup"
+ className="magnetic-btn px-8 py-3.5 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground font-semibold transition-all shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30 hover:-translate-y-0.5 cursor-pointer"
+ >
+ Get instant access
+ </Link>
+ <Link
+ to="/pricing"
+ className="magnetic-btn px-8 py-3.5 rounded-lg border border-border text-secondary-foreground hover:text-foreground hover:border-primary/30 transition-all cursor-pointer"
+ >
+ See pricing
+ </Link>
+ </div>
+
+ {/* Terminal mockup */}
+ <div ref={codeRef} className="max-w-2xl mx-auto text-left">
+ <BlurReveal>
  <div
- ref={buttonsRef}
- className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16 w-full"
+ ref={terminalRef}
+ className="relative bg-card border border-border rounded-xl overflow-hidden shadow-md group"
+ style={{
+ "--cursor-x": "50%",
+ "--cursor-y": "50%",
+ background:
+ "radial-gradient(600px circle at var(--cursor-x) var(--cursor-y), rgba(201,100,66,0.04), transparent 60%)",
+ } as React.CSSProperties}
  >
- <MagneticButton
- as={Link}
- to="/docs"
- className="group relative inline-flex items-center justify-center whitespace-nowrap font-semibold text-primary-foreground bg-primary hover:bg-primary/95 h-12 rounded-full px-8 py-3 text-base gap-2 shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+ {/* Cursor-following gradient overlay */}
+ <div
+ className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
+ style={{
+ background:
+ "radial-gradient(400px circle at var(--cursor-x) var(--cursor-y), rgba(201,100,66,0.06), transparent 60%)",
+ }}
+ aria-hidden="true"
+ />
+ {/* Terminal header */}
+ <div className="flex items-center gap-2 px-4 py-3 border-b border-border relative z-10">
+ {DOTS.map((dot) => (
+ <span
+ key={dot.color}
+ className={`w-3 h-3 rounded-full ${dot.color}`}
+ />
+ ))}
+ <span className="ml-3 text-xs text-muted-foreground font-mono">
+ terminal
+ </span>
+ </div>
+ {/* Terminal body */}
+ <div className="p-5 font-mono text-sm space-y-2 relative z-10">
+ <div>
+ <span className="text-muted-foreground">$ </span>
+ <span className="text-foreground">
+ export ANTHROPIC_BASE_URL=
+ </span>
+ <span className="text-primary">https://api.opuszen.shop</span>
+ </div>
+ <div>
+ <span className="text-muted-foreground">$ </span>
+ <span className="text-foreground">
+ export ANTHROPIC_API_KEY=
+ </span>
+ <span className="text-emerald-600">sk-ant-...</span>
+ </div>
+ <div className="flex items-center">
+ <span className="text-muted-foreground">$ </span>
+ <span className="text-foreground ml-0.5">npx opuszen</span>
+ <span
+ className={`ml-0.5 text-primary ${cursorVisible ? "opacity-100" : "opacity-0"}`}
  >
- <span>Start Building</span>
+ █
+ </span>
+ </div>
+ </div>
+ {/* Badge row */}
+ <div className="flex flex-wrap items-center gap-3 px-5 py-3 border-t border-border relative z-10">
+ <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-muted border border-border text-xs text-muted-foreground font-mono">
+ <span className="text-secondary-foreground/60">model:</span> claude-fable-5
+ </span>
+ <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-muted border border-border text-xs text-muted-foreground font-mono">
+ <span className="text-secondary-foreground/60">context:</span> 1M window
+ </span>
+ <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-primary/5 border border-primary/20 text-xs text-primary font-mono">
+ <span className="text-primary/70">budget:</span> $7.50 rolling
+ </span>
+ </div>
+ </div>
+ </BlurReveal>
+ </div>
+ </div>
+
+ {/* Scroll indicator */}
+ <div className="absolute bottom-8 left-1/2 -translate-x-1/2">
+ <motion.div
+ animate={{ y: [0, 8, 0] }}
+ transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+ >
  <svg
  xmlns="http://www.w3.org/2000/svg"
- width={18}
- height={18}
+ width={24}
+ height={24}
  viewBox="0 0 24 24"
  fill="none"
  stroke="currentColor"
  strokeWidth={2}
  strokeLinecap="round"
  strokeLinejoin="round"
- className="transition-transform group-hover:translate-x-1"
- aria-hidden="true"
+ className="text-secondary-foreground/60"
  >
- <path d="M5 12h14" />
- <path d="m12 5 7 7-7 7" />
+ <path d="m6 9 6 6 6-6" />
  </svg>
- </MagneticButton>
-
- <MagneticButton
- as={Link}
- to="/docs"
- className="inline-flex items-center justify-center whitespace-nowrap font-medium border-2 border-border bg-background/80 hover:bg-card hover:border-primary/50 dark:bg-card/80 dark:hover:bg-card dark:border-border dark:hover:border-primary h-12 rounded-full px-8 py-3 text-base gap-2 transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background backdrop-blur-md"
- >
- Read the Docs
- </MagneticButton>
- </div>
-
- {/* Code Preview */}
- <div
- ref={codeRef}
- className="inline-flex items-center gap-3 px-5 py-4 rounded-2xl bg-card border border-border text-sm shadow-sm"
- >
- <span className="font-mono">
- <span className="text-primary dark:text-violet-400">$ npx opuszen </span>
- <span className="animate-pulse text-primary dark:text-violet-400 ml-1">|</span>
- </span>
- </div>
+ </motion.div>
  </div>
  </section>
- </>
  );
 }

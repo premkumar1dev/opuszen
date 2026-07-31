@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { NavLink } from "react-router";
+import { NavLink, useNavigate } from "react-router";
 import {
 	FiActivity,
 	FiZap,
@@ -111,9 +111,9 @@ function ChartTooltip({ active, payload, label }: any) {
 }
 
 /* ───────── stat card ───────── */
-function Card({ title, value, subtitle, icon: Icon, color = "indigo", trend }: { title: string; value: string | number; subtitle: string; icon: any; color?: string; trend?: { value: number; label: string } }) {
+function Card({ title, value, subtitle, icon: Icon, color = "orange", trend }: { title: string; value: string | number; subtitle: string; icon: any; color?: string; trend?: { value: number; label: string } }) {
 	const colors: Record<string, string> = {
-		indigo: "text-indigo-500 bg-indigo-500/10 border-indigo-500/20",
+		indigo: "text-blue-600 bg-blue-600/10 border-blue-600/20",
 		emerald: "text-emerald-500 bg-emerald-500/10 border-emerald-500/20",
 		violet: "text-violet-500 bg-violet-500/10 border-violet-500/20",
 		amber: "text-amber-500 bg-amber-500/10 border-amber-500/20",
@@ -203,11 +203,21 @@ export default function UserDashboard({
 	userName?: string;
 }) {
 	const { theme, toggleTheme } = useDashboardTheme();
+	const navigate = useNavigate();
 	const [collapsed, setCollapsed] = useState(false);
 	const [timeRange, setTimeRange] = useState("30d");
 	const [sidebarOpen, setSidebarOpen] = useState(false);
 	const [user, setUser] = useState<any>(null);
 	const [loading, setLoading] = useState(false);
+
+	const handleLogout = async () => {
+		try {
+			await supabase.auth.signOut();
+			navigate("/auth/login");
+		} catch (err) {
+			console.error("Logout failed:", err);
+		}
+	};
 
 	const [stats, setStats] = useState<Stats>(() => {
 		if (initialDashboardData) return initialDashboardData.stats;
@@ -355,12 +365,12 @@ export default function UserDashboard({
 
 			{/* Mobile sidebar */}
 			<div className={`fixed top-0 left-0 z-[60] h-full md:hidden transform transition-transform duration-300 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
-				<DashboardSidebar collapsed={false} onToggle={() => setSidebarOpen(false)} userEmail={displayUser} theme={theme} onThemeToggle={toggleTheme} />
+				<DashboardSidebar collapsed={false} onToggle={() => setSidebarOpen(false)} userEmail={displayUser} theme={theme} onThemeToggle={toggleTheme} onLogout={handleLogout} />
 			</div>
 
 			{/* Desktop sidebar — fixed, out of flow */}
 			<div className="hidden md:block">
-				<DashboardSidebar collapsed={collapsed} onToggle={() => setCollapsed(!collapsed)} userEmail={displayUser} theme={theme} onThemeToggle={toggleTheme} />
+				<DashboardSidebar collapsed={collapsed} onToggle={() => setCollapsed(!collapsed)} userEmail={displayUser} theme={theme} onThemeToggle={toggleTheme} onLogout={handleLogout} />
 			</div>
 
 			{/* Main */}
@@ -404,7 +414,7 @@ export default function UserDashboard({
 						</div>
 						<div className="flex items-center gap-1.5 bg-[var(--dashboard-input-bg)] p-1 rounded-xl border border-[var(--dashboard-border)] w-fit">
 							{["7d", "30d", "90d"].map((r) => (
-								<button key={r} onClick={() => setTimeRange(r)} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${timeRange === r ? "bg-indigo-500 text-white shadow-sm" : "text-[var(--dashboard-text-secondary)] hover:text-[var(--dashboard-text)]"}`}>
+								<button key={r} onClick={() => setTimeRange(r)} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${timeRange === r ? "bg-blue-600 text-white shadow-sm" : "text-[var(--dashboard-text-secondary)] hover:text-[var(--dashboard-text)]"}`}>
 									{r}
 								</button>
 							))}
@@ -413,9 +423,9 @@ export default function UserDashboard({
 
 					{/* Stat cards */}
 					<div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-						<Card title="Total Requests" value={fmt(stats.totalRequests)} subtitle={`${fmt(todayReqs)} today`} icon={FiActivity} color="indigo" />
+						<Card title="Total Requests" value={fmt(stats.totalRequests)} subtitle={`${fmt(todayReqs)} today`} icon={FiActivity} color="orange" />
 						<Card title="API Keys" value={`${stats.activeKeys}/${stats.totalKeys}`} subtitle="Active / Total" icon={FiClock} color="emerald" />
-						<Card title="Avg Latency" value={`${stats.avgLatency}ms`} subtitle="Response time" icon={FiZap} color="violet" />
+						<Card title="Avg Latency" value={`${stats.avgLatency}ms`} subtitle="Response time" icon={FiZap} color="orange" />
 						<Card title="Success Rate" value={`${stats.successRate}%`} subtitle={`${stats.errorRate}% error rate`} icon={FiActivity} color={stats.successRate > 95 ? "emerald" : "amber"} />
 					</div>
 
@@ -427,7 +437,7 @@ export default function UserDashboard({
 								<span className="text-[11px] text-[var(--dashboard-text-muted)] font-mono">{fmt(stats.tokensUsed)} used</span>
 							</div>
 							<div className="w-full bg-[var(--dashboard-input-bg)] rounded-full h-2 overflow-hidden">
-								<div className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-violet-500 transition-all duration-500" style={{ width: `${tokPct}%` }} />
+								<div className="h-full rounded-full bg-gradient-to-r from-blue-600 to-blue-700 transition-all duration-500" style={{ width: `${tokPct}%` }} />
 							</div>
 							<div className="mt-2 text-[11px] text-[var(--dashboard-text-muted)]">
 								{tokPct.toFixed(1)}% of allocated capacity
@@ -457,7 +467,7 @@ export default function UserDashboard({
 									<p className="text-[11px] text-[var(--dashboard-text-muted)]">Daily API requests & errors</p>
 								</div>
 								<div className="hidden sm:flex items-center gap-4 text-[11px]">
-									<span className="flex items-center gap-1.5 text-[var(--dashboard-text-secondary)]"><span className="w-2.5 h-0.5 rounded-full bg-indigo-500" /> Requests</span>
+									<span className="flex items-center gap-1.5 text-[var(--dashboard-text-secondary)]"><span className="w-2.5 h-0.5 rounded-full bg-blue-600" /> Requests</span>
 									<span className="flex items-center gap-1.5 text-[var(--dashboard-text-secondary)]"><span className="w-2.5 h-0.5 rounded-full bg-rose-500" /> Errors</span>
 								</div>
 							</div>
@@ -465,14 +475,14 @@ export default function UserDashboard({
 								<ResponsiveContainer width="100%" height={200}>
 									<LineChart data={filtered}>
 										<defs>
-											<linearGradient id="rg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#6366f1" stopOpacity={0.3} /><stop offset="100%" stopColor="#6366f1" stopOpacity={0} /></linearGradient>
+											<linearGradient id="rg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#f97316" stopOpacity={0.3} /><stop offset="100%" stopColor="#f97316" stopOpacity={0} /></linearGradient>
 											<linearGradient id="eg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#f43f5e" stopOpacity={0.3} /><stop offset="100%" stopColor="#f43f5e" stopOpacity={0} /></linearGradient>
 										</defs>
 										<CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
 										<XAxis dataKey="date" tick={{ fill: "#71717a", fontSize: 10 }} axisLine={{ stroke: "rgba(255,255,255,0.06)" }} tickLine={false} tickMargin={8} />
 										<YAxis tick={{ fill: "#71717a", fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={(v) => fmt(v)} />
 										<Tooltip content={<ChartTooltip />} />
-										<Line type="monotone" dataKey="requests" stroke="#6366f1" strokeWidth={2} dot={false} activeDot={{ r: 4, fill: "#6366f1", stroke: "var(--dashboard-bg)", strokeWidth: 2 }} fill="url(#rg)" />
+										<Line type="monotone" dataKey="requests" stroke="#f97316" strokeWidth={2} dot={false} activeDot={{ r: 4, fill: "#f97316", stroke: "var(--dashboard-bg)", strokeWidth: 2 }} fill="url(#rg)" />
 										<Line type="monotone" dataKey="errors" stroke="#f43f5e" strokeWidth={1.5} dot={false} activeDot={{ r: 3, fill: "#f43f5e", stroke: "var(--dashboard-bg)", strokeWidth: 2 }} fill="url(#eg)" />
 									</LineChart>
 								</ResponsiveContainer>
@@ -569,7 +579,7 @@ export default function UserDashboard({
 									<span className="text-[var(--dashboard-text)] font-mono">{stats.avgLatency}ms</span>
 								</div>
 							</div>
-							<NavLink to="/user/my-keys" className="flex items-center justify-center gap-2 w-full px-4 py-2.5 rounded-xl text-xs font-semibold bg-indigo-500 text-white hover:bg-indigo-600 transition-all cursor-pointer">
+							<NavLink to="/user/my-keys" className="flex items-center justify-center gap-2 w-full px-4 py-2.5 rounded-xl text-xs font-semibold bg-blue-600 text-white hover:bg-blue-700 transition-all cursor-pointer">
 								Manage Keys
 							</NavLink>
 						</div>
@@ -583,7 +593,7 @@ export default function UserDashboard({
 									<h3 className="text-xs sm:text-sm font-semibold text-[var(--dashboard-text)]">Your API Keys</h3>
 									<p className="text-[11px] text-[var(--dashboard-text-muted)]">{keys.length} key{keys.length !== 1 ? "s" : ""} configured</p>
 								</div>
-								<NavLink to="/user/my-keys" className="flex items-center gap-1 text-xs text-indigo-500 hover:text-indigo-400 transition-colors">
+								<NavLink to="/user/my-keys" className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-400 transition-colors">
 									Manage <FiExternalLink className="w-3 h-3" />
 								</NavLink>
 							</div>
@@ -591,7 +601,7 @@ export default function UserDashboard({
 								{keys.length === 0 && (
 									<div className="text-center py-8">
 										<p className="text-xs text-[var(--dashboard-text-muted)] mb-3">No API keys yet</p>
-										<NavLink to="/user/my-keys" className="inline-flex items-center gap-1 px-4 py-2 rounded-lg text-xs font-medium bg-indigo-500 text-white hover:bg-indigo-600 transition-all">
+										<NavLink to="/user/my-keys" className="inline-flex items-center gap-1 px-4 py-2 rounded-lg text-xs font-medium bg-blue-600 text-white hover:bg-blue-700 transition-all">
 											Create your first key
 										</NavLink>
 									</div>

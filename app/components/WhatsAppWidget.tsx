@@ -73,7 +73,7 @@ export function WhatsAppWidget({
       {isOpen && (
         <div
           ref={panelRef}
-          className="absolute bottom-16 right-0 w-80 sm:w-96 rounded-2xl shadow-2xl border border-zinc-200/80 dark:border-zinc-800/80 bg-white dark:bg-zinc-950 overflow-hidden flex flex-col transition-all duration-300 ease-out transform scale-100 origin-bottom-right animate-in fade-in slide-in-from-bottom-5 duration-200"
+          className="absolute bottom-16 right-0 w-80 sm:w-96 rounded-2xl shadow-2xl border border-border bg-popover text-popover-foreground overflow-hidden flex flex-col transition-all duration-300 ease-out transform scale-100 origin-bottom-right animate-in fade-in slide-in-from-bottom-5 duration-200"
         >
           {/* Header */}
           <div className="bg-gradient-to-r from-emerald-600 to-teal-600 dark:from-emerald-700 dark:to-teal-800 p-4 text-white flex items-center justify-between">
@@ -113,27 +113,27 @@ export function WhatsAppWidget({
           </div>
 
           {/* Chat Body */}
-          <div className="flex-1 p-4 bg-slate-50 dark:bg-zinc-900/50 min-h-[160px] flex flex-col justify-end relative bg-[radial-gradient(#e2e8f0_1px,transparent_1px)] dark:bg-[radial-gradient(#334155_1px,transparent_1px)] [background-size:16px_16px]">
-            <div className="bg-white dark:bg-zinc-800 rounded-2xl rounded-tl-none p-3.5 shadow-sm border border-slate-100 dark:border-zinc-700/50 max-w-[85%] self-start text-left mb-2 transition-colors">
+          <div className="flex-1 p-4 bg-muted/30 dark:bg-muted/10 min-h-[160px] flex flex-col justify-end relative bg-[radial-gradient(var(--color-border)_1px,transparent_1px)] [background-size:16px_16px]">
+            <div className="bg-card rounded-2xl rounded-tl-none p-3.5 shadow-sm border border-border max-w-[85%] self-start text-left mb-2 transition-colors">
               <p className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 mb-1">{agentName}</p>
-              <p className="text-sm text-slate-800 dark:text-slate-200 leading-relaxed font-normal">
+              <p className="text-sm text-foreground leading-relaxed font-normal">
                 {welcomeMessage}
               </p>
-              <span className="block text-[9px] text-slate-400 dark:text-zinc-500 text-right mt-1.5 font-medium">
+              <span className="block text-[9px] text-muted-foreground text-right mt-1.5 font-medium">
                 Just now
               </span>
             </div>
           </div>
 
           {/* Footer Input */}
-          <div className="p-3.5 bg-white dark:bg-zinc-950 border-t border-slate-100 dark:border-zinc-850 flex items-center gap-2.5">
+          <div className="p-3.5 bg-popover border-t border-border flex items-center gap-2.5">
             <input
               type="text"
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Type a message..."
-              className="flex-1 bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-full px-4.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/50 text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-zinc-500"
+              className="flex-1 bg-muted/50 border border-border rounded-full px-4.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/50 text-foreground placeholder-muted-foreground"
             />
             <button
               onClick={handleSend}

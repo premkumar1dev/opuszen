@@ -6,7 +6,7 @@ import { getKeyStatus } from "~/utils/gateway-service";
 
 export const meta: MetaFunction = () => {
  return [
- { title: "API Key Status | Opuszen" },
+ { title: "API Key Status | OpusZen" },
  {
  name: "description",
  content: "Check your API key usage, limits, and status.",
@@ -14,7 +14,35 @@ export const meta: MetaFunction = () => {
  ];
 };
 
+interface KeyStatusData {
+ keyData: {
+ status?: string;
+ name?: string;
+ planName?: string;
+ unlimited?: boolean;
+ usagePercent?: number;
+ totalRequests?: number;
+ expiresAt?: string;
+ createdAt?: string;
+ lastUsedAt?: string;
+ isActive?: boolean;
+ windowActive?: boolean;
+ windowTokensLimit?: number;
+ windowTokensUsed?: number;
+ windowResetAt?: string;
+ allowedModels?: string[];
+ allowedProviders?: string[];
+ remainingCredits?: number;
+ mockWarning?: string;
+ [key: string]: unknown;
+ } | null;
+ error: string | null;
+ key: string;
+}
+
+// DEV-ONLY: Mock data for local development preview. Never ship to production.
 function getMockKeyData() {
+ if (!import.meta.env.DEV) return null;
  const resetAt = new Date();
  resetAt.setHours(resetAt.getHours() + 3);
 
@@ -41,7 +69,7 @@ function getMockKeyData() {
  { model: "claude-opus-4-8", status: 200, time: new Date(Date.now() - 1000 * 60 * 10).toISOString() },
  { model: "claude-haiku-4-5-20251001", status: 200, time: new Date(Date.now() - 1000 * 60 * 15).toISOString() }
  ],
- mockWarning: "Could not connect to local API gateway. Showing mock data for preview purposes."
+ ...(import.meta.env.DEV ? { mockWarning: "DEV preview: could not connect to local API gateway. Showing mock data." } : {})
  };
 }
 
@@ -86,9 +114,9 @@ async function fetchKeyStatus(key: string) {
 }
 
 export async function loader({ request }: LoaderFunctionArgs) {
-  const url = new URL(request.url);
-  const key = String(url.searchParams.get("key") || "").trim();
-  return fetchKeyStatus(key);
+  // API key must not be passed via GET params to avoid URL logging leaks
+  return { keyData: null, error: null, key: "" };
+ 
 }
 
 export async function action({ request }: ActionFunctionArgs) {
@@ -96,10 +124,11 @@ export async function action({ request }: ActionFunctionArgs) {
   try {
     const formData = await request.formData();
     key = String(formData.get("key") || "").trim();
-  } catch {
+  } catch (err: unknown) {
+    console.error("[key-status] Action form parse error:", err);
     key = "";
   }
-  return fetchKeyStatus(key);
+  return await fetchKeyStatus(key);
 }
 
 export default function KeyStatusRoute() {
@@ -107,7 +136,7 @@ export default function KeyStatusRoute() {
   const actionData = useActionData<typeof action>();
 
   const data = actionData || loaderData || { keyData: null, error: null, key: "" };
-  const { keyData, error, key } = data;
+  const { keyData, error, key } = data as any;
  const [timeLeft, setTimeLeft] = useState<string>("");
 
  useEffect(() => {
@@ -146,7 +175,11 @@ export default function KeyStatusRoute() {
  updateTimer();
  const interval = setInterval(updateTimer, 1000);
 
- return () => clearInterval(interval);
+ return () => {
+ if (interval) {
+ clearInterval(interval);
+ }
+ };
  }, [keyData?.windowResetAt]);
 
  const getStatusColor = (percentage: number) => {
@@ -282,13 +315,21 @@ export default function KeyStatusRoute() {
  <circle cx="16.5" cy="7.5" r=".5" fill="currentColor"></circle>
  </svg>
  <input
- type="text"
+ type="password"
  name="key"
  defaultValue={key}
- className="w-full pl-10 pr-4 py-3 rounded-xl border border-input bg-background/50 text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all placeholder:text-muted-foreground"
+ className="w-full pl-10 pr-24 py-3 rounded-xl border border-input bg-background/50 text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all placeholder:text-muted-foreground"
  placeholder="sk-ant-api03-..."
  required
  />
+ <button
+ type="button"
+ id="toggleKeyVisibility"
+ className="absolute right-2 top-1/2 -translate-y-1/2 text-xs px-2 py-1 rounded text-muted-foreground hover:text-foreground transition-colors"
+ aria-label="Toggle key visibility"
+ >
+ Show
+ </button>
  </div>
  <button
  type="submit"
@@ -394,7 +435,7 @@ export default function KeyStatusRoute() {
  {keyData && (
  <div className="space-y-8">
  <div className="p-6 rounded-2xl border border-border bg-card dark:bg-card/60 shadow-sm relative overflow-hidden">
- <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-primary via-violet-500 to-fuchsia-500 opacity-60" />
+ <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-primary via-primary/70 to-primary/80 opacity-60" />
 
  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
  <div>
@@ -402,7 +443,7 @@ export default function KeyStatusRoute() {
  Key Identifier
  </span>
  <div className="flex items-center gap-2 mt-1">
- <code className="text-sm font-mono font-bold text-primary dark:text-violet-400 bg-muted/50 dark:bg-muted/10 px-2 py-1 rounded">
+ <code className="text-sm font-mono font-bold text-primary dark:text-primary bg-muted/50 dark:bg-muted/10 px-2 py-1 rounded">
  {maskedKey}
  </code>
  </div>
@@ -502,7 +543,7 @@ export default function KeyStatusRoute() {
  <div className="flex flex-col sm:items-end gap-1">
  <span>Resets: {formatResetTime(keyData.windowResetAt)}</span>
  {timeLeft && (
- <span className="text-primary dark:text-violet-400 font-semibold">
+ <span className="text-primary dark:text-primary font-semibold">
  {timeLeft}
  </span>
  )}

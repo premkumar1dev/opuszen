@@ -4,10 +4,12 @@ import {
 	type MetaFunction,
 	redirect,
 	Link,
+	useLocation,
 } from "react-router";
 import { useLoaderData, useActionData, useNavigation, useFetcher, Form } from "react-router";
 import { useState, useEffect } from "react";
 import { verifyAdminSession } from "~/utils/admin-auth";
+import { requireAdmin } from "~/utils/admin-actions";
 import { supabase } from "~/utils/supabase";
 import { cn } from "@/lib/utils";
 import { FaRupeeSign } from "react-icons/fa6";
@@ -119,8 +121,7 @@ export async function loader({ request }: LoaderFunctionArgs): Promise<LoaderDat
 }
 
 export async function action({ request }: ActionFunctionArgs): Promise<ActionData> {
-	const adminCheck = await verifyAdminSession(request);
-	if (!adminCheck.isAdmin) throw redirect("/auth/admin");
+	const admin = await requireAdmin(request);
 
 	const formData = await request.formData();
 	const intent = formData.get("intent") as string;
@@ -262,7 +263,14 @@ function MaskValue(value: string, show: boolean): string {
 export default function AdminSettingsPaymentsRoute() {
 	const { adminEmail, settings, error: loaderError } = useLoaderData<LoaderData>();
 	const actionData = useActionData<ActionData>();
+	const location = useLocation();
 	const navigation = useNavigation();
+	const [mobileOpen, setMobileOpen] = useState(false);
+
+	useEffect(() => {
+		setMobileOpen(false);
+	}, [location.pathname]);
+
 	const isSubmitting = navigation.state === "submitting";
 
 	const defaultSettings = {
@@ -364,8 +372,17 @@ export default function AdminSettingsPaymentsRoute() {
 	return (
 		<div className="min-h-screen bg-background text-foreground">
 			<AdminHeader adminEmail={adminEmail || undefined} />
-			<main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-				<div className="max-w-[900px] space-y-6">
+			<main className="min-h-screen md:ml-[220px]">
+				{/* Mobile header bar with hamburger */}
+				<div className="sticky top-0 z-30 flex items-center gap-3 px-4 h-14 border-b border-border/60 bg-background/95 backdrop-blur md:hidden">
+					<button onClick={() => setMobileOpen(true)} className="p-2 -ml-2 rounded-lg hover:bg-muted text-muted-foreground transition-colors" aria-label="Open menu">
+						<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+							<path d="M4 6h16M4 12h16M4 18h16" />
+						</svg>
+					</button>
+					<span className="text-sm font-semibold">Payment Settings</span>
+				</div>
+				<div className="max-w-[900px] px-4 sm:px-6 lg:px-8 space-y-6">
 					{/* Header */}
 					<div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
 						<div>

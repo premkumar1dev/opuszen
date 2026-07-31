@@ -75,7 +75,9 @@ export function AdminLoginForm({
  }
 
  const user = data.user;
- const userRole = user?.app_metadata?.role || user?.user_metadata?.role;
+ // NOTE: The server-side session bridge (/auth/admin/session) enforces the admin check.
+ // The client-side check here is only for UX — the real gate is the HMAC admin_session cookie.
+ const userRole = user?.app_metadata?.role;
 
  const isAdmin = userRole === "admin";
 
@@ -85,8 +87,8 @@ export function AdminLoginForm({
  // Write session tokens to cookies so the server can inspect them
  if (data.session) {
  const maxAge = data.session.expires_in || 3600;
- document.cookie = `sb-access-token=${encodeURIComponent(data.session.access_token)}; path=/; max-age=${maxAge}; SameSite=Lax; Secure`;
- document.cookie = `sb-refresh-token=${encodeURIComponent(data.session.refresh_token)}; path=/; max-age=${maxAge}; SameSite=Lax; Secure`;
+ document.cookie = `sb-access-token=${encodeURIComponent(data.session.access_token)}; path=/; max-age=${maxAge}; SameSite=Strict${window.location.protocol === "https:" ? "; Secure" : ""}`;
+ document.cookie = `sb-refresh-token=${encodeURIComponent(data.session.refresh_token)}; path=/; max-age=${maxAge}; SameSite=Strict${window.location.protocol === "https:" ? "; Secure" : ""}`;
  }
 
  // Hit the server-side session bridge to create the HMAC-signed admin_session cookie
@@ -144,7 +146,7 @@ export function AdminLoginForm({
  <div className="relative w-full max-w-lg transition-all duration-300">
 
  {/* Glow border outline decoration */}
- <div className="absolute -inset-0.5 bg-gradient-to-r from-primary/50 via-violet-500/30 to-fuchsia-500/50 rounded-2xl blur opacity-75 group-hover:opacity-100 transition duration-1000 group-hover:duration-200 animate-pulse-ring" />
+ <div className="absolute -inset-0.5 bg-gradient-to-r from-primary/50 via-orange-500/30 to-orange-500/50 rounded-2xl blur opacity-75 group-hover:opacity-100 transition duration-1000 group-hover:duration-200 animate-pulse-ring" />
 
  {/* Card Body */}
  <div className="relative border border-border bg-card/90 dark:bg-card/75 backdrop-blur-xl rounded-2xl p-6 sm:p-10 shadow-2xl flex flex-col gap-6 group">

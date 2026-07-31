@@ -5,13 +5,16 @@ type Theme = "dark" | "light";
 const STORAGE_KEY = "dashboard-theme";
 
 export function useDashboardTheme() {
-	const [theme, setThemeState] = useState<Theme>(() => {
+	const [theme, setThemeState] = useState<Theme>("dark");
+
+	useEffect(() => {
 		try {
 			const saved = localStorage.getItem(STORAGE_KEY);
-			if (saved === "light" || saved === "dark") return saved;
+			if (saved === "light" || saved === "dark") {
+				setThemeState(saved);
+			}
 		} catch {}
-		return "dark";
-	});
+	}, []);
 
 	useEffect(() => {
 		try {
@@ -20,6 +23,9 @@ export function useDashboardTheme() {
 	}, [theme]);
 
 	useEffect(() => {
+		if (typeof document === "undefined") {
+			return;
+		}
 		const root = document.documentElement;
 		if (theme === "dark") {
 			root.classList.add("dark");
@@ -34,3 +40,5 @@ export function useDashboardTheme() {
 
 	return { theme, toggleTheme };
 }
+
+

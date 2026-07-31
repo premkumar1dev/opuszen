@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { type MetaFunction } from "react-router";
+import { type MetaFunction, data, type ActionFunctionArgs, useNavigate } from "react-router";
 import { DashboardSidebar } from "../components/dashboard/dashboard-sidebar";
 import {
 	FiUser,
@@ -14,17 +14,73 @@ import {
 	FiSmartphone,
 } from "react-icons/fi";
 import { supabase } from "~/utils/supabase";
+import { supabaseServer } from "~/utils/supabase.server";
 import { useDashboardTheme } from "~/utils/theme";
 
 export const meta: MetaFunction = () => [
-	{ title: "Account Settings | Opuszen" },
+	{ title: "Account Settings | OpusZen" },
 	{ name: "description", content: "Manage your OpusZen account settings." },
 ];
 
+// Server-side session validation helper
+async function getCurrentUser(request: Request) {
+	const cookieHeader = request.headers.get("Cookie") || "";
+	const accessTokenMatch = cookieHeader.match(/sb-access-token=([^;]+)/);
+	if (!accessTokenMatch) return null;
+	const { data, error } = await supabaseServer.auth.getUser(accessTokenMatch[1]);
+	if (error || !data.user) return null;
+	return data.user;
+}
+
+// Server action: update profile / change password scoped to the authenticated user
+export async function action({ request }: ActionFunctionArgs) {
+	const user = await getCurrentUser(request);
+	if (!user) return data({ error: "Unauthorized" }, { status: 401 });
+
+	const formData = await request.formData();
+	const intent = formData.get("intent");
+
+	if (intent === "updatePassword") {
+		const newPassword = formData.get("newPassword");
+		if (!newPassword || typeof newPassword !== "string") {
+			return data({ error: "New password is required" }, { status: 400 });
+		}
+		const { error } = await supabaseServer.auth.admin.updateUserById(user.id, {
+			password: newPassword,
+		});
+		if (error) return data({ error: error.message }, { status: 500 });
+		return data({ success: true, message: "Password updated successfully." });
+	}
+
+	if (intent === "updateEmail") {
+		const newEmail = formData.get("newEmail");
+		if (!newEmail || typeof newEmail !== "string") {
+			return data({ error: "New email is required" }, { status: 400 });
+		}
+		const { error } = await supabaseServer.auth.admin.updateUserById(user.id, {
+			email: newEmail,
+		});
+		if (error) return data({ error: error.message }, { status: 500 });
+		return data({ success: true, message: "Email updated successfully." });
+	}
+
+	return data({ error: "Unknown intent" }, { status: 400 });
+}
+
 export default function UserAccountRoute() {
 	const { theme, toggleTheme } = useDashboardTheme();
+	const navigate = useNavigate();
 	const [user, setUser] = useState<any>(null);
-	const [profile, setProfile] = useState({ full_name: "", company: "", website: "", phone: "" });
+
+	const handleLogout = async () => {
+		try {
+			await supabase.auth.signOut();
+			navigate("/auth/login");
+		} catch (err) {
+			console.error("Logout failed:", err);
+		}
+	};
+	const [profile, setProfile] = useState({ full_name: "", company: "", website: "", phone: "", username: "" });
 	const [currentPw, setCurrentPw] = useState("");
 	const [newPw, setNewPw] = useState("");
 	const [saving, setSaving] = useState(false);
@@ -45,7 +101,8 @@ export default function UserAccountRoute() {
 				full_name: u?.user_metadata?.full_name || "",
 				company: u?.user_metadata?.company || "",
 				website: u?.user_metadata?.website || "",
-				phone: u?.user_metadata?.phone || "",
+				phone: u?.user_metadata?.phone || u?.phone || "",
+				username: u?.user_metadata?.username || u?.email?.split("@")[0] || "",
 			});
 		});
 	}, []);
@@ -55,7 +112,15 @@ export default function UserAccountRoute() {
 		setErrorMsg(null);
 		setSuccessMsg(null);
 		try {
-			await supabase.auth.updateUser({ data: { full_name: profile.full_name, company: profile.company, website: profile.website, phone: profile.phone } });
+			await supabase.auth.updateUser({
+				data: {
+					full_name: profile.full_name,
+					company: profile.company,
+					website: profile.website,
+					phone: profile.phone,
+					username: profile.username,
+				}
+			});
 			setSuccessMsg("Profile updated successfully.");
 			setTimeout(() => setSuccessMsg(null), 4000);
 		} catch {
@@ -112,17 +177,14 @@ export default function UserAccountRoute() {
 		});
 	};
 
-	const displayUsername = user?.email || user?.user_metadata?.email || "—";
-	const displayMobile = user?.user_metadata?.phone || user?.phone || "Not set";
-
 	return (
 		<div className="dashboard flex min-h-screen">
 			{sidebarOpen && <div className="fixed inset-0 z-[55] dashboard-overlay backdrop-blur-sm md:hidden" onClick={() => setSidebarOpen(false)} />}
 			<div className={`fixed top-0 left-0 z-[60] h-full md:hidden transform transition-transform duration-300 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
-				<DashboardSidebar collapsed={false} onToggle={() => setSidebarOpen(false)} userEmail={user?.email} theme={theme} onThemeToggle={toggleTheme} />
+				<DashboardSidebar collapsed={false} onToggle={() => setSidebarOpen(false)} userEmail={user?.email} theme={theme} onThemeToggle={toggleTheme} onLogout={handleLogout} />
 			</div>
 			<div className="hidden md:block">
-				<DashboardSidebar collapsed={false} onToggle={() => { }} userEmail={user?.email} theme={theme} onThemeToggle={toggleTheme} />
+				<DashboardSidebar collapsed={false} onToggle={() => { }} userEmail={user?.email} theme={theme} onThemeToggle={toggleTheme} onLogout={handleLogout} />
 			</div>
 
 			<main className="flex-1 min-h-screen md:ml-[240px]">
@@ -158,7 +220,7 @@ export default function UserAccountRoute() {
 					{/* Profile */}
 					<div className="dashboard-card p-5 sm:p-6 rounded-2xl mb-4 sm:mb-6">
 						<div className="flex items-center gap-3 mb-6">
-							<div className="p-2 rounded-lg bg-indigo-500/10 border border-indigo-500/20"><FiUser className="w-4 h-4 text-indigo-500" /></div>
+							<div className="p-2 rounded-lg bg-primary/10 border border-primary/20"><FiUser className="w-4 h-4 text-primary" /></div>
 							<div>
 								<h2 className="text-sm font-bold text-[var(--dashboard-text)]">Profile Information</h2>
 								<p className="text-[11px] text-[var(--dashboard-text-muted)]">Your personal details</p>
@@ -167,33 +229,45 @@ export default function UserAccountRoute() {
 						<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 							<div>
 								<label className="block text-xs font-semibold text-[var(--dashboard-text-secondary)] mb-1.5">Username</label>
-								<div className="dashboard-input w-full px-3 py-2.5 rounded-xl text-sm bg-[var(--dashboard-input-bg)] text-[var(--dashboard-text)] cursor-default flex items-center gap-2">
-									<FiUser className="w-3.5 h-3.5 text-[var(--dashboard-text-muted)] shrink-0" />
-									{displayUsername}
+								<div className="relative">
+									<input
+										type="text"
+										value={profile.username}
+										onChange={(e) => setProfile((p) => ({ ...p, username: e.target.value }))}
+										className="dashboard-input w-full pl-9 pr-3 py-2.5 rounded-xl text-sm focus:outline-none focus:border-primary/50 transition-all"
+										placeholder="Username"
+									/>
+									<FiUser className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--dashboard-text-muted)]" />
 								</div>
 							</div>
 							<div>
 								<label className="block text-xs font-semibold text-[var(--dashboard-text-secondary)] mb-1.5">Mobile Number</label>
-								<div className="dashboard-input w-full px-3 py-2.5 rounded-xl text-sm bg-[var(--dashboard-input-bg)] text-[var(--dashboard-text)] cursor-default flex items-center gap-2">
-									<FiSmartphone className="w-3.5 h-3.5 text-[var(--dashboard-text-muted)] shrink-0" />
-									{displayMobile}
+								<div className="relative">
+									<input
+										type="text"
+										value={profile.phone}
+										onChange={(e) => setProfile((p) => ({ ...p, phone: e.target.value }))}
+										className="dashboard-input w-full pl-9 pr-3 py-2.5 rounded-xl text-sm focus:outline-none focus:border-primary/50 transition-all"
+										placeholder="Mobile Number"
+									/>
+									<FiSmartphone className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--dashboard-text-muted)]" />
 								</div>
 							</div>
 							<div>
 								<label className="block text-xs font-semibold text-[var(--dashboard-text-secondary)] mb-1.5">Full Name</label>
-								<input type="text" value={profile.full_name} onChange={(e) => setProfile((p) => ({ ...p, full_name: e.target.value }))} className="dashboard-input w-full px-3 py-2.5 rounded-xl text-sm focus:outline-none focus:border-indigo-500/50 transition-all" />
+								<input type="text" value={profile.full_name} onChange={(e) => setProfile((p) => ({ ...p, full_name: e.target.value }))} className="dashboard-input w-full px-3 py-2.5 rounded-xl text-sm focus:outline-none focus:border-primary/50 transition-all" />
 							</div>
 							<div>
 								<label className="block text-xs font-semibold text-[var(--dashboard-text-secondary)] mb-1.5">Company</label>
-								<input type="text" value={profile.company} onChange={(e) => setProfile((p) => ({ ...p, company: e.target.value }))} className="dashboard-input w-full px-3 py-2.5 rounded-xl text-sm focus:outline-none focus:border-indigo-500/50 transition-all" />
+								<input type="text" value={profile.company} onChange={(e) => setProfile((p) => ({ ...p, company: e.target.value }))} className="dashboard-input w-full px-3 py-2.5 rounded-xl text-sm focus:outline-none focus:border-primary/50 transition-all" />
 							</div>
 							<div>
 								<label className="block text-xs font-semibold text-[var(--dashboard-text-secondary)] mb-1.5">Website</label>
-								<input type="text" value={profile.website} onChange={(e) => setProfile((p) => ({ ...p, website: e.target.value }))} className="dashboard-input w-full px-3 py-2.5 rounded-xl text-sm focus:outline-none focus:border-indigo-500/50 transition-all" />
+								<input type="text" value={profile.website} onChange={(e) => setProfile((p) => ({ ...p, website: e.target.value }))} className="dashboard-input w-full px-3 py-2.5 rounded-xl text-sm focus:outline-none focus:border-primary/50 transition-all" />
 							</div>
 						</div>
 						<div className="mt-6 flex justify-end">
-							<button onClick={saveProfile} disabled={saving} className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-500 text-white text-sm font-semibold hover:bg-indigo-600 transition-all disabled:opacity-40 cursor-pointer">
+							<button onClick={saveProfile} disabled={saving} className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-all disabled:opacity-40 cursor-pointer">
 								<FiSave className="w-3.5 h-3.5" />{saving ? "Saving..." : "Save Profile"}
 							</button>
 						</div>
@@ -202,7 +276,7 @@ export default function UserAccountRoute() {
 					{/* Password */}
 					<div className="dashboard-card p-5 sm:p-6 rounded-2xl mb-4 sm:mb-6">
 						<div className="flex items-center gap-3 mb-6">
-							<div className="p-2 rounded-lg bg-violet-500/10 border border-violet-500/20"><FiLock className="w-4 h-4 text-violet-500" /></div>
+							<div className="p-2 rounded-lg bg-primary/10 border border-primary/20"><FiLock className="w-4 h-4 text-primary" /></div>
 							<div>
 								<h2 className="text-sm font-bold text-[var(--dashboard-text)]">Change Password</h2>
 								<p className="text-[11px] text-[var(--dashboard-text-muted)]">Update your account password</p>
@@ -212,18 +286,18 @@ export default function UserAccountRoute() {
 							<div>
 								<label className="block text-xs font-semibold text-[var(--dashboard-text-secondary)] mb-1.5">Current Password</label>
 								<div className="relative">
-									<input type={showCurrentPw ? "text" : "password"} value={currentPw} onChange={(e) => setCurrentPw(e.target.value)} className="dashboard-input w-full px-3 py-2.5 pr-10 rounded-xl text-sm focus:outline-none focus:border-indigo-500/50 transition-all" />
+									<input type={showCurrentPw ? "text" : "password"} value={currentPw} onChange={(e) => setCurrentPw(e.target.value)} className="dashboard-input w-full px-3 py-2.5 pr-10 rounded-xl text-sm focus:outline-none focus:border-primary/50 transition-all" />
 									<button onClick={() => setShowCurrentPw(!showCurrentPw)} className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--dashboard-text-muted)] hover:text-[var(--dashboard-text)] p-1 touch-manipulation" aria-label={showCurrentPw ? "Hide" : "Show"}><FiEye className="w-4 h-4" /></button>
 								</div>
 							</div>
 							<div>
 								<label className="block text-xs font-semibold text-[var(--dashboard-text-secondary)] mb-1.5">New Password</label>
 								<div className="relative">
-									<input type={showNewPw ? "text" : "password"} value={newPw} onChange={(e) => setNewPw(e.target.value)} className="dashboard-input w-full px-3 py-2.5 pr-10 rounded-xl text-sm focus:outline-none focus:border-indigo-500/50 transition-all" />
+									<input type={showNewPw ? "text" : "password"} value={newPw} onChange={(e) => setNewPw(e.target.value)} className="dashboard-input w-full px-3 py-2.5 pr-10 rounded-xl text-sm focus:outline-none focus:border-primary/50 transition-all" />
 									<button onClick={() => setShowNewPw(!showNewPw)} className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--dashboard-text-muted)] hover:text-[var(--dashboard-text)] p-1 touch-manipulation" aria-label={showNewPw ? "Hide" : "Show"}><FiEye className="w-4 h-4" /></button>
 								</div>
 							</div>
-							<button onClick={changePassword} disabled={!currentPw || !newPw} className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-violet-500 text-white text-sm font-semibold hover:bg-violet-600 transition-all disabled:opacity-40 cursor-pointer">
+							<button onClick={changePassword} disabled={!currentPw || !newPw} className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-all disabled:opacity-40 cursor-pointer">
 								<FiShield className="w-3.5 h-3.5" /> Update Password
 							</button>
 						</div>
@@ -250,7 +324,7 @@ export default function UserAccountRoute() {
 										<p className="text-sm font-medium text-[var(--dashboard-text)]">{item.label}</p>
 										<p className="text-[11px] text-[var(--dashboard-text-muted)]">{item.desc}</p>
 									</div>
-									<button onClick={() => toggleNotif(item.key)} className={`relative w-11 h-6 rounded-full transition-all cursor-pointer ${notifications[item.key] ? "bg-indigo-500" : "bg-[var(--dashboard-nav-hover)] border border-[var(--dashboard-border)]"}`}>
+									<button onClick={() => toggleNotif(item.key)} className={`relative w-11 h-6 rounded-full transition-all cursor-pointer ${notifications[item.key] ? "bg-primary" : "bg-[var(--dashboard-nav-hover)] border border-[var(--dashboard-border)]"}`}>
 										<span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${notifications[item.key] ? "translate-x-5" : "translate-x-0"}`} />
 									</button>
 								</div>
@@ -274,7 +348,7 @@ export default function UserAccountRoute() {
 								<p className="text-xs text-[var(--dashboard-text-secondary)]">This will terminate your session and require support intervention for permanent deletion. This action cannot be undone.</p>
 								<div className="flex gap-2">
 									<button onClick={() => setShowDelete(false)} className="flex-1 py-2.5 rounded-xl border border-[var(--dashboard-border)] text-xs font-medium text-[var(--dashboard-text-secondary)] hover:text-[var(--dashboard-text)] hover:bg-[var(--dashboard-nav-hover)] transition-all cursor-pointer touch-manipulation">Cancel</button>
-									<button onClick={deleteAccount} disabled={deleting} className="flex-1 py-2.5 rounded-xl bg-red-500 text-white text-xs font-semibold hover:bg-red-600 transition-all cursor-pointer touch-manipulation">{deleting ? "Terminating..." : "Yes, Terminate Session"}</button>
+									<button onClick={deleteAccount} disabled={deleting} className="flex-1 py-2.5 rounded-xl bg-red-500 text-foreground text-xs font-semibold hover:bg-red-600 transition-all cursor-pointer touch-manipulation">{deleting ? "Terminating..." : "Yes, Terminate Session"}</button>
 								</div>
 							</div>
 						)}

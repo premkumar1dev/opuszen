@@ -329,7 +329,7 @@ export default function AdminUserKeysRoute() {
  {[
  { label: "Total Keys", value: keys.length.toString(), color: "text-foreground" },
  { label: "Active Keys", value: activeKeys.length.toString(), color: "text-emerald-500" },
- { label: "Total Allocated Tokens", value: (totalCredits * 1000).toLocaleString(), color: "text-indigo-500" },
+ { label: "Total Allocated Tokens", value: (totalCredits * 1000).toLocaleString(), color: "text-orange-500" },
  { label: "Total Used Tokens", value: (usedCredits * 1000).toLocaleString(), color: "text-amber-500" },
  ].map((s) => (
  <div key={s.label} className="p-4 rounded-xl border border-border bg-card/60">

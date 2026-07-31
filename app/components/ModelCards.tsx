@@ -1,74 +1,158 @@
+import { motion } from "framer-motion";
+import { StaggerContainer, StaggerItem } from "../components/motion/FadeUp";
 
-const models = [
-  {
-  name: 'OpusLive Premium',
-  id: 'opuslive-premium',
-  description: 'Flagship — 1M context, long-horizon agentic coding',
-  gradient: 'from-violet-500 to-purple-600 dark:from-violet-400 dark:to-purple-500',
-  icon: '🧠',
-  },
-  {
-  name: 'OpusLive Chat',
-  id: 'opuslive-chat',
-  description: 'Speed meets intelligence',
-  gradient: 'from-primary to-indigo-500 dark:from-primary dark:to-indigo-400',
-  icon: '⚡',
-  },
-  {
-  name: 'OpusLive Fast',
-  id: 'opuslive-fast',
-  description: 'Fastest for high throughput',
-  gradient: 'from-emerald-500 to-teal-500 dark:from-emerald-400 dark:to-teal-400',
-  icon: '🚀',
-  },
-]
+const featuredModels = [
+ {
+ name: "Claude Fable 5",
+ id: "claude-fable-5",
+ description: "Most intelligent, best for complex reasoning",
+ tier: "pro",
+ context: "1M",
+ badges: ["New", "1M context"],
+ },
+ {
+ name: "Claude Opus 5",
+ id: "claude-opus-5",
+ description: "Highest capability for complex tasks",
+ tier: "pro",
+ context: "200K",
+ badges: ["New"],
+ },
+ {
+ name: "Claude Sonnet 5",
+ id: "claude-sonnet-5",
+ description: "Balanced performance and speed",
+ tier: "dev",
+ context: "200K",
+ badges: [],
+ },
+ {
+ name: "Claude Haiku 4.5",
+ id: "claude-haiku-4-5-20251001",
+ description: "Fast and affordable",
+ tier: "free",
+ context: "200K",
+ badges: [],
+ },
+];
+
+const tierConfig = {
+ pro: { color: "text-primary", bg: "bg-primary/10", border: "border-primary/20" },
+ dev: { color: "text-chart-2", bg: "bg-chart-4/50", border: "border-chart-4/80" },
+ free: { color: "text-emerald-600", bg: "bg-emerald-50", border: "border-emerald-200" },
+};
+
+const badgeConfig = {
+ New: { color: "text-primary", bg: "bg-primary/10", border: "border-primary/20" },
+ "1M context": { color: "text-chart-2", bg: "bg-chart-4/50", border: "border-chart-4/80" },
+};
 
 export default function ModelCards() {
-  return (
-  <section className="relative py-24 px-4">
-  <div className="max-w-7xl mx-auto">
-  <div className="text-center mb-16">
-  <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-foreground mb-4">
-  The full OpusLive lineup
-  </h2>
-  <p className="text-muted-foreground max-w-lg mx-auto">
-  Use the model that fits your task.
-  </p>
-  </div>
-
- <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
- {models.map((model, index) => (
- <article
- key={model.id}
- className="group relative rounded-2xl border border-border/60 bg-card dark:bg-card/80 hover:border-primary/50 transition-all duration-300 hover:shadow-xl hover:shadow-primary/20 dark:hover:shadow-primary/10 hover:-translate-y-1 overflow-hidden"
- style={{ animationDelay: `${index * 100}ms` }}
- tabIndex={0}
- role="article"
- aria-label={`${model.name}: ${model.description}`}
+ return (
+ <section className="relative py-24 px-4 bg-background">
+ <div className="max-w-7xl mx-auto">
+ <div className="text-center mb-16">
+ <motion.h2
+ initial={{ opacity: 0, y: 20 }}
+ whileInView={{ opacity: 1, y: 0 }}
+ viewport={{ once: true }}
+ transition={{ duration: 0.5 }}
+ className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight text-foreground mb-4"
  >
- {/* Top gradient bar */}
- <div className={`absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r ${model.gradient} opacity-80 group-hover:opacity-100 transition-opacity`} aria-hidden="true" />
-
- {/* Glow on hover */}
- <div className={`absolute inset-0 bg-gradient-to-br ${model.gradient} opacity-0 group-hover:opacity-5 dark:group-hover:opacity-10 transition-opacity duration-300`} aria-hidden="true" />
-
- <div className="mt-4 relative z-10 p-5">
- <div className="flex items-center gap-3 mb-2">
- <span className="text-2xl" aria-hidden="true">{model.icon}</span>
- <h3 className="text-xl font-bold text-foreground">{model.name}</h3>
+ <span className="text-muted-foreground text-2xl sm:text-3xl md:text-4xl font-mono">
+ 01 —
+ </span>{" "}
+ The lineup
+ </motion.h2>
+ <motion.p
+ initial={{ opacity: 0, y: 20 }}
+ whileInView={{ opacity: 1, y: 0 }}
+ viewport={{ once: true }}
+ transition={{ duration: 0.5, delay: 0.1 }}
+ className="text-muted-foreground max-w-2xl mx-auto text-lg leading-relaxed"
+ >
+ The whole Claude lineup. One endpoint.
+ </motion.p>
  </div>
- <code className="text-xs text-muted-foreground font-mono bg-muted/50 dark:bg-muted/20 px-2 py-1 rounded">{model.id}</code>
- <p className="text-sm text-muted-foreground mt-3 leading-relaxed">{model.description}</p>
+
+ <StaggerContainer staggerDelay={0.08} className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+ {featuredModels.map((model, i) => {
+ const tier = tierConfig[model.tier as keyof typeof tierConfig];
+ return (
+ <motion.div
+ key={model.id}
+ initial={{ opacity: 0, y: 20 }}
+ whileInView={{ opacity: 1, y: 0 }}
+ viewport={{ once: true }}
+ transition={{ duration: 0.5, delay: i * 0.08 }}
+ className="group relative rounded-xl border border-border bg-card hover:border-blue-300 card-lift overflow-hidden"
+ >
+ <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-primary to-primary/80 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+
+ <div className="p-5 sm:p-6">
+ <div className="flex flex-wrap gap-2 mb-3">
+ {model.badges.map((badge) => {
+ const bc = badgeConfig[badge as keyof typeof badgeConfig];
+ return (
+ <span
+ key={badge}
+ className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold ${bc.bg} ${bc.color} ${bc.border} border`}
+ >
+ {badge}
+ </span>
+ );
+ })}
  </div>
 
- {/* Shimmer effect */}
- <div className="absolute inset-0 -z-10 overflow-hidden">
- <div className="absolute -left-full top-0 h-full w-1/3 bg-gradient-to-r from-transparent via-white/20 to-transparent dark:via-white/5 animate-shimmer" />
+ <h3 className="text-lg font-semibold text-foreground mb-1">
+ {model.name}
+ </h3>
+
+ <code className="text-xs text-muted-foreground font-mono bg-muted px-2 py-0.5 rounded block mb-2">
+ {model.id}
+ </code>
+
+ <p className="text-sm text-muted-foreground leading-relaxed mb-4">
+ {model.description}
+ </p>
+
+ <div className="flex items-center justify-between pt-3 border-t border-border">
+ <span className="text-xs text-muted-foreground font-mono">
+ {model.context} context
+ </span>
+ <span
+ className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold ${tier.bg} ${tier.color} ${tier.border} border`}
+ >
+ {model.tier}
+ </span>
  </div>
- </article>
- ))}
+ </div>
+ </motion.div>
+ );
+ })}
+ </StaggerContainer>
+
+ <div className="text-center mt-10">
+ <button
+ className="btn-ripple inline-flex items-center gap-2 px-5 py-2.5 rounded-lg border border-border text-sm text-muted-foreground hover:text-foreground hover:border-primary/30 transition-all cursor-pointer"
+ >
+ Show all 9 supporting models
+ <svg
+ xmlns="http://www.w3.org/2000/svg"
+ width={16}
+ height={16}
+ viewBox="0 0 24 24"
+ fill="none"
+ stroke="currentColor"
+ strokeWidth={2}
+ strokeLinecap="round"
+ strokeLinejoin="round"
+ >
+ <path d="m6 9 6 6 6-6" />
+ </svg>
+ </button>
  </div>
  </div>
  </section>
- )
+ );
 }

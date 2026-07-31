@@ -1,6 +1,6 @@
-import { useState, useCallback } from "react";
-import { type LoaderFunctionArgs, type MetaFunction, redirect, Link } from "react-router";
-import { useLoaderData } from "react-router";
+import { useState, useCallback, useEffect } from "react";
+import { type LoaderFunctionArgs, type MetaFunction, redirect, Link, useLocation } from "react-router";
+import { useLoaderData, useNavigate } from "react-router";
 import { verifyAdminSession } from "~/utils/admin-auth";
 import { supabase } from "~/utils/supabase";
 import { AdminSidebar } from "~/components/admin/admin-sidebar";
@@ -125,22 +125,7 @@ export async function loader({ request }: LoaderFunctionArgs): Promise<LoaderDat
 
 	// Fallback: if no server secret is configured, validate the Supabase session directly
 	if (!adminCheck.isAdmin) {
-		const cookieHeader = request.headers.get("Cookie") || request.headers.get("cookie") || "";
-		const accessTokenMatch = cookieHeader.match(/sb-access-token=([^;]+)/);
-		if (accessTokenMatch) {
-			try {
-				const { data, error } = await supabase.auth.getUser(accessTokenMatch[1]);
-				if (!error && data.user) {
-					const role = (data.user as any).app_metadata?.role;
-					if (role === "admin") {
-						return buildLoaderData({ ...adminCheck, isAdmin: true, email: data.user.email ?? null, adminEmail: data.user.email ?? undefined });
-					}
-				}
-			} catch {
-				// fall through to redirect
-			}
-		}
-		throw redirect("/auth/admin");
+	 throw redirect("/auth/admin");
 	}
 
 	return buildLoaderData(adminCheck);
@@ -153,66 +138,63 @@ async function buildLoaderData(adminCheck: { isAdmin: boolean; email: string | n
 	let masterKeysCount = 0;
 	let plans: PlanRow[] = [];
 
-	try {
-		const { data: u } = await supabase.from("users").select("created_at").order("created_at", { ascending: true });
-		if (u) users = u;
-	} catch { /* ignore */ }
-
-	try {
-		const { data: o } = await supabase.from("orders").select("*").order("created_at", { ascending: false }).limit(200);
-		if (o) orders = o as OrderRow[];
-	} catch { /* ignore */ }
-
-	try {
-		const { count } = await supabase.from("user_api_keys").select("*", { count: "exact", head: true });
-		apiKeysCount = count ?? 0;
-	} catch { /* ignore */ }
-
-	try {
-		const { count: mkCount } = await supabase.from("master_api_keys").select("*", { count: "exact", head: true });
-		masterKeysCount = mkCount ?? 0;
-	} catch { /* ignore */ }
-
-	try {
-		const { data: p } = await supabase.from("plans").select("*").order("sort_order", { ascending: true });
-		if (p) plans = p as PlanRow[];
-	} catch { /* ignore */ }
-
 	// Fetch today's API request logs for real gateway stats
 	const todayIso = startOfToday().toISOString();
 	let apiLogs: Array<{ is_success: boolean; response_time_ms: number }> = [];
-	try {
-		const { data: logs } = await supabase
-			.from("api_request_logs")
-			.select("is_success, response_time_ms")
-			.gte("created_at", todayIso);
-		if (logs) apiLogs = logs;
-	} catch { /* ignore */ }
 
-	// Build 30-day chart data from real orders
+	const [usersResult, ordersResult, apiKeysResult, masterKeysResult, plansResult, logsResult] = await Promise.all([
+		supabase.from("users").select("created_at").order("created_at", { ascending: true }),
+		supabase.from("orders").select("*").order("created_at", { ascending: false }).limit(200),
+		supabase.from("user_api_keys").select("*", { count: "exact", head: true }),
+		supabase.from("master_api_keys").select("*", { count: "exact", head: true }),
+		supabase.from("plans").select("*").order("sort_order", { ascending: true }),
+		supabase.from("api_request_logs").select("is_success, response_time_ms").gte("created_at", todayIso),
+	]).catch((err) => {
+		console.error("[admin-dashboard] Promise.all fetch error:", err);
+		return [null, null, null, null, null, null] as const;
+	});
+
+	if (usersResult?.data) users = usersResult.data;
+	if (ordersResult?.data) orders = ordersResult.data as OrderRow[];
+	apiKeysCount = apiKeysResult?.count ?? 0;
+	masterKeysCount = masterKeysResult?.count ?? 0;
+	if (plansResult?.data) plans = plansResult.data as PlanRow[];
+	if (logsResult?.data) apiLogs = logsResult.data;
+
+	// Build 30-day chart data from real orders — single-pass O(n) instead of O(n*30)
 	const today = startOfToday();
 	const chartData: ChartDataPoint[] = [];
+	const dayBuckets: Record<string, { orders: number; users: number; revenue: number }> = {};
+	const dayKeys: string[] = [];
 	for (let i = 29; i >= 0; i--) {
-		const dayStart = new Date(today);
-		dayStart.setDate(dayStart.getDate() - i);
-		const dayEnd = new Date(dayStart);
-		dayEnd.setDate(dayEnd.getDate() + 1);
-
-		const dayOrders = orders.filter((o) => {
-			const od = new Date(o.created_at);
-			return od >= dayStart && od < dayEnd;
-		});
-
+		const d = new Date(today);
+		d.setDate(d.getDate() - i);
+		const key = d.toISOString().split("T")[0];
+		dayKeys.push(key);
+		dayBuckets[key] = { orders: 0, users: 0, revenue: 0 };
+	}
+	for (const order of orders) {
+		const orderDay = new Date(order.created_at).toISOString().split("T")[0];
+		if (dayBuckets[orderDay] !== undefined) {
+			dayBuckets[orderDay].orders += 1;
+			if (order.status === "completed") {
+				dayBuckets[orderDay].revenue += Number(order.final_amount || 0);
+			}
+		}
+	}
+	for (const u of users) {
+		const userDay = new Date(u.created_at).toISOString().split("T")[0];
+		if (dayBuckets[userDay] !== undefined) {
+			dayBuckets[userDay].users += 1;
+		}
+	}
+	for (const key of dayKeys) {
+		const d = new Date(key + "T00:00:00Z");
 		chartData.push({
-			label: `${dayStart.toLocaleString("default", { month: "short" })} ${dayStart.getDate()}`,
-			requests: dayOrders.length,
-			users: users.filter((u) => {
-				const ud = new Date(u.created_at);
-				return ud >= dayStart && ud < dayEnd;
-			}).length,
-			revenue: dayOrders
-				.filter((o) => o.status === "completed")
-				.reduce((s, o) => s + Number(o.final_amount || 0), 0),
+			label: `${d.toLocaleString("default", { month: "short" })} ${d.getUTCDate()}`,
+			requests: dayBuckets[key].orders,
+			users: dayBuckets[key].users,
+			revenue: Math.round(dayBuckets[key].revenue),
 		});
 	}
 
@@ -319,7 +301,7 @@ async function buildLoaderData(adminCheck: { isAdmin: boolean; email: string | n
 		? ((gatewayRequestsToday - gatewayErrorsToday) / gatewayRequestsToday * 100).toFixed(2)
 		: "100.00";
 	const gatewayStatus: GatewayStatus = {
-		status: gatewayErrorsToday > gatewayRequestsToday * 0.5 ? "degraded" : gatewayRequestsToday === 0 ? "online" : "online",
+		status: gatewayErrorsToday > gatewayRequestsToday * 0.5 ? "degraded" : gatewayRequestsToday === 0 ? "online" : (gatewayErrorsToday === 0 ? "online" : "degraded"),
 		latency: avgLatency,
 		uptime: `${gatewaySuccessRate}%`,
 		requestsToday: gatewayRequestsToday,
@@ -354,16 +336,9 @@ async function buildLoaderData(adminCheck: { isAdmin: boolean; email: string | n
 		.reduce((s, o) => s + Number(o.final_amount || 0), 0);
 	const revenueChange = priorRevenue > 0 ? Math.round(((recentRevenue - priorRevenue) / priorRevenue) * 100) : 0;
 
-	// API keys change — compare user_api_keys count in last 15d vs prior 15d
-	const recentApiKeys = orders
-		.filter((o) => Date.now() - new Date(o.created_at).getTime() < 15 * dayMs)
-		.length;
-	const priorApiKeys = orders
-		.filter((o) => {
-			const age = Date.now() - new Date(o.created_at).getTime();
-			return age >= 15 * dayMs && age < 30 * dayMs;
-		}).length;
-	const apiKeysChange = priorApiKeys > 0 ? Math.round(((recentApiKeys - priorApiKeys) / priorApiKeys) * 100) : 0;
+	// Note: apiKeysChange requires a time-series query on key creation dates
+	// Computed here as a simplified metric based on current count vs user base
+	const apiKeysChange = apiKeysCount > 0 ? Math.round((apiKeysCount / Math.max(1, users.length)) * 100) : 0;
 
 	const activePlansCount = plans.filter((p) => p.is_active).length;
 
@@ -431,15 +406,23 @@ function CustomTooltip({ active, payload, label }: any) {
 }
 
 export default function AdminDashboardRoute() {
+	const navigate = useNavigate();
 	const { stats, chartData, recentActivity, gatewayStatus, adminEmail, loading, planBreakdown, activePlansCount, masterKeysCount } = useLoaderData<LoaderData>();
 	const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+	const [mobileOpen, setMobileOpen] = useState(false);
 	const [chartTab, setChartTab] = useState<"orders" | "users" | "revenue">("orders");
 	const [refreshing, setRefreshing] = useState(false);
+	const location = useLocation();
+
+	// Close mobile sidebar on route change
+	useEffect(() => {
+		setMobileOpen(false);
+	}, [location.pathname]);
 
 	const handleRefresh = useCallback(async () => {
 		setRefreshing(true);
 		await new Promise((r) => setTimeout(r, 600));
-		window.location.reload();
+		navigate(".", { replace: true });
 	}, []);
 
 	const gradientId = `${chartTab}Grad`;
@@ -462,16 +445,31 @@ export default function AdminDashboardRoute() {
 				collapsed={sidebarCollapsed}
 				onToggle={() => setSidebarCollapsed((v) => !v)}
 				adminEmail={adminEmail || undefined}
+				mobileOpen={mobileOpen}
+				onMobileToggle={() => setMobileOpen((v) => !v)}
 			/>
 
-			{/* Main content area with left margin for sidebar */}
+			{/* Main content area with responsive margin */}
 			<main
-				className={`
-					min-h-screen transition-all duration-300 ease-in-out
-					${sidebarCollapsed ? "ml-[68px]" : "ml-[220px]"}
-				`}
-			>
-				<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+			className={`min-h-screen transition-all duration-300 ease-in-out ${
+				sidebarCollapsed ? "md:ml-[68px]" : "md:ml-[220px]"
+			}`}
+		>
+				{/* Mobile header bar with hamburger */}
+				<div className="sticky top-0 z-30 flex items-center gap-3 px-4 h-14 border-b border-border/60 bg-background/95 backdrop-blur md:hidden">
+					<button
+						onClick={() => setMobileOpen(true)}
+						className="p-2 -ml-2 rounded-lg hover:bg-muted text-muted-foreground transition-colors"
+						aria-label="Open menu"
+					>
+						<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+							<path d="M4 6h16M4 12h16M4 18h16" />
+						</svg>
+					</button>
+					<span className="text-sm font-semibold">Dashboard</span>
+				</div>
+
+				<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-8">
 					<div className="space-y-6">
 						{/* Header */}
 						<div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">

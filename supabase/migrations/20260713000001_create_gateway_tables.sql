@@ -42,7 +42,7 @@ CREATE POLICY "master_keys_delete_admin" ON public.master_api_keys FOR DELETE US
 -- Seed data
 INSERT INTO public.master_api_keys (provider, name, api_key, status, priority, total_credits, remaining_credits)
 VALUES
- ('https://api.opusmax.live/v1', 'OpusLive Primary', 'sk-placeholder-key', 'active', 1, 999999.00, 999999.00)
+ ('https://api.opuszen.shop/v1', 'OpusLive Primary', 'sk-placeholder-key', 'active', 1, 999999.00, 999999.00)
 ON CONFLICT DO NOTHING;
 
 -- -------------------------------

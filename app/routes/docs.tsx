@@ -5,7 +5,7 @@ import { useState, useEffect } from "react";
 
 export const meta: MetaFunction = () => {
  return [
- { title: "Documentation | Opuszen" },
+ { title: "Documentation | OpusZen" },
  {
  name: "description",
  content:
@@ -91,7 +91,7 @@ function CodeBlock({ code, lang = "" }: { code: string; lang?: string }) {
         )}
       </button>
 
-      <pre className="p-4 pr-12 overflow-x-auto text-sm font-mono text-foreground dark:text-violet-300 leading-relaxed">
+      <pre className="p-4 pr-12 overflow-x-auto text-sm font-mono text-foreground dark:text-orange-300 leading-relaxed">
         <code>{code}</code>
       </pre>
     </div>
@@ -112,7 +112,7 @@ function Section({
  return (
  <section id={id} className="scroll-mt-24 mb-16">
  <h2 className="text-2xl font-bold text-foreground mb-6 pb-3 border-b border-border flex items-center gap-3">
- <span className="w-1.5 h-6 rounded-full bg-gradient-to-b from-primary to-violet-500" aria-hidden="true" />
+ <span className="w-1.5 h-6 rounded-full bg-gradient-to-b from-primary to-primary" aria-hidden="true" />
  {title}
  </h2>
  {children}
@@ -124,7 +124,7 @@ function Section({
 
 export default function DocsRoute() {
   const [activeSection, setActiveSection] = useState("overview");
-  const [host, setHost] = useState("opuszen.shop");
+  const [host, setHost] = useState("opuszen.com");
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -304,7 +304,7 @@ export default function DocsRoute() {
  {/* Claude Code / VS Code */}
  <div className="mb-10">
  <div className="flex items-center gap-2 mb-3">
- <span className="text-sm font-bold bg-gradient-to-r from-primary to-cyan-500 text-white px-2.5 py-1 rounded-lg">
+ <span className="text-sm font-bold bg-gradient-to-r from-primary to-cyan-500 text-foreground px-2.5 py-1 rounded-lg">
  Claude Code
  </span>
  <span className="text-xs text-muted-foreground">VS Code extension</span>
@@ -476,7 +476,8 @@ export default function DocsRoute() {
  Anthropic SDK calls. Just set the model ID in your requests.
  </p>
  <div className="border border-border/60 rounded-2xl overflow-hidden">
- <table className="w-full text-sm">
+ <div className="overflow-x-auto">
+ <table className="w-full text-sm min-w-[480px]">
  <thead>
  <tr className="bg-muted/40 border-b border-border/60">
  <th className="text-left px-5 py-3 font-semibold text-foreground">
@@ -500,16 +501,16 @@ export default function DocsRoute() {
  id: "claude-opus-4-8",
  context: "1,000,000",
  type: "Premium",
- typeClass: "text-violet-400",
- gradient: "from-violet-500 to-purple-600",
+ typeClass: "text-primary",
+ gradient: "from-primary to-primary/80",
  },
  {
  name: "Opus 4.7",
  id: "claude-opus-4-7",
  context: "1,000,000",
  type: "Premium",
- typeClass: "text-violet-400",
- gradient: "from-violet-500 to-purple-600",
+ typeClass: "text-primary",
+ gradient: "from-primary to-primary/80",
  },
  {
  name: "Sonnet 4.6",
@@ -517,7 +518,7 @@ export default function DocsRoute() {
  context: "200,000",
  type: "Popular",
  typeClass: "text-primary",
- gradient: "from-primary to-indigo-500",
+ gradient: "from-primary to-primary/80",
  },
  {
  name: "Haiku 4.5",
@@ -557,6 +558,7 @@ export default function DocsRoute() {
  ))}
  </tbody>
  </table>
+ </div>
  </div>
  </Section>
 

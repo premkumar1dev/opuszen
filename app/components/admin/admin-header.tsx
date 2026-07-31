@@ -15,7 +15,7 @@ export function AdminHeader({ adminEmail }: AdminHeaderProps) {
  try {
   await supabase.auth.signOut();
  } catch (e) {
- // silently ignore signOut errors
+ console.error("[admin-header] Logout error:", e)
  }
  navigate("/auth/admin");
  }, [navigate]);
@@ -29,7 +29,7 @@ export function AdminHeader({ adminEmail }: AdminHeaderProps) {
  className="flex items-center gap-2.5 font-bold tracking-tight text-foreground transition-opacity hover:opacity-90"
  >
  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-violet-600 shadow-md shadow-primary/20">
- <FiShield className="h-4.5 w-4.5 text-white" />
+ <FiShield className="h-4 w-4 text-white" />
  </div>
  <span className="hidden sm:inline text-sm font-semibold">Admin Panel</span>
  </NavLink>

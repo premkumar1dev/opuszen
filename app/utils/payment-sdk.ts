@@ -149,13 +149,15 @@ export function getPaymentUrl(
 	return null;
 }
 
-/** Build a stable user token from Supabase user id */
+/** Build a cryptographically secure user token from Supabase user id */
 export function buildUserToken(userId: string): string {
-	const raw = `opuszen_${userId}_${Date.now().toString(36)}`;
-	// Use TextEncoder to safely encode any string (avoids btoa() non-Latin1 crash)
-	const bytes = new TextEncoder().encode(raw);
-	const binary = Array.from(bytes, (b) => String.fromCharCode(b)).join("");
-	return btoa(binary).replace(/[+/=]/g, "").slice(0, 32);
+ const bytes = new Uint8Array(24);
+ crypto.getRandomValues(bytes);
+ const randomPart = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+ const raw = "opuszen_" + userId + "_" + randomPart;
+ const encoded = new TextEncoder().encode(raw);
+ const binary = Array.from(encoded, (b) => String.fromCharCode(b)).join("");
+ return btoa(binary).replace(/[+/=]/g, "");
 }
 
 /** Extract a phone-like string from a user profile */

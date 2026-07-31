@@ -2,8 +2,8 @@
  * Admin - Failover Logs
  * Route: /auth/admin/gateway/failover-logs
  */
-import { useState, useCallback } from "react";
-import { type LoaderFunctionArgs, type MetaFunction, redirect } from "react-router";
+import { useState, useCallback, useEffect } from "react";
+import { type LoaderFunctionArgs, type MetaFunction, redirect, useSearchParams, useRevalidator, useLocation } from "react-router";
 import { useLoaderData } from "react-router";
 import { verifyAdminSession } from "~/utils/admin-auth";
 import { AdminSidebar } from "~/components/admin/admin-sidebar";
@@ -19,7 +19,6 @@ import {
  FiLoader,
 } from "react-icons/fi";
 import { Button } from "~/components/ui/button";
-import { Input } from "~/components/ui/input";
 
 export const meta: MetaFunction = () => [{ title: "Failover Logs | Admin | OpusZen" }];
 
@@ -29,35 +28,48 @@ export async function loader({ request }: LoaderFunctionArgs) {
  const adminCheck = await verifyAdminSession(request);
  if (!adminCheck.isAdmin) throw redirect("/auth/admin");
 
+ const url = new URL(request.url);
+ const page = parseInt(url.searchParams.get("page") || "1", 10);
+
  let logs: ApiFailoverLogRow[] = [];
  let total = 0;
  try {
- const result = await (await import("~/utils/logging-service")).getFailoverLogs(1, PAGE_SIZE);
+ const { getFailoverLogs } = await import("~/utils/logging-service");
+ const result = await getFailoverLogs(page, PAGE_SIZE);
  logs = result.logs;
  total = result.total;
- } catch { /* table may not exist */ }
+ } catch (err) {
+ console.error("Failed to load failover logs:", err);
+ }
 
- return { logs, total, page: 1, adminEmail: adminCheck.adminEmail };
+ return { logs, total, page, adminEmail: adminCheck.adminEmail };
 }
 
 export default function AdminFailoverLogsRoute() {
- const { logs: initialLogs, total: initialTotal, adminEmail } = useLoaderData<typeof loader>();
- const [logs, setLogs] = useState<ApiFailoverLogRow[]>(initialLogs);
- const [total, setTotal] = useState(initialTotal);
- const [page, setPage] = useState(1);
- const [loading, setLoading] = useState(false);
+ const { logs, total, page, adminEmail } = useLoaderData<typeof loader>();
+ const [searchParams, setSearchParams] = useSearchParams();
+ const location = useLocation();
+ const revalidator = useRevalidator();
+ const [mobileOpen, setMobileOpen] = useState(false);
+
+ useEffect(() => {
+ setMobileOpen(false);
+ }, [location.pathname]);
+
+ const loading = revalidator.state === "loading";
 
  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
- const refresh = useCallback(async () => {
- setLoading(true);
- try {
- const result = await (await import("~/utils/logging-service")).getFailoverLogs(page, PAGE_SIZE);
- setLogs(result.logs);
- setTotal(result.total);
- } catch { /* ignore */ }
- setLoading(false);
- }, [page]);
+ const refresh = useCallback(() => {
+ revalidator.revalidate();
+ }, [revalidator]);
+
+ const handlePageChange = useCallback((newPage: number) => {
+ setSearchParams((prev) => {
+ prev.set("page", String(newPage));
+ return prev;
+ });
+ }, [setSearchParams]);
 
  const handleExport = useCallback(() => {
  if (logs.length === 0) return;
@@ -82,9 +94,18 @@ export default function AdminFailoverLogsRoute() {
 
  return (
  <div className="min-h-screen bg-background text-foreground">
- <AdminSidebar collapsed={false} onToggle={() => {}} adminEmail={adminEmail || undefined} />
- <main className="ml-[220px] min-h-screen">
- <div className="max-w-[1400px] space-y-6">
+ <AdminSidebar collapsed={false} onToggle={() => {}} adminEmail={adminEmail || undefined} mobileOpen={mobileOpen} onMobileToggle={() => setMobileOpen((v) => !v)} />
+ <main className="min-h-screen md:ml-[220px]">
+ {/* Mobile header bar with hamburger */}
+ <div className="sticky top-0 z-30 flex items-center gap-3 px-4 h-14 border-b border-border/60 bg-background/95 backdrop-blur md:hidden">
+ <button onClick={() => setMobileOpen(true)} className="p-2 -ml-2 rounded-lg hover:bg-muted text-muted-foreground transition-colors" aria-label="Open menu">
+ <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+ <path d="M4 6h16M4 12h16M4 18h16" />
+ </svg>
+ </button>
+ <span className="text-sm font-semibold">Failover Logs</span>
+ </div>
+ <div className="max-w-[1400px] px-4 sm:px-6 lg:px-8 space-y-6">
  {/* Header */}
  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
  <div>
@@ -181,12 +202,12 @@ export default function AdminFailoverLogsRoute() {
  <div className="flex items-center justify-between px-4 py-3 border-t border-border bg-muted/10">
  <p className="text-xs text-muted-foreground">Page {page} of {totalPages}</p>
  <div className="flex items-center gap-1">
- <Button variant="outline" size="sm" className="w-8 h-8 p-0" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}>←</Button>
+ <Button variant="outline" size="sm" className="w-8 h-8 p-0" onClick={() => handlePageChange(Math.max(1, page - 1))} disabled={page === 1}>←</Button>
  {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => (
- <Button key={i + 1} variant={page === i + 1 ? "default" : "ghost"} size="sm" className="w-8 h-8 p-0 text-xs" onClick={() => setPage(i + 1)}>{i + 1}</Button>
+ <Button key={i + 1} variant={page === i + 1 ? "default" : "ghost"} size="sm" className="w-8 h-8 p-0 text-xs" onClick={() => handlePageChange(i + 1)}>{i + 1}</Button>
  ))}
  {totalPages > 5 && <span className="px-1 text-xs text-muted-foreground">…</span>}
- <Button variant="outline" size="sm" className="w-8 h-8 p-0" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}>→</Button>
+ <Button variant="outline" size="sm" className="w-8 h-8 p-0" onClick={() => handlePageChange(Math.min(totalPages, page + 1))} disabled={page === totalPages}>→</Button>
  </div>
  </div>
  )}

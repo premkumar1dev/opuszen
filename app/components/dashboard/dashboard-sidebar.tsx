@@ -1,6 +1,7 @@
 import {
 	FiHome,
 	FiKey,
+	FiGitBranch,
 	FiActivity,
 	FiChevronLeft,
 	FiChevronRight,
@@ -28,6 +29,7 @@ interface DashboardSidebarProps {
 const NAV_ITEMS = [
 	{ to: "/user/dashboard", label: "Overview", icon: FiHome, end: true },
 	{ to: "/user/my-keys", label: "My Keys", icon: FiKey },
+	{ to: "/user/child-keys", label: "Child Keys", icon: FiGitBranch },
 	{ to: "/user/orders", label: "Orders", icon: FiShoppingBag },
 	{ to: "/user/refer-earn", label: "Refer & Earn", icon: FiGift },
 	{ to: "/docs", label: "Documentation", icon: FiActivity },
@@ -56,7 +58,7 @@ export function DashboardSidebar({
 			{/* Logo */}
 			<div className="flex items-center h-16 px-4 border-b border-[var(--dashboard-border)] shrink-0">
 				<div className="flex items-center gap-2.5 min-w-0">
-					<div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shrink-0 shadow-lg shadow-indigo-500/20">
+					<div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-600 to-blue-700 flex items-center justify-center shrink-0 shadow-lg shadow-blue-600/20">
 						<FiZap className="h-4 w-4 text-white" />
 					</div>
 					{!collapsed && (
@@ -91,7 +93,7 @@ export function DashboardSidebar({
 					>
 						{({ isActive }: { isActive: boolean }) => (
 							<>
-								<span className={`shrink-0 w-[18px] h-[18px] flex items-center justify-center ${isActive ? "text-indigo-500" : "text-[var(--dashboard-text-muted)] group-hover:text-[var(--dashboard-text)]"}`}>
+								<span className={`shrink-0 w-[18px] h-[18px] flex items-center justify-center ${isActive ? "text-blue-600" : "text-[var(--dashboard-text-muted)] group-hover:text-[var(--dashboard-text)]"}`}>
 									<item.icon className="w-[18px] h-[18px]" />
 								</span>
 								{!collapsed && (
@@ -125,7 +127,7 @@ export function DashboardSidebar({
 							{theme === "dark" ? (
 								<FiSun className="w-[18px] h-[18px] text-amber-500" />
 							) : (
-								<FiMoon className="w-[18px] h-[18px] text-indigo-500" />
+								<FiMoon className="w-[18px] h-[18px] text-blue-600" />
 							)}
 						</span>
 						<span>{theme === "dark" ? "Light Mode" : "Dark Mode"}</span>
@@ -140,8 +142,8 @@ export function DashboardSidebar({
 					>
 						{theme === "dark" ? (
 							<FiSun className="w-4 h-4 text-amber-500" />
-						) : (
-							<FiMoon className="w-4 h-4 text-indigo-500" />
+							) : (
+								<FiMoon className="w-4 h-4 text-blue-600" />
 						)}
 					</button>
 				)}

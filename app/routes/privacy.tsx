@@ -3,7 +3,7 @@ import { Layout } from "../components/Layout";
 
 export const meta: MetaFunction = () => {
   return [
-    { title: "Privacy Policy | Opuszen" },
+    { title: "Privacy Policy | OpusZen" },
     {
       name: "description",
       content: "Privacy Policy for OpusZen — Anthropic-compatible API gateway.",
@@ -33,11 +33,11 @@ export default function PrivacyRoute() {
           
           <section className="space-y-3">
             <h2 className="text-xl sm:text-2xl font-bold text-foreground flex items-center gap-3">
-              <span className="w-1.5 h-6 rounded-full bg-gradient-to-b from-primary to-violet-500 shrink-0" aria-hidden="true" />
+              <span className="w-1.5 h-6 rounded-full bg-gradient-to-b from-primary to-primary shrink-0" aria-hidden="true" />
               1. Information We Collect
             </h2>
             <p className="text-muted-foreground leading-relaxed text-sm sm:text-base">
-              To provide the Opuszen API gateway, we collect and process the following information:
+              To provide the OpusZen API gateway, we collect and process the following information:
             </p>
             <ul className="space-y-2 pl-5 text-muted-foreground text-sm sm:text-base" role="list">
               <li className="flex items-start gap-2.5">
@@ -57,7 +57,7 @@ export default function PrivacyRoute() {
 
           <section className="space-y-3">
             <h2 className="text-xl sm:text-2xl font-bold text-foreground flex items-center gap-3">
-              <span className="w-1.5 h-6 rounded-full bg-gradient-to-b from-primary to-violet-500 shrink-0" aria-hidden="true" />
+              <span className="w-1.5 h-6 rounded-full bg-gradient-to-b from-primary to-primary shrink-0" aria-hidden="true" />
               2. Data Processing & Zero Content Retention
             </h2>
             <p className="text-muted-foreground leading-relaxed text-sm sm:text-base">
@@ -78,7 +78,7 @@ export default function PrivacyRoute() {
 
           <section className="space-y-3">
             <h2 className="text-xl sm:text-2xl font-bold text-foreground flex items-center gap-3">
-              <span className="w-1.5 h-6 rounded-full bg-gradient-to-b from-primary to-violet-500 shrink-0" aria-hidden="true" />
+              <span className="w-1.5 h-6 rounded-full bg-gradient-to-b from-primary to-primary shrink-0" aria-hidden="true" />
               3. Data Sharing
             </h2>
             <p className="text-muted-foreground leading-relaxed text-sm sm:text-base">
@@ -88,7 +88,7 @@ export default function PrivacyRoute() {
 
           <section className="space-y-3">
             <h2 className="text-xl sm:text-2xl font-bold text-foreground flex items-center gap-3">
-              <span className="w-1.5 h-6 rounded-full bg-gradient-to-b from-primary to-violet-500 shrink-0" aria-hidden="true" />
+              <span className="w-1.5 h-6 rounded-full bg-gradient-to-b from-primary to-primary shrink-0" aria-hidden="true" />
               4. Data Security
             </h2>
             <p className="text-muted-foreground leading-relaxed text-sm sm:text-base">
@@ -98,7 +98,7 @@ export default function PrivacyRoute() {
 
           <section className="space-y-3">
             <h2 className="text-xl sm:text-2xl font-bold text-foreground flex items-center gap-3">
-              <span className="w-1.5 h-6 rounded-full bg-gradient-to-b from-primary to-violet-500 shrink-0" aria-hidden="true" />
+              <span className="w-1.5 h-6 rounded-full bg-gradient-to-b from-primary to-primary shrink-0" aria-hidden="true" />
               5. Cookies and Tracking
             </h2>
             <p className="text-muted-foreground leading-relaxed text-sm sm:text-base">
@@ -108,7 +108,7 @@ export default function PrivacyRoute() {
 
           <section className="space-y-3">
             <h2 className="text-xl sm:text-2xl font-bold text-foreground flex items-center gap-3">
-              <span className="w-1.5 h-6 rounded-full bg-gradient-to-b from-primary to-violet-500 shrink-0" aria-hidden="true" />
+              <span className="w-1.5 h-6 rounded-full bg-gradient-to-b from-primary to-primary shrink-0" aria-hidden="true" />
               6. Your Rights & Contacts
             </h2>
             <p className="text-muted-foreground leading-relaxed text-sm sm:text-base">

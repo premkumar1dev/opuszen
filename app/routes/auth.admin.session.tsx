@@ -47,13 +47,23 @@ export async function action({ request }: ActionFunctionArgs) {
 	}
 
 	const expires = new Date(Date.now() + 24 * 60 * 60 * 1000).toUTCString();
+	const isProduction = import.meta.env.PROD;
+	const cookieParts = [
+		`admin_session=${encodeURIComponent(sessionPayload)}`,
+		`path=/`,
+		`expires=${expires}`,
+		`HttpOnly`,
+		`SameSite=Strict`,
+		isProduction ? 'Secure' : '',
+	];
+	const setCookie = cookieParts.filter(Boolean).join('; ');
 	const body = JSON.stringify({ success: true, redirectTo: "/auth/admin/dashboard" });
 
 	return new Response(body, {
 		status: 200,
 		headers: {
 			"Content-Type": "application/json",
-			"Set-Cookie": `admin_session=${encodeURIComponent(sessionPayload)}; path=/; expires=${expires}; SameSite=Strict`,
+			"Set-Cookie": setCookie,
 		},
 	});
 }
