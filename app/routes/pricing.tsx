@@ -328,8 +328,8 @@ export default function PricingPage() {
 								? user.phone.replace(/\D/g, "").slice(-10)
 								: "0000000000";
 
-							// Gateway redirects back to pricing page after payment
-							const redirectUrl = `${window.location.origin}/pricing?payment=verify&orderId=${encodeURIComponent(gatewayOrderId)}&gatewayOrderId=${encodeURIComponent(gatewayOrderId)}&planId=${plan.id}&planName=${encodeURIComponent(plan.name)}&multiplier=${plan.multiplier}&price=${plan.price}&currency=${plan.currency}&duration=${plan.durationDays}&method=PAY0&tokenPricing=${plan.isTokenPricing ? "1" : "0"}&pricePer1mInput=${plan.pricePer1mInput || 0}&pricePer1mOutput=${plan.pricePer1mOutput || 0}&minCredits=${plan.minCredits || 0}`;
+							// Gateway redirects back to orders page after payment
+							const redirectUrl = `${window.location.origin}/orders?payment=verify&orderId=${encodeURIComponent(gatewayOrderId)}&gatewayOrderId=${encodeURIComponent(gatewayOrderId)}&planId=${plan.id}&planName=${encodeURIComponent(plan.name)}&multiplier=${plan.multiplier}&price=${plan.price}&currency=${plan.currency}&duration=${plan.durationDays}&method=PAY0&tokenPricing=${plan.isTokenPricing ? "1" : "0"}&pricePer1mInput=${plan.pricePer1mInput || 0}&pricePer1mOutput=${plan.pricePer1mOutput || 0}&minCredits=${plan.minCredits || 0}`;
 
 							// Create order in gateway
 							const formData = new FormData();

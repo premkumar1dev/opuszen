@@ -149,8 +149,9 @@ export default function UserChildKeys() {
 	}
 
 	const maskKey = (key: string) => {
-		if (key.length <= 16) return key;
-		return key.slice(0, 8) + "••••••••" + key.slice(-4);
+		if (key.length <= 6) return "****";
+		const visible = Math.max(4, Math.ceil(key.length * 0.3));
+		return key.slice(0, visible) + "****";
 	};
 
 	const copy = (text: string, id: string) => {

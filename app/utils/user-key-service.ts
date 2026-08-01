@@ -15,8 +15,9 @@ function generateApiKey(): string {
 }
 
 function maskKey(key: string): string {
- if (key.length <= 12) return key;
- return `${key.slice(0, 8)}...${key.slice(-4)}`;
+	if (key.length <= 6) return "****";
+	const visible = Math.max(4, Math.ceil(key.length * 0.3));
+	return `${key.slice(0, visible)}****`;
 }
 
 export async function createUserApiKey(input: UserApiKeyInput): Promise<UserApiKeyRow> {

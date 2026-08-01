@@ -145,6 +145,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
  >
  Key Status
  </NavLink>
+ <NavLink
+ to="/orders"
+ className="text-sm font-medium transition-colors text-muted-foreground hover:text-foreground cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded px-2 py-1"
+ >
+ Orders
+ </NavLink>
  </div>
 
  {/* Right - Actions */}
@@ -182,7 +188,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
  <line x1={1} y1={12} x2={3} y2={12} />
  <line x1={21} y1={12} x2={23} y2={12} />
  <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
- <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+ <line x1="18.36" y1="5.64" x2="19.78" y2="4.24" />
  </svg>
 
  {/* Moon icon - visible in dark mode */}
@@ -390,6 +396,29 @@ export function Layout({ children }: { children: React.ReactNode }) {
  </svg>
  Key Status
  </NavLink>
+ <NavLink
+ to="/orders"
+ className="flex items-center gap-3 px-4 py-3 rounded-xl text-[15px] font-medium text-foreground hover:bg-primary/10 transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+ >
+ <svg
+ xmlns="http://www.w3.org/2000/svg"
+ width={18}
+ height={18}
+ viewBox="0 0 24 24"
+ fill="none"
+ stroke="currentColor"
+ strokeWidth={2}
+ strokeLinecap="round"
+ strokeLinejoin="round"
+ className="text-primary"
+ aria-hidden="true"
+ >
+ <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z" />
+ <path d="M3 6h18" />
+ <path d="M16 10a4 4 0 0 1-8 0" />
+ </svg>
+ Orders
+ </NavLink>
  </nav>
  </aside>
 
@@ -414,6 +443,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
  <NavLink to="/docs" className="hover:text-primary transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded">Docs</NavLink>
  <NavLink to="/key-status" className="hover:text-primary transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded">Key Status</NavLink>
  <NavLink to="/status" className="hover:text-primary transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded">Status</NavLink>
+ <NavLink to="/orders" className="hover:text-primary transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded">Orders</NavLink>
  <NavLink to="/terms" className="hover:text-primary transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded">Terms</NavLink>
  <NavLink to="/privacy" className="hover:text-primary transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded">Privacy</NavLink>
  </nav>

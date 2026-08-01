@@ -148,6 +148,10 @@ export default [
 		file: "routes/key-status.tsx",
 	},
 	{
+		path: "/orders",
+		file: "routes/orders.tsx",
+	},
+	{
 		path: "/setup.ps1",
 		file: "routes/setup-ps1.tsx",
 	},

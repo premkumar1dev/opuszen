@@ -14,85 +14,16 @@ export const meta: MetaFunction = () => {
 	];
 };
 
-function getMockKeyData() {
-	const now = Date.now();
-	const resetAt = new Date(now + (1 * 3600 + 33 * 60 + 59) * 1000).toISOString();
-	const expiresAt = new Date(now + (5 * 24 * 3600 + 15 * 3600) * 1000).toISOString();
-	const createdAt = new Date(now - 30 * 24 * 3600 * 1000).toISOString();
-	const lastUsedAt = new Date(now - (1 * 3600 + 7 * 60 + 26) * 1000).toISOString();
-
-	const mockLogs = Array.from({ length: 20 }, (_, i) => {
-		const offsets = [0, 8, 18, 42, 51, 63, 78, 87, 95, 106, 125, 158, 162, 200, 212, 221, 287, 302, 313, 2678];
-		const logTime = new Date(now - (1 * 3600 + 7 * 60 + 26 + (offsets[i] || i * 15)) * 1000);
-		return {
-			time: logTime.toISOString(),
-			model: "claude-opus-5",
-			status: 200
-		};
-	});
-
-	return {
-		status: "ok",
-		keyStatus: "active",
-		name: "Max 20x Key",
-		planName: "Max 20x",
-		unlimited: false,
-		usagePercent: 17.8,
-		totalRequests: 28910,
-		successRequests: 28850,
-		failedRequests: 60,
-		last24h: { requests: 2291 },
-		rateLimit: 60,
-		expiresAt,
-		createdAt,
-		lastUsedAt,
-		connectionStatus: "Online",
-		isActive: true,
-		windowActive: true,
-		windowTokensLimit: 20000000,
-		windowTokensUsed: 3560000,
-		remainingTokens: 16440000,
-		windowResetAt: resetAt,
-		allowedModels: [
-			"claude-opus-4-8",
-			"claude-opus-4-7",
-			"claude-sonnet-4-6",
-			"claude-haiku-4-5-20251001"
-		],
-		allowedProviders: ["Anthropic"],
-		allocatedCredits: 2000,
-		usedCredits: 356,
-		remainingCredits: 1644,
-		recentLogs: mockLogs,
-	};
-}
-
 async function fetchKeyStatus(key: string) {
 	if (!key) {
 		return { keyData: null, error: null, key: "" };
 	}
 
 	const cleanKey = key.trim();
-	const isDemo =
-		cleanKey.startsWith("sk-ant-") ||
-		cleanKey.startsWith("sk-proj-") ||
-		cleanKey.startsWith("sk-") ||
-		cleanKey.startsWith("za_") ||
-		cleanKey.toLowerCase() === "demo" ||
-		cleanKey.toLowerCase().includes("placeholder") ||
-		cleanKey.toLowerCase().includes("demo") ||
-		cleanKey.toLowerCase().includes("test");
 
 	try {
 		const data = await getKeyStatus(cleanKey);
 		if (data.status === "error" || data.error) {
-			if (isDemo) {
-				return {
-					keyData: getMockKeyData(),
-					error: null,
-					key: cleanKey,
-				};
-			}
 			return {
 				keyData: null,
 				error: (data.error as string) || "API key not found or invalid",
@@ -101,13 +32,6 @@ async function fetchKeyStatus(key: string) {
 		}
 		return { keyData: data, error: null, key: cleanKey };
 	} catch (err: unknown) {
-		if (isDemo) {
-			return {
-				keyData: getMockKeyData(),
-				error: null,
-				key: cleanKey,
-			};
-		}
 		return {
 			keyData: null,
 			error: err instanceof Error ? err.message : "Failed to connect to the key status server",
@@ -257,36 +181,27 @@ export default function KeyStatusRoute() {
 
 	const usagePercentage = keyData ? Number(keyData.usagePercent ?? 0) : 0;
 	const isUnlimited = keyData ? Boolean(keyData.unlimited ?? false) : false;
-	const planName = keyData ? String(keyData.planName ?? "Max 20x") : "Max 20x";
-	const keyName = keyData ? String(keyData.name ?? "Max 20x Key") : "Max 20x Key";
+	const planName = keyData ? String(keyData.planName ?? keyData.name ?? "Standard Plan") : "";
+	const keyName = keyData ? String(keyData.name ?? "API Key") : "";
 	const expiresAt = keyData ? String(keyData.expiresAt ?? "") : "";
 	const createdAt = keyData ? String(keyData.createdAt ?? "") : "";
 	const lastUsedAt = keyData ? String(keyData.lastUsedAt ?? "") : "";
 	const isActive = keyData ? keyData.isActive ?? keyData.windowActive ?? true : true;
 	const connectionStatus = keyData?.connectionStatus || (isActive ? "Online" : "Offline");
 
-	const limit = keyData ? Number(keyData.windowTokensLimit ?? 20000000) : 20000000;
-	const used = keyData ? Number(keyData.windowTokensUsed ?? 3560000) : 3560000;
-	const remaining = keyData ? Number(keyData.remainingTokens ?? Math.max(0, limit - used)) : 16440000;
+	const limit = keyData ? Number(keyData.windowTokensLimit ?? 0) : 0;
+	const used = keyData ? Number(keyData.windowTokensUsed ?? 0) : 0;
+	const remaining = keyData ? Number(keyData.remainingTokens ?? Math.max(0, limit - used)) : 0;
 
-	const rateLimit = keyData?.rateLimit ?? 60;
-	const last24hRequests = keyData?.last24h?.requests ?? 2291;
-	const totalRequests = keyData?.totalRequests ?? 28910;
+	const rateLimit = keyData?.rateLimit ?? 0;
+	const last24hRequests = keyData?.last24h?.requests ?? 0;
+	const totalRequests = keyData?.totalRequests ?? 0;
 
-	const allowedModels = (keyData?.allowedModels as string[]) || [
-		"claude-opus-4-8",
-		"claude-opus-4-7",
-		"claude-sonnet-4-6",
-		"claude-haiku-4-5-20251001",
-	];
+	const allowedModels = (keyData?.allowedModels as string[]) || [];
 
 	const recentLogs = (keyData?.recentLogs as any[]) || [];
 
-	const maskedKey = key
-		? key.length > 20
-			? `${key.slice(0, 12)}...${key.slice(-4)}`
-			: key
-		: "sk-ant-opm-R...SkBw";
+	const displayKey = key || "";
 
 	return (
 		<Layout>
@@ -325,7 +240,7 @@ export default function KeyStatusRoute() {
 								defaultValue={key}
 								disabled={isLoading}
 								className="w-full pl-10 pr-24 py-3 rounded-xl border border-input bg-background/50 text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all placeholder:text-muted-foreground font-mono disabled:opacity-60"
-								placeholder="sk-ant-opm-RR-mPYs1liGZp3oPNVKQ-Zxv1D6QSkBw"
+								placeholder="sk-ant-opm-****************"
 								required
 							/>
 							<button
@@ -483,8 +398,8 @@ export default function KeyStatusRoute() {
 										</span>
 									</div>
 									<div className="flex items-center gap-2 mt-1">
-										<code className="text-sm font-mono font-bold text-primary dark:text-primary bg-muted/50 dark:bg-muted/10 px-2.5 py-1 rounded-md border border-primary/20">
-											{maskedKey}
+										<code className="text-sm font-mono font-bold text-primary dark:text-primary bg-muted/50 dark:bg-muted/10 px-2.5 py-1 rounded-md border border-primary/20 break-all">
+											{displayKey}
 										</code>
 									</div>
 								</div>
@@ -518,16 +433,14 @@ export default function KeyStatusRoute() {
 										</button>
 									</Form>
 									<span
-										className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-semibold ${
-											isActive
+										className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-semibold ${isActive
 												? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
 												: "bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20"
-										}`}
+											}`}
 									>
 										<div
-											className={`w-2 h-2 rounded-full ${
-												isActive ? "bg-emerald-500 animate-pulse" : "bg-red-500"
-											}`}
+											className={`w-2 h-2 rounded-full ${isActive ? "bg-emerald-500 animate-pulse" : "bg-red-500"
+												}`}
 											aria-hidden="true"
 										/>
 										{isActive ? "Key Active" : "Key Inactive"}
@@ -587,13 +500,12 @@ export default function KeyStatusRoute() {
 								</div>
 								<div className="w-full bg-muted rounded-full h-3.5 dark:bg-muted/20 overflow-hidden">
 									<div
-										className={`h-full rounded-full transition-all duration-500 ${
-											usagePercentage < 70
+										className={`h-full rounded-full transition-all duration-500 ${usagePercentage < 70
 												? "bg-emerald-500 dark:bg-emerald-400"
 												: usagePercentage < 90
-												? "bg-amber-500 dark:bg-amber-400"
-												: "bg-red-500"
-										}`}
+													? "bg-amber-500 dark:bg-amber-400"
+													: "bg-red-500"
+											}`}
 										style={{
 											width: `${isUnlimited ? 0 : Math.min(100, usagePercentage)}%`,
 										}}
@@ -731,11 +643,10 @@ export default function KeyStatusRoute() {
 													</td>
 													<td className="py-2.5 px-3 text-right whitespace-nowrap font-sans">
 														<span
-															className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${
-																Number(log.status) >= 200 && Number(log.status) < 300
+															className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${Number(log.status) >= 200 && Number(log.status) < 300
 																	? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
 																	: "bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20"
-															}`}
+																}`}
 														>
 															{log.status}
 														</span>

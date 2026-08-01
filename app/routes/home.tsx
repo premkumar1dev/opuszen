@@ -1,7 +1,7 @@
 import { motion } from "framer-motion";
 import Hero from '../components/Hero'
 import ModelCards from '../components/ModelCards'
-import CompatibilityStrip from '../components/CompatibilityStrip'
+import LogoTicker from '../components/LogoTicker';
 import FeatureCards from '../components/FeatureCards'
 import MigrationSection from '../components/MigrationSection'
 import { ReadyIn60Seconds } from '../components/ReadyIn60Seconds'
@@ -71,7 +71,7 @@ export default function Home() {
  <FeatureCards />
  </ScrollSection>
 
- <CompatibilityStrip />
+ <LogoTicker />
 
  <ScrollSection
  direction="up"
