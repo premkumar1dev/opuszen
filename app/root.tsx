@@ -1,20 +1,48 @@
 import {
- isRouteErrorResponse,
- Links,
- Meta,
- Outlet,
- Scripts,
- ScrollRestoration,
- useLocation,
- useNavigation,
+	isRouteErrorResponse,
+	Links,
+	Meta,
+	Outlet,
+	Scripts,
+	ScrollRestoration,
+	useLocation,
+	useNavigation,
 } from "react-router";
-
 import type { Route } from "./+types/root";
 import "./app.css";
 import { WhatsAppWidget } from "./components/WhatsAppWidget";
 import { useLenisScroll } from "./hooks/useLenisScroll";
 import { ScrollProgressBar } from "./components/ScrollProgressBar";
 import { CursorLight } from "./components/CursorLight";
+
+const SITE_URL = "https://opuszen.com";
+const SITE_NAME = "OpusZen";
+
+export const meta: Route.MetaFunction = () => [
+	{ charSet: "utf-8" },
+	{ name: "viewport", content: "width=device-width, initial-scale=1" },
+	{ title: "OpusZen — AI API Gateway" },
+	{
+		name: "description",
+		content: "OpusZen is a high-performance AI API gateway with automatic failover, rate limiting, and token-based billing. Get your API key in seconds.",
+	},
+	{ property: "og:site_name", content: SITE_NAME },
+	{ property: "og:type", content: "website" },
+	{ property: "og:url", content: SITE_URL },
+	{ property: "og:title", content: "OpusZen — AI API Gateway" },
+	{
+		property: "og:description",
+		content: "High-performance AI API gateway with failover, rate limiting, and token billing.",
+	},
+	{ property: "og:image", content: `${SITE_URL}/logo.png` },
+	{ property: "twitter:card", content: "summary_large_image" },
+	{ property: "twitter:title", content: "OpusZen — AI API Gateway" },
+	{
+		property: "twitter:description",
+		content: "High-performance AI API gateway with failover, rate limiting, and token billing.",
+	},
+	{ property: "twitter:image", content: `${SITE_URL}/logo.png` },
+];
 
 export const links: Route.LinksFunction = () => [
  { rel: "preconnect", href: "https://fonts.googleapis.com" },
