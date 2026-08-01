@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { type MetaFunction, type LoaderFunctionArgs, useLoaderData, useSearchParams } from "react-router";
 import { Layout } from "../components/Layout";
-import { supabaseServer } from "~/utils/supabase.server";
 import { supabase } from "~/utils/supabase";
 import { FiCheck, FiZap, FiArrowRight } from "react-icons/fi";
 import { FaWhatsapp } from "react-icons/fa";
@@ -20,7 +19,8 @@ export const meta: MetaFunction = () => [
 ];
 
 export async function loader({ request }: LoaderFunctionArgs) {
-	const { data, error } = await supabaseServer
+	const srv = await import("~/utils/supabase.server");
+	const { data, error } = await srv.supabaseServer
 		.from("plans")
 		.select("*")
 		.eq("is_active", true)
@@ -375,7 +375,7 @@ export default function PricingPage() {
 									const { data: sessionData2 } = await supabase.auth.getSession();
 									const u = sessionData2.session?.user;
 									if (u?.id) {
-										const { data: orderRow } = await supabaseServer
+										const { data: orderRow } = await supabase
 											.from("orders")
 											.insert({
 												user_id: u.id,
