@@ -10,7 +10,7 @@ import { useLoaderData, useActionData, useNavigation, Form } from "react-router"
 import { useState, useEffect, useRef } from "react";
 import { verifyAdminSession } from "~/utils/admin-auth";
 import { requireAdmin } from "~/utils/admin-actions";
-import { supabase } from "~/utils/supabase";
+import { supabaseServer } from "~/utils/supabase.server";
 import {
 	FiGlobe,
 	FiSave,
@@ -70,7 +70,7 @@ export async function loader({ request }: LoaderFunctionArgs): Promise<LoaderDat
 	if (!adminCheck.isAdmin) throw redirect("/auth/admin");
 
 	try {
-		const { data, error } = await (supabase as any)
+		const { data, error } = await (supabaseServer as any)
 			.from("site_config")
 			.select("*")
 			.limit(1)
@@ -105,7 +105,7 @@ export async function action({ request }: ActionFunctionArgs): Promise<ActionDat
 		};
 
 		try {
-			const { data: existing } = await (supabase as any)
+			const { data: existing } = await (supabaseServer as any)
 				.from("site_config")
 				.select("id")
 				.limit(1)
@@ -113,14 +113,14 @@ export async function action({ request }: ActionFunctionArgs): Promise<ActionDat
 
 			let result: { data: any; error: any };
 			if (existing?.id) {
-				result = await (supabase as any)
+				result = await (supabaseServer as any)
 					.from("site_config")
 					.update(updates)
 					.eq("id", existing.id)
 					.select()
 					.single();
 			} else {
-				result = await (supabase as any)
+				result = await (supabaseServer as any)
 					.from("site_config")
 					.insert(updates)
 					.select()

@@ -10,7 +10,7 @@ import { useLoaderData, useActionData, useNavigation, useFetcher, Form } from "r
 import { useState, useEffect } from "react";
 import { verifyAdminSession } from "~/utils/admin-auth";
 import { requireAdmin } from "~/utils/admin-actions";
-import { supabase } from "~/utils/supabase";
+import { supabaseServer } from "~/utils/supabase.server";
 import { cn } from "@/lib/utils";
 import { FaRupeeSign } from "react-icons/fa6";
 import {
@@ -93,7 +93,7 @@ export async function loader({ request }: LoaderFunctionArgs): Promise<LoaderDat
 	if (!adminCheck.isAdmin) throw redirect("/auth/admin");
 
 	try {
-		const { data, error } = await (supabase as any)
+		const { data, error } = await (supabaseServer as any)
 			.from("payment_gateway_settings")
 			.select("*")
 			.limit(1)
@@ -141,7 +141,7 @@ export async function action({ request }: ActionFunctionArgs): Promise<ActionDat
 
 		try {
 			// Check if a row exists
-			const { data: existing } = await (supabase as any)
+			const { data: existing } = await (supabaseServer as any)
 				.from("payment_gateway_settings")
 				.select("id")
 				.limit(1)
@@ -149,14 +149,14 @@ export async function action({ request }: ActionFunctionArgs): Promise<ActionDat
 
 			let result: { data: any; error: any };
 			if (existing?.id) {
-				result = await (supabase as any)
+				result = await (supabaseServer as any)
 					.from("payment_gateway_settings")
 					.update(updates)
 					.eq("id", existing.id)
 					.select()
 					.single();
 			} else {
-				result = await (supabase as any)
+				result = await (supabaseServer as any)
 					.from("payment_gateway_settings")
 					.insert(updates)
 					.select()
@@ -181,7 +181,7 @@ export async function action({ request }: ActionFunctionArgs): Promise<ActionDat
 		}
 
 		// Load saved settings from DB
-		const { data: gatewaySettings } = await (supabase as any)
+		const { data: gatewaySettings } = await (supabaseServer as any)
 			.from("payment_gateway_settings")
 			.select("*")
 			.limit(1)

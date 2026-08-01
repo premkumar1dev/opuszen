@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect } from "react";
 import { type LoaderFunctionArgs, type MetaFunction, redirect, Link, useLocation } from "react-router";
 import { useLoaderData, useNavigate } from "react-router";
 import { verifyAdminSession } from "~/utils/admin-auth";
-import { supabase } from "~/utils/supabase";
+import { supabaseServer } from "~/utils/supabase.server";
 import { AdminSidebar } from "~/components/admin/admin-sidebar";
 import { StatCard, Skeleton } from "~/components/admin/stat-card";
 import { cn } from "@/lib/utils";
@@ -143,12 +143,12 @@ async function buildLoaderData(adminCheck: { isAdmin: boolean; email: string | n
 	let apiLogs: Array<{ is_success: boolean; response_time_ms: number }> = [];
 
 	const [usersResult, ordersResult, apiKeysResult, masterKeysResult, plansResult, logsResult] = await Promise.all([
-		supabase.from("users").select("created_at").order("created_at", { ascending: true }),
-		supabase.from("orders").select("*").order("created_at", { ascending: false }).limit(200),
-		supabase.from("user_api_keys").select("*", { count: "exact", head: true }),
-		supabase.from("master_api_keys").select("*", { count: "exact", head: true }),
-		supabase.from("plans").select("*").order("sort_order", { ascending: true }),
-		supabase.from("api_request_logs").select("is_success, response_time_ms").gte("created_at", todayIso),
+		supabaseServer.from("users").select("created_at").order("created_at", { ascending: true }),
+		supabaseServer.from("orders").select("*").order("created_at", { ascending: false }).limit(200),
+		supabaseServer.from("user_api_keys").select("*", { count: "exact", head: true }),
+		supabaseServer.from("master_api_keys").select("*", { count: "exact", head: true }),
+		supabaseServer.from("plans").select("*").order("sort_order", { ascending: true }),
+		supabaseServer.from("api_request_logs").select("is_success, response_time_ms").gte("created_at", todayIso),
 	]).catch((err) => {
 		console.error("[admin-dashboard] Promise.all fetch error:", err);
 		return [null, null, null, null, null, null] as const;

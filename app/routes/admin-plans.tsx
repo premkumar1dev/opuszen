@@ -3,6 +3,7 @@ import { type LoaderFunctionArgs, type MetaFunction, type ActionFunctionArgs, re
 import { useLoaderData } from "react-router";
 import { verifyAdminSession } from "~/utils/admin-auth";
 import { requireAdmin } from "~/utils/admin-actions";
+import { supabaseServer } from "~/utils/supabase.server";
 import { supabase } from "~/utils/supabase";
 import { AdminSidebar } from "~/components/admin/admin-sidebar";
 import { cn } from "@/lib/utils";
@@ -103,7 +104,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
         return redirect("/auth/admin");
     }
 
-    const { data: plans, error } = await (supabase.from("plans") as any)
+    const { data: plans, error } = await (supabaseServer.from("plans") as any)
         .select("*")
         .order("sort_order", { ascending: true });
 

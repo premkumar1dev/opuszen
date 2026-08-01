@@ -2,7 +2,7 @@ import { type LoaderFunctionArgs, type MetaFunction, redirect, useLocation } fro
 import { useLoaderData } from "react-router";
 import { useState, useEffect } from "react";
 import { verifyAdminSession } from "~/utils/admin-auth";
-import { supabase } from "~/utils/supabase";
+import { supabaseServer } from "~/utils/supabase.server";
 import { AdminSidebar } from "~/components/admin/admin-sidebar";
 import { StatCard } from "~/components/admin/stat-card";
 import { cn } from "@/lib/utils";
@@ -54,7 +54,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
 		final_amount: number;
 	}> = [];
 	try {
-		const { data, error } = await supabase
+		const { data, error } = await supabaseServer
 			.from("orders")
 			.select("created_at, completed_at, status, plan_name, final_amount")
 			.order("created_at", { ascending: true });
@@ -63,7 +63,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
 	let allUsers: Array<{ created_at: string }> = [];
 	try {
-		const { data, error } = await supabase
+		const { data, error } = await supabaseServer
 			.from("users")
 			.select("created_at")
 			.order("created_at", { ascending: true });

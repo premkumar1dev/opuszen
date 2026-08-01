@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback } from "react";
 import { type LoaderFunctionArgs, type MetaFunction, redirect, useLocation } from "react-router";
 import { useLoaderData } from "react-router";
 import { verifyAdminSession } from "~/utils/admin-auth";
-import { supabase } from "~/utils/supabase";
+import { supabaseServer } from "~/utils/supabase.server";
+import { ContactAdminModal } from "~/components/ui/contact-admin-modal";
 import { AdminSidebar } from "~/components/admin/admin-sidebar";
 import { cn } from "@/lib/utils";
 import {
@@ -81,7 +82,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
 		return redirect("/auth/admin");
 	}
 
-	const { data: orders, error } = await supabase
+	const { data: orders, error } = await supabaseServer
 		.from("orders")
 		.select("*")
 		.order("created_at", { ascending: false });
@@ -413,6 +414,15 @@ export default function AdminOrdersRoute() {
 	const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
 	const [showFilters, setShowFilters] = useState(false);
 	const [mobileOpen, setMobileOpen] = useState(false);
+	const [showContactAdmin, setShowContactAdmin] = useState(false);
+
+	// Detect schema errors (missing columns) and show contact admin popup
+	const isSchemaError = loadError
+		? loadError.toLowerCase().includes("does not exist") || loadError.toLowerCase().includes("column")
+		: false;
+	useEffect(() => {
+		if (isSchemaError) setShowContactAdmin(true);
+	}, [isSchemaError]);
 
 	// Close mobile sidebar on route change
 	useEffect(() => {
@@ -588,7 +598,16 @@ export default function AdminOrdersRoute() {
 					{/* Error Banner */}
 					{loadError && (
 						<div className="mb-4 p-4 rounded-xl border border-red-500/30 bg-red-500/10 text-red-500 text-sm">
-							Failed to load orders: {loadError}. Check your Supabase configuration.
+							{isSchemaError ? (
+								<span>
+									Database schema mismatch — a required column is missing from the <code className="font-mono bg-red-500/20 px-1 rounded">orders</code> table.
+									{" "}
+									<button type="button" onClick={() => setShowContactAdmin(true)} className="underline font-semibold hover:text-red-400 transition-colors cursor-pointer">Contact admin</button>
+									{" "}to apply the latest migration.
+								</span>
+							) : (
+								<span>Failed to load orders: {loadError}. Check your Supabase configuration.</span>
+							)}
 						</div>
 					)}
 
@@ -893,8 +912,14 @@ export default function AdminOrdersRoute() {
 																	order={selectedOrder}
 																	onClose={() => setSelectedOrder(null)}
 																/>
+															{/* Contact Admin Modal */}
+															<ContactAdminModal
+																open={showContactAdmin}
+																onClose={() => setShowContactAdmin(false)}
+															/>
 															</div>
 														</main>
 													</div>
 												);
 											}
+

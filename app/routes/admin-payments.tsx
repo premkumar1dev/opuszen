@@ -2,7 +2,8 @@ import { useState, useCallback, useEffect } from "react";
 import { type LoaderFunctionArgs, type MetaFunction, redirect, useLocation } from "react-router";
 import { useLoaderData } from "react-router";
 import { verifyAdminSession } from "~/utils/admin-auth";
-import { supabase } from "~/utils/supabase";
+import { supabaseServer } from "~/utils/supabase.server";
+import { ContactAdminModal } from "~/components/ui/contact-admin-modal";
 import { AdminSidebar } from "~/components/admin/admin-sidebar";
 import {
 	FiSearch,
@@ -83,7 +84,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
 		return redirect("/auth/admin");
 	}
 
-	const { data: orders, error } = await supabase
+	const { data: orders, error } = await supabaseServer
 		.from("orders")
 		.select("*")
 		.order("created_at", { ascending: false });
