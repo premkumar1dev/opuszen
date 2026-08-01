@@ -30,7 +30,7 @@
       "destination": "/api/chat/completions"
     },
     {
-      "source": "/v1/*",
+      "source": "/v1/(.*)",
       "destination": "/api/chat/completions"
     },
     {
@@ -46,7 +46,7 @@
       "destination": "/api/chat/completions"
     },
     {
-      "source": "/api/v1/*",
+      "source": "/api/v1/(.*)",
       "destination": "/api/chat/completions"
     }
   ]
