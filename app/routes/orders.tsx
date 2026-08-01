@@ -1,7 +1,7 @@
 import { type MetaFunction, type ActionFunctionArgs, type LoaderFunctionArgs, useLoaderData, useActionData, useNavigation } from "react-router";
 import { Layout } from "../components/Layout";
 import { useState, useEffect } from "react";
-import { supabase } from "~/utils/supabase";
+import { supabaseServer } from "~/utils/supabase.server";
 
 export const meta: MetaFunction = () => [
 	{ title: "Order Lookup | OpusZen" },
@@ -32,6 +32,39 @@ interface LoaderData {
 	query: string;
 }
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+async function searchOrdersByTerm(term: string) {
+	const clean = term.trim();
+	if (!clean) return { data: [], error: null };
+
+	// Strip characters that could manipulate PostgREST OR filters
+	function sanitizeSearchInput(input: string): string {
+		return input
+			.replace(/,/g, ' ') // filter separator
+			.replace(/\./g, ' ') // column/operator separator
+			.trim();
+	}
+
+	const isUuid = UUID_REGEX.test(clean);
+
+	if (isUuid) {
+		return await supabaseServer
+			.from("orders")
+			.select("*")
+			.or(`id.eq.${clean},display_id.eq.${clean},payment_ref.eq.${clean}`)
+			.limit(10);
+	} else {
+		const safe = sanitizeSearchInput(clean);
+		return await supabaseServer
+			.from("orders")
+			.select("*")
+			.or(`display_id.eq.${safe},payment_ref.eq.${safe},display_id.ilike.%${safe}%,payment_ref.ilike.%${safe}%,username.ilike.%${safe}%`)
+			.order("created_at", { ascending: false })
+			.limit(10);
+	}
+}
+
 export async function loader({ request }: LoaderFunctionArgs) {
 	const url = new URL(request.url);
 	const query = (url.searchParams.get("q") || "").trim();
@@ -41,14 +74,11 @@ export async function loader({ request }: LoaderFunctionArgs) {
 	let error: string | null = null;
 
 	// Auto-search when redirected back from payment gateway
-	if (paymentVerify === "verify" && paymentOrderId) {
-		try {
-			let result = await supabase
-				.from("orders")
-				.select("*")
-				.or(`display_id.eq.${paymentOrderId},id.eq.${paymentOrderId}`)
-				.limit(5);
+	const targetQuery = paymentVerify === "verify" && paymentOrderId ? paymentOrderId : query;
 
+	if (targetQuery) {
+		try {
+			const result = await searchOrdersByTerm(targetQuery);
 			if (result.error) {
 				error = result.error.message;
 			} else if (result.data) {
@@ -57,37 +87,9 @@ export async function loader({ request }: LoaderFunctionArgs) {
 		} catch (err) {
 			error = err instanceof Error ? err.message : "Failed to look up order";
 		}
-	} else if (query) {
-		try {
-			const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(query);
-
-			let result;
-			if (isUuid) {
-				result = await supabase
-					.from("orders")
-					.select("*")
-					.or(`id.eq.${query},display_id.eq.${query}`)
-					.limit(5);
-			} else {
-				result = await supabase
-					.from("orders")
-					.select("*")
-					.ilike("username", `%${query}%`)
-					.order("created_at", { ascending: false })
-					.limit(10);
-			}
-
-			if (result.error) {
-				error = result.error.message;
-			} else if (result.data) {
-				orders.push(...(result.data as OrderResult[]));
-			}
-		} catch (err) {
-			error = err instanceof Error ? err.message : "Failed to search orders";
-		}
 	}
 
-	return { orders, error, query: paymentVerify === "verify" ? paymentOrderId : query };
+	return { orders, error, query: targetQuery };
 }
 
 export async function action({ request }: ActionFunctionArgs) {
@@ -107,24 +109,7 @@ export async function action({ request }: ActionFunctionArgs) {
 	let error: string | null = null;
 
 	try {
-		const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(query);
-
-		let result;
-		if (isUuid) {
-			result = await supabase
-				.from("orders")
-				.select("*")
-				.or(`id.eq.${query},display_id.eq.${query}`)
-				.limit(5);
-		} else {
-			result = await supabase
-				.from("orders")
-				.select("*")
-				.ilike("username", `%${query}%`)
-				.order("created_at", { ascending: false })
-				.limit(10);
-		}
-
+		const result = await searchOrdersByTerm(query);
 		if (result.error) {
 			error = result.error.message;
 		} else if (result.data) {
@@ -199,7 +184,7 @@ const STATUS_CONFIG: Record<string, { label: string; bg: string; text: string; b
 };
 
 export default function OrdersRoute() {
-	const loaderData = useLoaderData<typeof loader>();
+	const loaderData = useLoaderData<LoaderData>();
 	const actionData = useActionData<typeof action>();
 	const navigation = useNavigation();
 

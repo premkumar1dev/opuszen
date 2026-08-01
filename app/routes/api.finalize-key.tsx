@@ -20,12 +20,7 @@ async function getAuthenticatedUserId(request: Request): Promise<string | null> 
 	if (!accessTokenMatch) return null;
 
 	try {
-		const { createClient } = require("@supabase/supabase-js");
-		const url = process.env.VITE_SUPABASE_URL || import.meta.env.VITE_SUPABASE_URL;
-		const pubKey = process.env.VITE_SUPABASE_PUBLISHABLE_KEY || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-		if (!url || !pubKey) return null;
-		const supa = createClient(url, pubKey);
-		const { data, error } = await supa.auth.getUser(accessTokenMatch[1]);
+		const { data, error } = await supabaseServer.auth.getUser(accessTokenMatch[1]);
 		if (error || !data.user) return null;
 		return data.user.id;
 	} catch {
@@ -64,37 +59,54 @@ export async function action({ request }: ActionFunctionArgs) {
 		const paymentMethod = formData.get("method") as string || "PAY0";
 		const txnRef = (formData.get("txnRef") as string) || "";
 		const utr = (formData.get("utr") as string) || "";
-		const amount = (formData.get("amount") as string) || "0";
+		const _amount = (formData.get("amount") as string) || "0";
 
 		if (!orderId || !userId) {
 			return jsonResponse(false, "Missing order ID or user ID", 400);
 		}
 
 		// Check idempotency: if already completed, return success
-		const { data: existingOrder } = await supabaseServer
-			.from("orders")
-			.select("status")
-			.eq("id", orderId)
-			.single();
+		const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(orderId);
+		let existingOrder: { id: string; status: string } | null = null;
+
+		if (isUuid) {
+			const { data } = await supabaseServer
+				.from("orders")
+				.select("id, status")
+				.eq("id", orderId)
+				.maybeSingle();
+			existingOrder = data;
+		} else {
+			const { data } = await supabaseServer
+				.from("orders")
+				.select("id, status")
+				.or(`display_id.eq.${orderId},payment_ref.eq.${orderId}`)
+				.maybeSingle();
+			existingOrder = data;
+		}
 
 		if (existingOrder?.status === "completed") {
 			return jsonResponse({ success: true, alreadyFinalized: true });
 		}
 
-		// Mark order as completed
-		const { error: orderError } = await supabaseServer
-			.from("orders")
-			.update({
-				status: "completed",
-				payment_ref: utr || txnRef || null,
-				notes: `Order ${orderId} — ${paymentMethod} confirmed${utr ? ` (UTR ${utr})` : ""}`,
-			})
-			.eq("id", orderId)
-			.eq("status", "pending");
+		const targetOrderId = existingOrder?.id || (isUuid ? orderId : null);
 
-		if (orderError) {
-			console.error("[api/finalize-key] Failed to update order:", orderError);
-			return jsonResponse(false, "Failed to update order status", 500);
+		if (targetOrderId) {
+			// Mark order as completed
+			const { error: orderError } = await supabaseServer
+				.from("orders")
+				.update({
+					status: "completed",
+					payment_ref: utr || txnRef || orderId || null,
+					notes: `Order ${orderId} — ${paymentMethod} confirmed${utr ? ` (UTR ${utr})` : ""}`,
+				})
+				.eq("id", targetOrderId)
+				.eq("status", "pending");
+
+			if (orderError) {
+				console.error("[api/finalize-key] Failed to update order:", orderError);
+				return jsonResponse(false, "Failed to update order status", 500);
+			}
 		}
 
 		// Generate API key (CSPRNG)
@@ -131,7 +143,7 @@ export async function action({ request }: ActionFunctionArgs) {
 		if (keyError || !keyRow?.id) {
 			console.error("[api/finalize-key] Failed to insert API key:", keyError);
 			// Roll back order status
-			await supabaseServer.from("orders").update({ status: "pending" }).eq("id", orderId);
+			await supabaseServer.from("orders").update({ status: "pending" }).eq("id", targetOrderId);
 			return jsonResponse(false, "Failed to create API key", 500);
 		}
 

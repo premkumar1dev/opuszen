@@ -159,13 +159,13 @@ function getProviderConfig(provider: string): ProviderConfig {
 	throw new Error('Unsupported provider: ' + provider + '. Configure it in PROVIDER_CONFIGS.');
 }
 
-function shouldFailover(statusCode: number, error: string): boolean {
+function shouldFailover(statusCode: number, error: string | null | undefined): boolean {
 	if (statusCode === 429) return true;
 	if (statusCode === 402) return true;
 	if (statusCode === 413) return true;
 	if (statusCode >= 500 && statusCode < 600) return true;
 
-	const lower = error.toLowerCase();
+	const lower = (error || '').toLowerCase();
 	if (lower.includes('rate limit')) return true;
 	if (lower.includes('quota')) return true;
 	if (lower.includes('exceeded')) return true;
@@ -240,29 +240,49 @@ function transformRequestBody(
 		const otherMsgs = request.messages.filter((m) => m.role !== 'system');
 
 		const systemContent = systemMsgs.length > 0
-			? systemMsgs.map(m => m.content).join('\n')
+			? systemMsgs.map(m => typeof m.content === 'string' ? m.content : JSON.stringify(m.content)).join('\n')
 			: undefined;
+
+		const anthropicMessages = otherMsgs.map((m) => {
+			if (m.role === 'assistant') {
+				// Handle assistant messages with tool_calls (multi-turn tool use)
+				if ((m as any).tool_calls && Array.isArray((m as any).tool_calls)) {
+					const content = (m as any).tool_calls.map((tc: any) => ({
+						type: 'tool_use',
+						id: tc.id || `tool_${Date.now()}`,
+						name: tc.function?.name || tc.name,
+						input: tc.function?.arguments
+							? (() => { try { return JSON.parse(tc.function.arguments); } catch { return tc.function.arguments; } })()
+							: tc.arguments,
+					}));
+					// Include text content if present alongside tool_calls
+					if (m.content) {
+						content.unshift({ type: 'text', text: m.content });
+					}
+					return { role: 'assistant', content };
+				}
+				return { role: 'assistant', content: m.content };
+			}
+			if ((m as any).role === 'tool') {
+				const toolMsg = m as any;
+				return {
+					role: 'user',
+					content: [{
+						type: 'tool_result',
+						tool_use_id: toolMsg.tool_call_id || '',
+						content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content),
+					}],
+				};
+			}
+			return { role: 'user', content: m.content };
+		});
 
 		return {
 			model: request.model,
 			max_tokens: request.max_tokens ?? 4096,
 			temperature: request.temperature ?? 0.7,
 			...(systemContent ? { system: systemContent } : {}),
-			messages: otherMsgs.map((m) => {
-				const role = m.role as string;
-				if (role === 'assistant') return { role: 'assistant', content: m.content };
-				if (role === 'tool') {
-					const toolMsg = m as any;
-					return {
-						role: 'user', content: [{
-							type: 'tool_result',
-							tool_use_id: toolMsg.tool_call_id || '',
-							content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content),
-						}]
-					};
-				}
-				return { role: 'user', content: m.content };
-			}),
+			messages: anthropicMessages,
 			stream: false,
 		};
 	}
@@ -467,9 +487,9 @@ export async function handleGatewayRequest(
 
 			// Per-token plan billing: use plan's per-token pricing instead of model pricing
 			const userKey = ctx.userApiKey as any;
-			const planInputPrice = userKey?.price_per_1m_input_tokens ?? 0;
-			const planOutputPrice = userKey?.price_per_1m_output_tokens ?? 0;
-			const isPerTokenPlan = (userKey?.pricing_type === 'per_token') && (planInputPrice > 0 || planOutputPrice > 0);
+			const planInputPrice = Number(userKey?.price_per_1m_input_tokens ?? 0);
+			const planOutputPrice = Number(userKey?.price_per_1m_output_tokens ?? 0);
+			const isPerTokenPlan = (userKey?.pricing_type === 'per_token') && !isNaN(planInputPrice) && !isNaN(planOutputPrice) && (planInputPrice > 0 || planOutputPrice > 0);
 
 			let credits: number;
 			if (isPerTokenPlan) {
@@ -884,10 +904,11 @@ export async function getKeyStatus(apiKey: string): Promise<{ status: string;[ke
 	}
 
 	// 2. If not found in user_api_keys, check master_api_keys table
+	const isUuidKey = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanKey);
 	const { data: masterKeyData } = await supabase
 		.from('master_api_keys')
 		.select('*')
-		.or(`api_key.eq.${cleanKey},id.eq.${cleanKey}`)
+		.or(isUuidKey ? `api_key.eq.${cleanKey},id.eq.${cleanKey}` : `api_key.eq.${cleanKey}`)
 		.maybeSingle();
 
 	if (masterKeyData) {

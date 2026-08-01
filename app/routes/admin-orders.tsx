@@ -3,6 +3,7 @@ import { type LoaderFunctionArgs, type MetaFunction, redirect, useLocation } fro
 import { useLoaderData } from "react-router";
 import { verifyAdminSession } from "~/utils/admin-auth";
 import { supabaseServer } from "~/utils/supabase.server";
+import { supabase } from "~/utils/supabase";
 import { ContactAdminModal } from "~/components/ui/contact-admin-modal";
 import { AdminSidebar } from "~/components/admin/admin-sidebar";
 import { cn } from "@/lib/utils";

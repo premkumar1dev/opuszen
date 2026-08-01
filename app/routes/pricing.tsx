@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { type MetaFunction, type LoaderFunctionArgs, useLoaderData, useSearchParams } from "react-router";
 import { Layout } from "../components/Layout";
+import { supabaseServer } from "~/utils/supabase.server";
 import { supabase } from "~/utils/supabase";
 import { FiCheck, FiZap, FiArrowRight } from "react-icons/fi";
 import { FaWhatsapp } from "react-icons/fa";
@@ -19,7 +20,7 @@ export const meta: MetaFunction = () => [
 ];
 
 export async function loader({ request }: LoaderFunctionArgs) {
-	const { data, error } = await supabase
+	const { data, error } = await supabaseServer
 		.from("plans")
 		.select("*")
 		.eq("is_active", true)
@@ -326,7 +327,12 @@ export default function PricingPage() {
 							const user = sessionData.session?.user;
 							const customerMobile = user?.phone
 								? user.phone.replace(/\D/g, "").slice(-10)
-								: "0000000000";
+								: null;
+
+							if (!customerMobile) {
+								alert("Please add a phone number to your account before purchasing.");
+								return;
+							}
 
 							// Gateway redirects back to orders page after payment
 							const redirectUrl = `${window.location.origin}/orders?payment=verify&orderId=${encodeURIComponent(gatewayOrderId)}&gatewayOrderId=${encodeURIComponent(gatewayOrderId)}&planId=${plan.id}&planName=${encodeURIComponent(plan.name)}&multiplier=${plan.multiplier}&price=${plan.price}&currency=${plan.currency}&duration=${plan.durationDays}&method=PAY0&tokenPricing=${plan.isTokenPricing ? "1" : "0"}&pricePer1mInput=${plan.pricePer1mInput || 0}&pricePer1mOutput=${plan.pricePer1mOutput || 0}&minCredits=${plan.minCredits || 0}`;
@@ -369,7 +375,7 @@ export default function PricingPage() {
 									const { data: sessionData2 } = await supabase.auth.getSession();
 									const u = sessionData2.session?.user;
 									if (u?.id) {
-										const { data: orderRow } = await supabase
+										const { data: orderRow } = await supabaseServer
 											.from("orders")
 											.insert({
 												user_id: u.id,
@@ -379,6 +385,7 @@ export default function PricingPage() {
 												currency: plan.currency,
 												status: "pending",
 												payment_method: "PAY0",
+												payment_ref: gatewayOrderId,
 												notes: `Pricing page purchase: ${plan.name}`,
 											})
 											.select("id")
@@ -393,7 +400,7 @@ export default function PricingPage() {
 								}
 
 								// Open gateway checkout in new tab
-								const gw = window.open(checkoutUrl, "_blank", "noopener,noreferrer");
+								window.open(checkoutUrl, "_blank", "noopener,noreferrer");
 
 								// Show ContactAdminModal with plan info
 								setContactAdminPlan(plan);
