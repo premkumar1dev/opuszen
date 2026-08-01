@@ -135,6 +135,11 @@ export default [
 		file: "routes/status.tsx",
 	},
 	{
+		id: "api-status",
+		path: "/api/status",
+		file: "routes/api.status.tsx",
+	},
+	{
 		path: "/pricing",
 		file: "routes/pricing.tsx",
 	},
@@ -180,7 +185,7 @@ export default [
 	{
 		id: "v1-models",
 		path: "/v1/models",
-		file: "routes/api.chat.completions.tsx",
+		file: "routes/api.v1.models.tsx",
 	},
 	{
 		id: "v1-splat",
@@ -200,7 +205,7 @@ export default [
 	{
 		id: "api-v1-models",
 		path: "/api/v1/models",
-		file: "routes/api.chat.completions.tsx",
+		file: "routes/api.v1.models.tsx",
 	},
 	{
 		id: "api-v1-splat",

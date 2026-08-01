@@ -8,16 +8,16 @@ export default function CTASection() {
  <section className="relative py-24 px-4 bg-background overflow-hidden">
  {/* Animated gradient background */}
  <div
- className="absolute inset-0 opacity-[0.03] gradient-animated"
+ className="absolute inset-0 opacity-[0.05] gradient-animated"
  style={{
- background: "linear-gradient(135deg, #c96442, #d97757, #9c87f5, #c96442)",
+ background: "linear-gradient(135deg, #C74413, #e0683b, #e8e0dc, #C74413)",
  }}
  aria-hidden="true"
  />
  {/* Floating glow */}
  <div
  className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] rounded-full pointer-events-none blob-1"
- style={{ background: "radial-gradient(circle, rgba(201,100,66,0.06) 0%, transparent 70%)" }}
+ style={{ background: "radial-gradient(circle, rgba(199,68,19,0.08) 0%, transparent 70%)" }}
  aria-hidden="true"
  />
 

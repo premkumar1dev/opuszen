@@ -12,7 +12,7 @@ const features = [
 
 export function WhyOpusZen() {
  return (
- <section className="relative py-24 px-4 bg-background" aria-labelledby="why-heading">
+ <section className="relative px-4" aria-labelledby="why-heading">
  <div className="max-w-7xl mx-auto">
  <div className="grid lg:grid-cols-2 gap-16 items-center">
  {/* Left: description */}

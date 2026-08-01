@@ -1,17 +1,12 @@
-import { useState } from "react";
-import { type MetaFunction, type LoaderFunctionArgs, useLoaderData } from "react-router";
+import { useState, useEffect } from "react";
+import { type MetaFunction, type LoaderFunctionArgs, useLoaderData, useSearchParams } from "react-router";
 import { Layout } from "../components/Layout";
 import { supabase } from "~/utils/supabase";
-import {
-	FiCheck,
-	FiZap,
-	FiShield,
-	FiActivity,
-	FiStar,
-	FiArrowRight,
-} from "react-icons/fi";
+import { FiCheck, FiZap, FiArrowRight } from "react-icons/fi";
 import { FaWhatsapp } from "react-icons/fa";
 import { PlanPurchaseModal, type PlanOption } from "~/components/ui/plan-purchase-modal";
+import { ContactAdminModal, getContactAdminWhatsAppUrl } from "~/components/ui/contact-admin-modal";
+import { PlanPurchaseOptionModal } from "~/components/ui/plan-purchase-option-modal";
 
 const ADMIN_WHATSAPP_NUMBER = "918098830937";
 
@@ -49,6 +44,12 @@ export async function loader({ request }: LoaderFunctionArgs) {
 		pricePer1mInput: p.price_per_1m_input_tokens ?? 0,
 		pricePer1mOutput: p.price_per_1m_output_tokens ?? 0,
 		minCredits: p.min_credits ?? 0,
+		badgeText: p.badge_text ?? undefined,
+		secondaryPriceText: p.secondary_price_text ?? undefined,
+		buttonText: p.button_text ?? undefined,
+		buttonSubtext: p.button_subtext ?? undefined,
+		isDarkCard: p.is_dark_card ?? false,
+		priceUsdt: p.price_usdt ?? 0,
 	}));
 
 	return { plans };
@@ -65,39 +66,30 @@ function formatPrice(price: number, currency: string): string {
 	}).format(price);
 }
 
-function getPlanLabel(plan: PlanOption): string {
-	return plan.name || (plan.multiplier <= 1 ? "Trial Plan" : `Pro Plan (${plan.multiplier}x)`);
+function getDurationLabel(days: number): string {
+	if (days === 1) return "1 day";
+	if (days === 7) return "1 week";
+	if (days === 30) return "month";
+	if (days === 365) return "year";
+	return `${days} days`;
 }
 
 export function getWhatsAppPlanUrl(plan: PlanOption): string {
-	const planLabel = getPlanLabel(plan);
-	const priceStr = formatPrice(plan.price, plan.currency);
-	const durationStr = plan.durationDays === 1 ? "1 day" : `${plan.durationDays} days`;
+	const priceStr = plan.priceUsdt ? `$${plan.priceUsdt} USDT` : formatPrice(plan.price, plan.currency);
+	const durationStr = getDurationLabel(plan.durationDays);
 
 	const lines: string[] = [
-		`*OPUSZEN API — GET STARTED REQUEST*`,
+		`*OPUSZEN API — PLAN ORDER REQUEST*`,
 		``,
-		`Hi Admin! I am ready to get started with *OpusZen API*.`,
+		`Hi Admin! I want to subscribe to *${plan.name}*.`,
 		``,
-		`• *Plan Selected:* ${planLabel}`,
+		`• *Plan:* ${plan.name}`,
 		`• *Price:* ${priceStr} / ${durationStr}`,
 		`• *Speed Multiplier:* ${plan.multiplier}x Rate Limit`,
 	];
 
-	if (plan.isTokenPricing) {
-		const priceInput = plan.pricePer1mInput ?? 0;
-		const priceOutput = plan.pricePer1mOutput ?? 0;
-		const minCredits = plan.minCredits ?? 0;
-
-		if (priceInput > 0) {
-			lines.push(`• *Input Token Rate:* ${formatPrice(priceInput, plan.currency)}/1M tokens`);
-		}
-		if (priceOutput > 0) {
-			lines.push(`• *Output Token Rate:* ${formatPrice(priceOutput, plan.currency)}/1M tokens`);
-		}
-		if (minCredits > 0) {
-			lines.push(`• *Minimum Credits:* ${formatPrice(minCredits, plan.currency)}`);
-		}
+	if (plan.secondaryPriceText) {
+		lines.push(`• *Equivalent:* ${plan.secondaryPriceText}`);
 	}
 
 	if (plan.features && plan.features.length > 0) {
@@ -109,8 +101,7 @@ export function getWhatsAppPlanUrl(plan: PlanOption): string {
 
 	lines.push(
 		``,
-		`Please assist me with activating this plan and getting my API Key!`,
-		``,
+		`Please assist me with instant key delivery after payment!`,
 		`Thank you!`
 	);
 
@@ -118,223 +109,375 @@ export function getWhatsAppPlanUrl(plan: PlanOption): string {
 	return `https://wa.me/${ADMIN_WHATSAPP_NUMBER}?text=${encodeURIComponent(text)}`;
 }
 
-function getCardStyle(plan: PlanOption): { cardClass: string; badge: React.ReactNode } {
-	const isPopular = plan.multiplier >= 5 && plan.multiplier < 20;
-	const isEnterprise = plan.multiplier >= 20;
-
-	if (isPopular) {
-		return {
-			cardClass: "border-primary/30 bg-primary/5 shadow-md",
-			badge: (
-				<div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full bg-primary text-primary-foreground text-xs font-semibold flex items-center gap-1">
-					<FiStar className="w-3 h-3" />
-					Most Popular
-				</div>
-			),
-		};
-	}
-	if (isEnterprise) {
-		return {
-			cardClass: "border-amber-500/30 bg-amber-500/5",
-			badge: (
-				<div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full bg-amber-500 text-white text-xs font-semibold flex items-center gap-1">
-					<FiActivity className="w-3 h-3" />
-					Enterprise
-				</div>
-			),
-		};
-	}
-	return { cardClass: "border-border bg-card", badge: null };
-}
-
-function getBtnClass(plan: PlanOption): string {
-	const isPopular = plan.multiplier >= 5 && plan.multiplier < 20;
-	const isEnterprise = plan.multiplier >= 20;
-
-	if (isPopular) return "bg-emerald-600 text-white hover:bg-emerald-500 shadow-emerald-500/20";
-	if (isEnterprise) return "bg-amber-500 text-white hover:bg-amber-600 shadow-amber-500/20";
-	return "bg-emerald-600/90 text-white hover:bg-emerald-600 border border-emerald-500/30";
-}
-
-function TokenPricingInfo({ plan }: { plan: PlanOption }) {
-	const parts: string[] = [];
-	const priceInput = plan.pricePer1mInput ?? 0;
-	const priceOutput = plan.pricePer1mOutput ?? 0;
-	const minCredits = plan.minCredits ?? 0;
-
-	if (priceInput > 0) parts.push(`${formatPrice(priceInput, plan.currency)}/1M input tokens`);
-	if (priceOutput > 0) parts.push(`${formatPrice(priceOutput, plan.currency)}/1M output tokens`);
-
-	return (
-		<>
-			{parts.length > 0 && (
-				<li className="flex items-start gap-2 text-sm text-muted-foreground pt-1 border-t border-border mt-3">
-					<FiZap className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
-					<span>{parts.join(" · ")}</span>
-				</li>
-			)}
-			{(priceInput > 0 || priceOutput > 0) && (
-				<li className="flex items-start gap-2 text-sm text-muted-foreground">
-					<FiShield className="w-4 h-4 text-primary mt-0.5 shrink-0" />
-					<span>{minCredits > 0 ? `${formatPrice(minCredits, plan.currency)} min. credit` : "Pay as you go"}</span>
-				</li>
-			)}
-		</>
-	);
-}
-
 export default function PricingPage() {
 	const { plans } = useLoaderData() as { plans: PlanOption[] };
+	const [searchParams] = useSearchParams();
 	const [showPlanModal, setShowPlanModal] = useState(false);
 	const [selectedPlan, setSelectedPlan] = useState<PlanOption | null>(null);
+	const [showOptionModal, setShowOptionModal] = useState(false);
+	const [showContactAdminModal, setShowContactAdminModal] = useState(false);
+	const [contactAdminPlan, setContactAdminPlan] = useState<PlanOption | null>(null);
+	const [gatewayOrderId, setGatewayOrderId] = useState<string>("");
+	const [keyName, setKeyName] = useState<string>("");
+
+	// After gateway redirects back to pricing page with payment=verify,
+	// immediately show ContactAdminModal with payment details embedded
+	useEffect(() => {
+		const paymentParam = searchParams.get("payment");
+		const gwOrderId = searchParams.get("gatewayOrderId");
+
+		if (paymentParam !== "verify" || !gwOrderId) return;
+
+		// Small delay so the pricing page renders first
+		const timer = setTimeout(() => {
+			const planId = searchParams.get("planId") || "";
+			const planName = searchParams.get("planName") || "Plan";
+			const multiplier = parseFloat(searchParams.get("multiplier") || "1");
+			const price = parseFloat(searchParams.get("price") || "0");
+			const currency = searchParams.get("currency") || "INR";
+			const duration = parseInt(searchParams.get("duration") || "30");
+
+			const verifiedPlan: PlanOption = {
+				id: planId,
+				name: planName,
+				multiplier,
+				price,
+				currency,
+				durationDays: duration,
+			};
+
+			setContactAdminPlan(verifiedPlan);
+			setGatewayOrderId(gwOrderId);
+			setKeyName("");
+			setShowContactAdminModal(true);
+
+			// Clean URL
+			window.history.replaceState({}, "", window.location.pathname);
+		}, 500);
+
+		return () => clearTimeout(timer);
+	}, [searchParams]);
 
 	const handlePlanSelect = (plan: PlanOption) => {
-		const whatsappUrl = getWhatsAppPlanUrl(plan);
-		window.open(whatsappUrl, "_blank", "noopener,noreferrer");
+		setSelectedPlan(plan);
+		setShowOptionModal(true);
 	};
 
 	return (
 		<Layout>
-			<div className="max-w-6xl mx-auto py-16 px-4">
-				{/* Heading */}
-				<div className="text-center mb-16">
-					<div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 text-primary text-xs font-semibold mb-6">
-						<FiZap className="w-3.5 h-3.5" />
-						Simple, Transparent Pricing
-					</div>
-					<h1 className="text-4xl md:text-5xl font-bold text-foreground mb-4">
-						Rent a Plan
-					</h1>
-					<p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-						Pick a plan that fits your needs. No hidden fees, no surprises. Click Get Started to contact Admin on WhatsApp instantly.
-					</p>
-				</div>
+			<div className="bg-[#FAF7F2] dark:bg-[#121110] text-[#1C1917] dark:text-[#F5F2EB] min-h-screen py-12 px-4 transition-colors">
+				<div className="max-w-6xl mx-auto">
+					
 
-				{/* Plans Grid */}
-				{plans.length === 0 ? (
-					<div className="text-center py-20">
-						<FiZap className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-						<p className="text-muted-foreground text-lg">
-							No plans available right now. Please check back soon.
-						</p>
-					</div>
-				) : (
-					<div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-16">
-						{plans.map((plan) => {
-							const label = getPlanLabel(plan);
-							const { cardClass, badge } = getCardStyle(plan);
-							const features = plan.features || [];
-							const durationLabel = plan.durationDays === 1 ? "day" : `${plan.durationDays} days`;
 
-							return (
-								<div
-									key={plan.id}
-									className={`rounded-2xl border p-6 relative transition-all hover:shadow-lg flex flex-col justify-between ${cardClass}`}
-								>
-									<div>
-										{badge}
+					{/* Plans Grid */}
+					{plans.length === 0 ? (
+						<div className="text-center py-20 bg-white dark:bg-[#1A1918] rounded-3xl border border-[#E7E2D8] dark:border-[#2B2724]">
+							<FiZap className="w-12 h-12 text-[#EA580C] mx-auto mb-4" />
+							<p className="text-[#78716C] text-lg font-medium">
+								No subscription plans available right now. Please check back soon.
+							</p>
+						</div>
+					) : (
+						<div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12 items-stretch">
+							{plans.map((plan) => {
+								const durationLabel = getDurationLabel(plan.durationDays);
+								const isDark = plan.isDarkCard;
+								const features = plan.features || [];
+								const displayPrice = plan.priceUsdt ? `$${plan.priceUsdt}` : formatPrice(plan.price, plan.currency);
+								const currencyLabel = plan.priceUsdt ? "USDT" : plan.currency;
 
-										{/* Plan Header */}
-										<div className="mb-4">
-											<h3 className="text-lg font-semibold text-foreground mb-1">
-												{label}
+								return (
+									<div
+										key={plan.id}
+										className={`rounded-3xl p-7 relative transition-all duration-200 flex flex-col justify-between ${
+											isDark
+												? "bg-[#0F0E0D] border-2 border-[#262320] text-[#F5F2EB] shadow-2xl ring-1 ring-orange-500/20"
+												: "bg-[#FDFCFB] border border-[#E7E2D8] text-[#1C1917] shadow-sm hover:shadow-md"
+										}`}
+									>
+										<div>
+											{/* Badge Pill */}
+											{plan.badgeText && (
+												<div
+													className={`absolute -top-3.5 right-6 px-3.5 py-1 rounded-full text-[11px] font-extrabold tracking-wider uppercase ${
+														isDark
+															? "bg-[#EA580C] text-white shadow-sm"
+															: "bg-[#FFF4ED] text-[#EA580C] border border-[#FFD9C4]"
+													}`}
+												>
+													{plan.badgeText}
+												</div>
+											)}
+
+											{/* Plan Name */}
+											<h3 className={`text-xl font-extrabold mb-2.5 ${isDark ? "text-white" : "text-[#1C1917]"}`}>
+												{plan.name}
 											</h3>
+
+											{/* Description */}
 											{plan.description && (
-												<p className="text-sm text-muted-foreground">
+												<p className={`text-xs leading-relaxed mb-6 ${isDark ? "text-[#A8A29E]" : "text-[#78716C]"}`}>
 													{plan.description}
 												</p>
 											)}
-										</div>
 
-										{/* Price */}
-										<div className="mb-6">
-											<span className="text-3xl font-bold text-foreground">
-												{formatPrice(plan.price, plan.currency)}
-											</span>
-											<span className="text-sm text-muted-foreground font-normal">
-												/ {durationLabel}
-											</span>
-										</div>
+											{/* Price Block */}
+											<div className="mb-2 flex items-baseline gap-1.5 flex-wrap">
+												<span className={`text-4xl font-black tracking-tight ${isDark ? "text-white" : "text-[#1C1917]"}`}>
+													{displayPrice}
+												</span>
+												<span className={`text-xs font-semibold uppercase ${isDark ? "text-[#A8A29E]" : "text-[#78716C]"}`}>
+													{currencyLabel} / {durationLabel}
+												</span>
+											</div>
 
-										{/* Features */}
-										<ul className="space-y-3 mb-8">
-											{features.map((feature, i) => (
-												<li
-													key={i}
-													className="flex items-start gap-2 text-sm text-muted-foreground"
+											{/* Secondary Tagline */}
+											{plan.secondaryPriceText && (
+												<div className={`text-[12px] font-semibold mb-6 ${isDark ? "text-[#8C827A]" : "text-[#8C827A]"}`}>
+													{plan.secondaryPriceText}
+												</div>
+											)}
+
+											{/* CTA Button */}
+											<div className="mt-4 mb-2">
+												<button
+													type="button"
+													onClick={() => handlePlanSelect(plan)}
+													className={`w-full py-3.5 px-4 rounded-xl text-sm font-extrabold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+														isDark
+															? "bg-[#EA580C] hover:bg-[#D94E0A] text-white shadow-lg shadow-orange-600/25 active:scale-[0.99]"
+															: "bg-[#F4F0E8] hover:bg-[#EBE5DA] text-[#1C1917] border border-[#E2DDD3] active:scale-[0.99]"
+													}`}
 												>
-													<FiCheck className="w-4 h-4 text-emerald-500 mt-0.5 shrink-0" />
-													{feature}
-												</li>
-											))}
+													<span>{plan.buttonText || "Get this plan →"}</span>
+												</button>
 
-											{(plan.isTokenPricing || (plan.minCredits ?? 0) > 0) && (
-												<TokenPricingInfo plan={plan} />
-											)}
+												<p className={`text-[11px] text-center mt-2 font-medium ${isDark ? "text-[#78716C]" : "text-[#A8A29E]"}`}>
+													{plan.buttonSubtext || "Instant key delivery after payment"}
+												</p>
+											</div>
 
-											{plan.multiplier > 1 && (
-												<li className="flex items-start gap-2 text-sm text-muted-foreground">
-													<FiActivity className="w-4 h-4 text-primary mt-0.5 shrink-0" />
-													<span>{plan.multiplier}x rate limit multiplier</span>
-												</li>
-											)}
-										</ul>
+											{/* Divider */}
+											<hr className={`my-6 border-t ${isDark ? "border-[#262320]" : "border-[#E8E3D9]"}`} />
+
+											{/* Includes Section */}
+											<div>
+												<p className={`text-[11px] font-black uppercase tracking-widest mb-4 ${isDark ? "text-[#A8A29E]" : "text-[#78716C]"}`}>
+													INCLUDES
+												</p>
+												<ul className="space-y-3">
+													{features.map((feature, i) => (
+														<li
+															key={i}
+															className={`flex items-start gap-2.5 text-xs font-medium ${
+																isDark ? "text-[#D6D3D1]" : "text-[#44403C]"
+															}`}
+														>
+															<FiCheck className="w-4 h-4 text-[#EA580C] mt-0.5 shrink-0 stroke-[2.5]" />
+															<span>{feature}</span>
+														</li>
+													))}
+												</ul>
+											</div>
+										</div>
 									</div>
+								);
+							})}
+						</div>
+					)}
 
-									{/* CTA Buttons */}
-									<div>
-										<button
-											type="button"
-											onClick={() => handlePlanSelect(plan)}
-											className={`flex items-center justify-center gap-2.5 w-full px-6 py-3 rounded-xl text-sm font-semibold transition-all shadow-sm hover:shadow-md cursor-pointer ${getBtnClass(plan)}`}
-										>
-											<FaWhatsapp className="w-4 h-4 text-white shrink-0" />
-											<span>Get Started</span>
-											<FiArrowRight className="w-4 h-4 ml-auto opacity-80" />
-										</button>
-
-										<button
-											type="button"
-											onClick={() => {
-												setSelectedPlan(plan);
-												setShowPlanModal(true);
-											}}
-											className="w-full text-center text-xs text-muted-foreground hover:text-foreground mt-2.5 font-medium transition-colors cursor-pointer py-1"
-										>
-											or Pay Online directly →
-										</button>
-									</div>
-								</div>
-							);
-						})}
+					{/* Footer INR & Admin Contact Info Note */}
+					<div className="text-center py-4 px-6 rounded-2xl bg-[#F4EFEC] dark:bg-[#1A1918] border border-[#E8E3D9] dark:border-[#2B2724] max-w-3xl mx-auto">
+						<p className="text-xs text-[#78716C] dark:text-[#A8A29E] font-medium flex items-center justify-center gap-1.5 flex-wrap">
+							<span className="text-[#EA580C] font-bold">💳 Paid in INR (UPI / GPay / PhonePe / Cards).</span>
+							<span>Pay online directly or</span>
+							<a
+								href={`https://wa.me/${ADMIN_WHATSAPP_NUMBER}?text=${encodeURIComponent("Hi Admin! I want to subscribe to an OpusZen API plan.")}`}
+								target="_blank"
+								rel="noopener noreferrer"
+								className="text-[#EA580C] hover:underline font-bold inline-flex items-center gap-1"
+							>
+								<FaWhatsapp className="w-3.5 h-3.5" /> Contact Admin on WhatsApp
+							</a>
+							<span>for instant key delivery.</span>
+						</p>
 					</div>
-				)}
 
-				{/* Footer note */}
-				<p className="text-center text-sm text-muted-foreground">
-					Need a custom plan?{" "}
-					<a
-						href={`https://wa.me/${ADMIN_WHATSAPP_NUMBER}?text=${encodeURIComponent("Hi Admin! I need a custom enterprise plan for OpusZen.")}`}
-						target="_blank"
-						rel="noopener noreferrer"
-						className="text-emerald-500 hover:text-emerald-400 font-medium inline-flex items-center gap-1"
-					>
-						<FaWhatsapp className="w-3.5 h-3.5 inline" /> Contact us on WhatsApp
-					</a>{" "}
-					for enterprise pricing.
-				</p>
+					{/* Plan Purchase Option Chooser Modal */}
+					<PlanPurchaseOptionModal
+						open={showOptionModal}
+						onClose={() => setShowOptionModal(false)}
+						plan={selectedPlan}
+						onPayOnline={async (plan) => {
+							setShowOptionModal(false);
+							setSelectedPlan(plan);
 
-				{/* Plan Purchase Modal */}
-				<PlanPurchaseModal
-					open={showPlanModal}
-					onClose={() => setShowPlanModal(false)}
-					onConfirm={async (data) => {
-						setShowPlanModal(false);
-						return data;
-					}}
-				/>
+							// Generate order ID
+							const ts = Date.now().toString(36).toUpperCase();
+							const rand = Math.random().toString(36).slice(2, 6).toUpperCase();
+							const gatewayOrderId = `ORD-${ts}-${rand}`;
+
+							// Store gateway order ID mapping
+							sessionStorage.setItem(`gateway_order_${gatewayOrderId}`, gatewayOrderId);
+
+							// Get user session for mobile
+							const { data: sessionData } = await supabase.auth.getSession();
+							const user = sessionData.session?.user;
+							const customerMobile = user?.phone
+								? user.phone.replace(/\D/g, "").slice(-10)
+								: "0000000000";
+
+							// Gateway redirects back to pricing page after payment
+							const redirectUrl = `${window.location.origin}/pricing?payment=verify&orderId=${encodeURIComponent(gatewayOrderId)}&gatewayOrderId=${encodeURIComponent(gatewayOrderId)}&planId=${plan.id}&planName=${encodeURIComponent(plan.name)}&multiplier=${plan.multiplier}&price=${plan.price}&currency=${plan.currency}&duration=${plan.durationDays}&method=PAY0&tokenPricing=${plan.isTokenPricing ? "1" : "0"}&pricePer1mInput=${plan.pricePer1mInput || 0}&pricePer1mOutput=${plan.pricePer1mOutput || 0}&minCredits=${plan.minCredits || 0}`;
+
+							// Create order in gateway
+							const formData = new FormData();
+							formData.set("intent", "create_order");
+							formData.set("customer_mobile", customerMobile);
+							formData.set("amount", String(plan.price));
+							formData.set("order_id", gatewayOrderId);
+							formData.set("redirect_url", redirectUrl);
+							formData.set("remark1", plan.name);
+							formData.set("remark2", plan.multiplier > 1 ? `Pro Plan (${plan.multiplier}x)` : "Trial Plan");
+
+							try {
+								const res = await fetch("/api/payment", {
+									method: "POST",
+									body: formData,
+								});
+								const response = await res.json();
+
+								if (response.status === false) {
+									alert(response.message || "Failed to create payment order");
+									return;
+								}
+
+								const checkoutUrl =
+									response.result?.payment_url ||
+									response.result?.checkoutUrl ||
+									response.result?.paymentUrl ||
+									response.result?.payment_link;
+
+								if (!checkoutUrl) {
+									alert("No payment URL received from gateway");
+									return;
+								}
+
+								// Create pending order in DB
+								try {
+									const { data: sessionData2 } = await supabase.auth.getSession();
+									const u = sessionData2.session?.user;
+									if (u?.id) {
+										const { data: orderRow } = await supabase
+											.from("orders")
+											.insert({
+												user_id: u.id,
+												username: u.email ?? "user",
+												plan_name: `${plan.name} (${plan.multiplier}x)`,
+												amount: plan.price,
+												currency: plan.currency,
+												status: "pending",
+												payment_method: "PAY0",
+												notes: `Pricing page purchase: ${plan.name}`,
+											})
+											.select("id")
+											.single();
+
+										if (orderRow?.id) {
+											sessionStorage.setItem("pending_order_db_id", orderRow.id);
+										}
+									}
+								} catch (e) {
+									console.error("Error creating pending order:", e);
+								}
+
+								// Open gateway checkout in new tab
+								const gw = window.open(checkoutUrl, "_blank", "noopener,noreferrer");
+
+								// Show ContactAdminModal with plan info
+								setContactAdminPlan(plan);
+								setGatewayOrderId(gatewayOrderId);
+								setKeyName("");
+								setShowContactAdminModal(true);
+							} catch (err) {
+								console.error("Payment initiation failed:", err);
+								alert("Failed to initiate payment. Please try again.");
+							}
+						}}
+						onContactAdmin={(plan) => {
+							setSelectedPlan(plan);
+							setContactAdminPlan(plan);
+							const whatsappUrl = getWhatsAppPlanUrl(plan);
+							window.open(whatsappUrl, "_blank", "noopener,noreferrer");
+							setShowContactAdminModal(true);
+						}}
+					/>
+
+					{/* Plan Purchase Modal */}
+					<PlanPurchaseModal
+						open={showPlanModal}
+						onClose={() => setShowPlanModal(false)}
+						initialPlan={selectedPlan}
+						onConfirm={async (data) => {
+							let orderId: string | undefined;
+
+							try {
+								const { data: sessionData } = await supabase.auth.getSession();
+								const user = sessionData.session?.user;
+								if (user?.id) {
+									const { data: orderRow } = await supabase
+										.from("orders")
+										.insert({
+											user_id: user.id,
+											username: user.email ?? "user",
+											plan_name: `${data.plan.name} (${data.plan.multiplier}x)`,
+											amount: data.plan.price,
+											currency: data.plan.currency,
+											status: "pending",
+											payment_method: data.paymentMethod,
+											payment_ref: data.transactionRef || null,
+											notes: `Pricing page purchase: ${data.plan.name}`,
+										})
+										.select("id")
+										.single();
+
+									if (orderRow?.id) {
+										orderId = orderRow.id;
+										sessionStorage.setItem("pending_order_db_id", orderRow.id);
+									}
+								}
+							} catch (e) {
+								console.error("Error creating pending order:", e);
+							}
+
+							if (!orderId) {
+								orderId = typeof crypto !== "undefined" && crypto.randomUUID
+									? crypto.randomUUID()
+									: `ord_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+							}
+
+							return { id: orderId };
+						}}
+						onPaymentInitiated={(orderId, gOrderId, plan, kName) => {
+							setSelectedPlan(plan);
+							setContactAdminPlan(plan);
+							setGatewayOrderId(gOrderId);
+							setKeyName(kName);
+							setShowContactAdminModal(true);
+						}}
+					/>
+
+					{/* Contact Admin Modal */}
+					<ContactAdminModal
+						open={showContactAdminModal}
+						onClose={() => setShowContactAdminModal(false)}
+						plan={contactAdminPlan || selectedPlan}
+						gatewayOrderId={gatewayOrderId}
+						keyName={keyName}
+					/>
+				</div>
 			</div>
 		</Layout>
 	);
 }
-

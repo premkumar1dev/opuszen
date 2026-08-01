@@ -3,7 +3,7 @@ import { ScaleReveal } from "../components/motion/BlurScaleReveal";
 
 export default function MigrationSection() {
     return (
-        <section className="relative py-24 px-4 bg-background">
+        <section className="relative px-4">
             <div className="max-w-5xl mx-auto">
                 <div className="text-center mb-12">
                     <motion.h2

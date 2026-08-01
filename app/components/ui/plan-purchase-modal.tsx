@@ -36,11 +36,18 @@ export interface PlanOption {
 	pricePer1mInput?: number;
 	pricePer1mOutput?: number;
 	minCredits?: number;
+	badgeText?: string;
+	secondaryPriceText?: string;
+	buttonText?: string;
+	buttonSubtext?: string;
+	isDarkCard?: boolean;
+	priceUsdt?: number;
 }
 
 interface PlanPurchaseModalProps {
 	open: boolean;
 	onClose: () => void;
+	initialPlan?: PlanOption | null;
 	onConfirm: (data: {
 		plan: PlanOption;
 		paymentMethod: PaymentMethod;
@@ -113,6 +120,7 @@ function formatCurrency(n: number, currency = "INR"): string {
 export function PlanPurchaseModal({
 	open,
 	onClose,
+	initialPlan,
 	onConfirm,
 	onPaymentInitiated,
 }: PlanPurchaseModalProps) {
@@ -160,10 +168,24 @@ export function PlanPurchaseModal({
 						pricePer1mInput: p.price_per_1m_input_tokens ?? 0,
 						pricePer1mOutput: p.price_per_1m_output_tokens ?? 0,
 						minCredits: p.min_credits ?? 0,
+						badgeText: p.badge_text ?? undefined,
+						secondaryPriceText: p.secondary_price_text ?? undefined,
+						buttonText: p.button_text ?? undefined,
+						buttonSubtext: p.button_subtext ?? undefined,
+						isDarkCard: p.is_dark_card ?? false,
+						priceUsdt: p.price_usdt ?? 0,
 					}));
-					setPlans(mapped);
-					if (mapped.length > 0) {
-						setSelectedPlanId(mapped[0].id);
+					const selectedPlanExists = initialPlan
+						? mapped.some((plan) => plan.id === initialPlan.id)
+						: false;
+					const availablePlans = initialPlan && !selectedPlanExists
+						? [initialPlan, ...mapped]
+						: mapped;
+					setPlans(availablePlans);
+					if (initialPlan) {
+						setSelectedPlanId(initialPlan.id);
+					} else if (availablePlans.length > 0) {
+						setSelectedPlanId(availablePlans[0].id);
 					}
 				}
 			} catch (err: any) {
@@ -175,7 +197,7 @@ export function PlanPurchaseModal({
 
 		fetchPlans();
 		return () => { cancelled = true; };
-	}, [open]);
+	}, [open, initialPlan]);
 
 	/* ── Fetch gateway name ── */
 	useEffect(() => {
@@ -212,6 +234,12 @@ export function PlanPurchaseModal({
 
 	const handleGoToPayment = async () => {
 		setSubmitting(true);
+		const checkoutWindow = selectedPlan.price > 0 ? window.open("", "_blank") : null;
+		if (checkoutWindow) {
+			checkoutWindow.opener = null;
+			checkoutWindow.document.title = "Opening checkout...";
+			checkoutWindow.document.body.innerHTML = "Opening secure checkout...";
+		}
 		console.log("[PlanPurchaseModal] Starting handleGoToPayment...");
 		try {
 			// 1. Create the pending order record in the database
@@ -303,20 +331,22 @@ export function PlanPurchaseModal({
 				throw new Error("No payment URL received from gateway");
 			}
 
-			// Open checkout URL in a new tab using a dynamic DOM anchor click
-			const link = document.createElement("a");
-			link.href = checkoutUrl;
-			link.target = "_blank";
-			link.rel = "noopener noreferrer";
-			document.body.appendChild(link);
-			link.click();
-			document.body.removeChild(link);
+			// Open checkout URL using the pre-opened window (opened in user-gesture context above)
+			if (checkoutWindow) {
+				checkoutWindow.location.href = checkoutUrl;
+			} else {
+				// Fallback: direct navigation in current tab
+				window.location.href = checkoutUrl;
+			}
 
 			if (onPaymentInitiated) {
 				onPaymentInitiated(orderId, gatewayOrderId, selectedPlan, keyName.trim());
 			}
 			onClose();
 		} catch (err) {
+			if (checkoutWindow && !checkoutWindow.closed) {
+				checkoutWindow.close();
+			}
 			console.error("[plan-purchase] payment failed:", err);
 			alert(err instanceof Error ? err.message : "Failed to initiate payment. Please try again.");
 			setSubmitting(false);

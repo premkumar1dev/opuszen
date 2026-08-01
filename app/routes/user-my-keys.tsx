@@ -27,6 +27,7 @@ import {
 	PlanPurchaseModal,
 	type PlanOption,
 } from "~/components/ui/plan-purchase-modal";
+import { ContactAdminModal } from "~/components/ui/contact-admin-modal";
 
 export const meta: MetaFunction = () => [
 	{ title: "My Keys | OpusZen" },
@@ -166,6 +167,10 @@ export default function UserMyKeysRoute() {
 	const [plans, setPlans] = useState<PlanOption[]>(FALLBACK_PLANS);
 	const [plansLoading, setPlansLoading] = useState(false);
 	const [gatewayName, setGatewayName] = useState("PAY0");
+	const [showContactAdminModal, setShowContactAdminModal] = useState(false);
+	const [contactAdminPlan, setContactAdminPlan] = useState<PlanOption | null>(null);
+	const [gatewayOrderId, setGatewayOrderId] = useState<string>("");
+	const [initiatedKeyName, setInitiatedKeyName] = useState<string>("");
 	const pendingOrderIdRef = useRef<string | null>(null);
 	// Stores the DB UUID of the pending order so finalizePaidOrder can target it precisely
 	const pendingOrderDbIdRef = useRef<string | null>(null);
@@ -852,10 +857,25 @@ export default function UserMyKeysRoute() {
 
 			{/* ─── Plan Purchase Modal ─── */}
 			<PlanPurchaseModal
-					open={showPlanModal}
-					onClose={() => setShowPlanModal(false)}
-					onConfirm={handlePlanPurchase}
-				/>
+				open={showPlanModal}
+				onClose={() => setShowPlanModal(false)}
+				onConfirm={handlePlanPurchase}
+				onPaymentInitiated={(orderId, gOrderId, plan, kName) => {
+					setContactAdminPlan(plan);
+					setGatewayOrderId(gOrderId);
+					setInitiatedKeyName(kName);
+					setShowContactAdminModal(true);
+				}}
+			/>
+
+			{/* ─── Contact Admin Popup Modal ─── */}
+			<ContactAdminModal
+				open={showContactAdminModal}
+				onClose={() => setShowContactAdminModal(false)}
+				plan={contactAdminPlan}
+				gatewayOrderId={gatewayOrderId}
+				keyName={initiatedKeyName}
+			/>
 
 			{/* ─── Payment Verification Overlay Modal ─── */}
 			{verificationStatus !== "idle" && (

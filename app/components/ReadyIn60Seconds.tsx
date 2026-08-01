@@ -32,7 +32,7 @@ export function ReadyIn60Seconds() {
  ];
 
  return (
- <section className="relative py-24 px-4 bg-background" aria-labelledby="steps-heading">
+ <section className="relative px-4" aria-labelledby="steps-heading">
  <div className="max-w-4xl mx-auto">
  <div className="text-center mb-16">
  <h2 id="steps-heading" className="text-3xl sm:text-4xl font-bold tracking-tight text-foreground mb-4">

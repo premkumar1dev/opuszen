@@ -4,6 +4,7 @@ import { Link } from "react-router";
 import { TextRevealLine } from "../components/motion/TextReveal";
 import { BlurReveal } from "../components/motion/BlurScaleReveal";
 import { useParallax } from "../hooks/useCounterAnimation";
+import { ScrollSection } from "../components/motion/ScrollSection";
 
 const DOTS = [
  { color: "bg-red-500", label: "API" },

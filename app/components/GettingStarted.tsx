@@ -34,7 +34,7 @@ export default function GettingStarted() {
     }, []);
 
     return (
-        <section className="relative py-24 px-4 bg-background">
+        <section className="relative px-4">
             <div className="max-w-7xl mx-auto">
                 {/* Heading */}
                 <div className="text-center mb-16">

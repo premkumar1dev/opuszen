@@ -43,6 +43,7 @@ export const meta: MetaFunction = () => [{ title: "Orders | Admin | OpusZen" }];
 
 export interface Order {
 	id: string;
+	display_id: string;
 	username: string;
 	plan_name: string;
 	amount: number;
@@ -219,7 +220,7 @@ function OrderDetailSheet({ order, onClose }: OrderDetailSheetProps) {
 						Order Details
 					</SheetTitle>
 					<SheetDescription>
-						{order ? `Order by @${order.username}` : ""}
+						{order ? `${order.display_id} — @${order.username}` : ""}
 					</SheetDescription>
 				</SheetHeader>
 
@@ -407,7 +408,7 @@ export default function AdminOrdersRoute() {
 	const [saving, setSaving] = useState(false);
 	const [filters, setFilters] = useState<FilterState>({ search: "", status: "all" });
 	const [page, setPage] = useState(1);
-	const [sortField, setSortField] = useState<keyof Order>("created_at");
+	const [sortField, setSortField] = useState<keyof Order>("display_id");
 	const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 	const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
 	const [showFilters, setShowFilters] = useState(false);
@@ -480,6 +481,7 @@ export default function AdminOrdersRoute() {
 			const q = filters.search.toLowerCase();
 			if (
 				!o.username.toLowerCase().includes(q) &&
+				!o.display_id.toLowerCase().includes(q) &&
 				!o.plan_name.toLowerCase().includes(q) &&
 				!o.payment_ref.toLowerCase().includes(q) &&
 				!o.coupon_code.toLowerCase().includes(q)
@@ -685,7 +687,7 @@ export default function AdminOrdersRoute() {
 													className="px-4 py-3 font-semibold cursor-pointer select-none hover:text-foreground transition-colors"
 													onClick={() => handleSort("created_at")}
 												>
-													<span className="flex items-center">Order Date <SortIcon field="created_at" sortField={sortField} sortDir={sortDir} /></span>
+													<span className="flex items-center">Order ID <SortIcon field="display_id" sortField={sortField} sortDir={sortDir} /></span>
 												</th>
 												<th
 													className="px-4 py-3 font-semibold cursor-pointer select-none hover:text-foreground transition-colors"
@@ -736,163 +738,163 @@ export default function AdminOrdersRoute() {
 													const paymentStyle = getPaymentStyle(order.payment_method);
 													return (
 														<tr key={order.id} className="hover:bg-muted/10 transition-colors group">
-															{/* Date */}
-															<td className="px-4 py-3">
-																<div className="min-w-[120px]">
-																	<p className="text-xs font-medium text-foreground">
-																		{new Date(order.created_at).toLocaleDateString(undefined, {
-																			month: "short",
-																			day: "numeric",
-																			year: "numeric",
-																		})}
-																	</p>
-																	<p className="text-[11px] text-muted-foreground font-mono">
-																		{new Date(order.created_at).toLocaleTimeString(undefined, {
-																			hour: "numeric",
-																			minute: "2-digit",
-																			hour12: true,
-																		})}
-																	</p>
+														<td className="px-4 py-3">
+															<p className="text-xs font-bold font-mono text-primary">{order.display_id}</p>
+																										<div className="min-w-[120px]">
+																											<p className="text-xs font-medium text-foreground">
+																												{new Date(order.created_at).toLocaleDateString(undefined, {
+																													month: "short",
+																													day: "numeric",
+																													year: "numeric",
+																												})}
+																											</p>
+																											<p className="text-[11px] text-muted-foreground font-mono">
+																												{new Date(order.created_at).toLocaleTimeString(undefined, {
+																													hour: "numeric",
+																													minute: "2-digit",
+																													hour12: true,
+																												})}
+																											</p>
+																										</div>
+																									</td>
+
+																										{/* Username */}
+																										<td className="px-4 py-3">
+																											<div className="flex items-center gap-2.5">
+																												<div className="w-7 h-7 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 font-bold text-[11px] shrink-0">
+																													{order.username.charAt(0).toUpperCase()}
+																												</div>
+																												<div className="min-w-0">
+																													<p className="text-xs font-medium text-foreground truncate max-w-[140px]">
+																														{order.username}
+																													</p>
+																													<p className="text-[10px] text-muted-foreground">
+																														{order.payment_ref || "—"}
+																													</p>
+																												</div>
+																											</div>
+																										</td>
+
+																										{/* Plan */}
+																										<td className="px-4 py-3">
+																											<p className="text-xs font-medium text-foreground max-w-[160px] truncate" title={order.plan_name}>
+																												{order.plan_name}
+																											</p>
+																											{order.coupon_code && (
+																												<p className="text-[10px] text-amber-400 font-mono">{order.coupon_code}</p>
+																											)}
+																										</td>
+
+																										{/* Final Amount */}
+																										<td className="px-4 py-3 text-right">
+																											<p className="text-xs font-bold text-foreground font-mono">
+																												{formatCurrency(order.final_amount, order.currency)}
+																											</p>
+																											{order.discount > 0 && (
+																												<p className="text-[10px] text-muted-foreground line-through">
+																													{formatCurrency(order.amount, order.currency)}
+																												</p>
+																											)}
+																										</td>
+
+																										{/* Status */}
+																										<td className="px-4 py-3 text-center">
+																											<span
+																												className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold border ${statusCfg.bg} ${statusCfg.text} ${statusCfg.border}`}
+																											>
+																												<span className={`w-1.5 h-1.5 rounded-full ${statusCfg.dot}`} />
+																												{statusCfg.label}
+																											</span>
+																										</td>
+
+																										{/* Payment Method */}
+																										<td className="px-4 py-3 text-center">
+																											{order.payment_method ? (
+																												<span className={`inline-flex px-2 py-0.5 rounded-md text-[10px] font-semibold border ${paymentStyle}`}>
+																													{order.payment_method}
+																												</span>
+																											) : (
+																												<span className="text-[10px] text-muted-foreground">—</span>
+																											)}
+																										</td>
+
+																										{/* Actions */}
+																										<td className="px-4 py-3">
+																											<div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+																												<button
+																													onClick={() => handleView(order)}
+																													className="p-1.5 rounded-lg hover:bg-indigo-500/10 text-muted-foreground hover:text-indigo-400 transition-colors cursor-pointer"
+																													title="View details"
+																													type="button"
+																												>
+																													<FiEye className="w-3.5 h-3.5" />
+																												</button>
+																											</div>
+																										</td>
+																									</tr>
+																								);
+																							})
+																						)}
+																					</tbody>
+																				</table>
+																			</div>
+
+																			{/* Pagination */}
+																			{totalPages > 1 && (
+																				<div className="flex items-center justify-between px-4 py-3 border-t border-border bg-muted/10">
+																					<p className="text-xs text-muted-foreground">
+																						Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, sorted.length)} of {sorted.length}
+																					</p>
+																					<div className="flex items-center gap-1">
+																						<Button
+																							variant="outline"
+																							size="sm"
+																							className="w-8 h-8 p-0"
+																							onClick={() => setPage((p) => Math.max(1, p - 1))}
+																							disabled={page === 1}
+																						>
+																							<FiChevronLeft className="w-4 h-4" />
+																						</Button>
+																						{Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
+																							const p = i + 1;
+																							return (
+																								<Button
+																									key={p}
+																									variant={page === p ? "default" : "ghost"}
+																									size="sm"
+																									className="w-8 h-8 p-0"
+																									onClick={() => setPage(p)}
+																								>
+																									{p}
+																								</Button>
+																							);
+																						})}
+																						{totalPages > 7 && (
+																							<span className="px-1 text-xs text-muted-foreground">…</span>
+																						)}
+																						<Button
+																							variant="outline"
+																							size="sm"
+																							className="w-8 h-8 p-0"
+																							onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+																							disabled={page === totalPages}
+																						>
+																							<FiChevronRight className="w-4 h-4" />
+																						</Button>
+																					</div>
+																				</div>
+																			)}
+																		</>
+																	)}
 																</div>
-															</td>
 
-															{/* Username */}
-															<td className="px-4 py-3">
-																<div className="flex items-center gap-2.5">
-																	<div className="w-7 h-7 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 font-bold text-[11px] shrink-0">
-																		{order.username.charAt(0).toUpperCase()}
-																	</div>
-																	<div className="min-w-0">
-																		<p className="text-xs font-medium text-foreground truncate max-w-[140px]">
-																			{order.username}
-																		</p>
-																		<p className="text-[10px] text-muted-foreground">
-																			{order.payment_ref || "—"}
-																		</p>
-																	</div>
-																</div>
-															</td>
-
-															{/* Plan */}
-															<td className="px-4 py-3">
-																<p className="text-xs font-medium text-foreground max-w-[160px] truncate" title={order.plan_name}>
-																	{order.plan_name}
-																</p>
-																{order.coupon_code && (
-																	<p className="text-[10px] text-amber-400 font-mono">{order.coupon_code}</p>
-																)}
-															</td>
-
-															{/* Final Amount */}
-															<td className="px-4 py-3 text-right">
-																<p className="text-xs font-bold text-foreground font-mono">
-																	{formatCurrency(order.final_amount, order.currency)}
-																</p>
-																{order.discount > 0 && (
-																	<p className="text-[10px] text-muted-foreground line-through">
-																		{formatCurrency(order.amount, order.currency)}
-																	</p>
-																)}
-															</td>
-
-															{/* Status */}
-															<td className="px-4 py-3 text-center">
-																<span
-																	className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold border ${statusCfg.bg} ${statusCfg.text} ${statusCfg.border}`}
-																>
-																	<span className={`w-1.5 h-1.5 rounded-full ${statusCfg.dot}`} />
-																	{statusCfg.label}
-																</span>
-															</td>
-
-															{/* Payment Method */}
-															<td className="px-4 py-3 text-center">
-																{order.payment_method ? (
-																	<span className={`inline-flex px-2 py-0.5 rounded-md text-[10px] font-semibold border ${paymentStyle}`}>
-																		{order.payment_method}
-																	</span>
-																) : (
-																	<span className="text-[10px] text-muted-foreground">—</span>
-																)}
-															</td>
-
-															{/* Actions */}
-															<td className="px-4 py-3">
-																<div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-																	<button
-																		onClick={() => handleView(order)}
-																		className="p-1.5 rounded-lg hover:bg-indigo-500/10 text-muted-foreground hover:text-indigo-400 transition-colors cursor-pointer"
-																		title="View details"
-																		type="button"
-																	>
-																		<FiEye className="w-3.5 h-3.5" />
-																	</button>
-																</div>
-															</td>
-														</tr>
-													);
-												})
-											)}
-										</tbody>
-									</table>
-								</div>
-
-								{/* Pagination */}
-								{totalPages > 1 && (
-									<div className="flex items-center justify-between px-4 py-3 border-t border-border bg-muted/10">
-										<p className="text-xs text-muted-foreground">
-											Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, sorted.length)} of {sorted.length}
-										</p>
-										<div className="flex items-center gap-1">
-											<Button
-												variant="outline"
-												size="sm"
-												className="w-8 h-8 p-0"
-												onClick={() => setPage((p) => Math.max(1, p - 1))}
-												disabled={page === 1}
-											>
-												<FiChevronLeft className="w-4 h-4" />
-											</Button>
-											{Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
-												const p = i + 1;
-												return (
-													<Button
-														key={p}
-														variant={page === p ? "default" : "ghost"}
-														size="sm"
-														className="w-8 h-8 p-0"
-														onClick={() => setPage(p)}
-													>
-														{p}
-													</Button>
+																{/* Detail Sheet */}
+																<OrderDetailSheet
+																	order={selectedOrder}
+																	onClose={() => setSelectedOrder(null)}
+																/>
+															</div>
+														</main>
+													</div>
 												);
-											})}
-											{totalPages > 7 && (
-												<span className="px-1 text-xs text-muted-foreground">…</span>
-											)}
-											<Button
-												variant="outline"
-												size="sm"
-												className="w-8 h-8 p-0"
-												onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-												disabled={page === totalPages}
-											>
-												<FiChevronRight className="w-4 h-4" />
-											</Button>
-										</div>
-									</div>
-								)}
-							</>
-						)}
-					</div>
-
-					{/* Detail Sheet */}
-					<OrderDetailSheet
-						order={selectedOrder}
-						onClose={() => setSelectedOrder(null)}
-					/>
-				</div>
-			</main>
-		</div>
-	);
-}
+											}

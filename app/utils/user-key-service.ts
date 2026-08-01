@@ -50,17 +50,15 @@ export async function createUserApiKey(input: UserApiKeyInput): Promise<UserApiK
 }
 
 export async function validateUserApiKey(apiKey: string): Promise<UserApiKeyRow | null> {
-	// Supabase PostgREST does not offer a single-statement read+conditional-update,
-	// but Row-Level Security (RLS) policies on user_api_keys serialize conflicting
-	// writes. The read-check-expire pattern below is safe: if another request
-	// concurrently marks the key expired/disabled, the stale read still returns a
-	// row, and any subsequent update from *this* request (e.g. last_used) will
-	// succeed without re-activating the key because the status fields above
-	// short-circuit the response. For true atomic CAS, see the gateway service.
+	if (!apiKey) return null;
+	const cleanKey = apiKey.trim().replace(/^Bearer\s+/i, "");
+	if (!cleanKey) return null;
+
+	// Supabase PostgREST read-check-expire pattern
 	const { data, error } = await supabase
 		.from('user_api_keys')
 		.select('*')
-		.eq('api_key', apiKey)
+		.eq('api_key', cleanKey)
 		.eq('status', 'active')
 		.maybeSingle();
 

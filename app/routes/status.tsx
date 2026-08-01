@@ -1,233 +1,325 @@
 import { type MetaFunction, type LoaderFunctionArgs, useLoaderData } from "react-router";
-import type { Route } from "./+types/status";
 import { Layout } from "../components/Layout";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 
 export const meta: MetaFunction = () => {
- return [
- { title: "Status | OpusZen" },
- {
- name: "description",
- content: "System status and uptime for OpusZen API gateway.",
- },
- ];
+	return [
+		{ title: "Status | OpusZen" },
+		{
+			name: "description",
+			content: "Real-time service status and uptime for OpusZen API gateway.",
+		},
+	];
 };
 
-export type HealthService = {
- name: string;
- status: "operational" | "degraded" | "outage";
- uptime: string;
- description: string;
-};
+interface ServiceStatus {
+	name: string;
+	status: "operational" | "degraded" | "outage" | "unknown";
+	description: string;
+}
+
+interface StatusResponse {
+	status: string;
+	timestamp: string;
+	overall: "operational" | "degraded" | "outage";
+	services: ServiceStatus[];
+	metrics: {
+		latency: number | null;
+		uptime: string;
+		refresh: string;
+	};
+}
 
 export async function loader({ request }: LoaderFunctionArgs) {
- const host = request.headers.get("x-forwarded-host") || request.headers.get("host") || "localhost:3000";
- const protocol = request.headers.get("x-forwarded-proto") || "http";
- const baseUrl = protocol + "://" + host;
+	const host =
+		request.headers.get("x-forwarded-host") ||
+		request.headers.get("host") ||
+		"localhost:3000";
+	const protocol = request.headers.get("x-forwarded-proto") || "http";
+	const baseUrl = `${protocol}://${host}`;
 
- let services: HealthService[] = [
- {
- name: "API Gateway",
- status: "operational" as const,
- uptime: "99.9%",
- description: "Main API endpoint for all model requests",
- },
- {
- name: "Web Search Tool",
- status: "operational" as const,
- uptime: "99.8%",
- description: "Real-time web search functionality",
- },
- {
- name: "Image Analysis",
- status: "operational" as const,
- uptime: "99.7%",
- description: "Image understanding and analysis",
- },
- {
- name: "SSE Streaming",
- status: "operational" as const,
- uptime: "99.9%",
- description: "Server-Sent Events streaming",
- },
- ];
-
- try {
- const gatewayRes = await fetch(baseUrl + "/api/chat/completions", {
- method: "OPTIONS",
- signal: (() => {
-	 const controller = new AbortController();
-	 setTimeout(() => controller.abort(), 5000);
-	 return controller.signal;
- })()
- }).catch(() => null);
- if (!gatewayRes || !gatewayRes.ok) {
- services[0] = { ...services[0], status: "degraded" };
- }
- } catch {
- services[0] = { ...services[0], status: "degraded" };
- }
-
- return {
- services,
- lastChecked: new Date().toISOString(),
- baseUrl,
- };
+	return { baseUrl };
 }
 
 export default function StatusRoute() {
- const loaderData = useLoaderData<typeof loader>();
- const services = loaderData.services;
- const lastChecked = loaderData.lastChecked;
- const [healthStatuses, setHealthStatuses] = useState<Record<number, "operational" | "degraded" | "outage">>({});
+	const loaderData = useLoaderData<typeof loader>();
+	const [statusData, setStatusData] = useState<StatusResponse | null>(null);
+	const [isRefreshing, setIsRefreshing] = useState(false);
+	const [lastChecked, setLastChecked] = useState<string | null>(null);
+	const [error, setError] = useState<string | null>(null);
 
- useEffect(() => {
- const statuses: Record<number, "operational" | "degraded" | "outage"> = {};
- const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
+	const baseUrl = typeof window !== "undefined"
+		? window.location.origin
+		: loaderData.baseUrl;
 
- services.forEach(async (service, index) => {
- if (service.name === "API Gateway") {
- try {
- const res = await fetch(baseUrl + "/api/chat/completions", {
- method: "OPTIONS",
- signal: (() => {
-	 const controller = new AbortController();
-	 setTimeout(() => controller.abort(), 5000);
-	 return controller.signal;
- })()
- });
- statuses[index] = res.ok ? "operational" : "degraded";
- } catch {
- statuses[index] = "outage";
- }
- }
- setHealthStatuses(prev => ({ ...prev, ...statuses }));
- });
- }, [services]);
+	const apiUrlRef = useRef<string>(`${baseUrl}/api/status`);
 
- const currentServices = services.map((s, i) => ({
- ...s,
- status: healthStatuses[i] || s.status,
- }));
+	const [countdown, setCountdown] = useState(30);
+	const countdownRef = useRef(30);
+	const fetchTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+	const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
- const statusColors = {
- operational: "text-emerald-600 dark:text-emerald-400",
- degraded: "text-amber-600 dark:text-amber-400",
- outage: "text-red-600 dark:text-red-400",
- };
+	const fetchStatus = useCallback(async (showRefresh = false) => {
+		if (showRefresh) setIsRefreshing(true);
+		setError(null);
+		try {
+			console.log(`[status] fetching ${apiUrlRef.current}`);
+			const res = await fetch(apiUrlRef.current, {
+				method: "GET",
+				headers: { Accept: "application/json" },
+				cache: "no-store",
+			});
+			console.log(`[status] response status: ${res.status}, ok: ${res.ok}`);
+			if (!res.ok) throw new Error(`HTTP ${res.status}`);
+			const text = await res.text();
+			console.log(`[status] response body: ${text.substring(0, 200)}`);
+			const data = JSON.parse(text) as StatusResponse;
+			setStatusData(data);
+			setLastChecked(new Date().toLocaleTimeString("en-US", {
+				hour: "2-digit",
+				minute: "2-digit",
+				second: "2-digit",
+			}));
+			countdownRef.current = 30;
+			setCountdown(30);
+		} catch (err) {
+			console.error("[status] fetch failed:", err);
+			const msg = err instanceof Error ? err.message : String(err);
+			setError(`Unable to reach status endpoint: ${msg}`);
+		} finally {
+			if (showRefresh) setIsRefreshing(false);
+		}
+	}, []);
 
- const statusBg = {
- operational: "bg-emerald-500/10 dark:bg-emerald-500/20",
- degraded: "bg-amber-500/10 dark:bg-amber-500/20",
- outage: "bg-red-500/10 dark:bg-red-500/20",
- };
+	useEffect(() => {
+		fetchStatus();
+		fetchTimerRef.current = setInterval(() => fetchStatus(false), 30_000);
+		tickRef.current = setInterval(() => {
+			countdownRef.current = Math.max(0, countdownRef.current - 1);
+			setCountdown(countdownRef.current);
+		}, 1_000);
+		return () => {
+			if (fetchTimerRef.current) clearInterval(fetchTimerRef.current);
+			if (tickRef.current) clearInterval(tickRef.current);
+		};
+	}, [fetchStatus]);
 
- const statusLabels = {
- operational: "Operational",
- degraded: "Degraded",
- outage: "Outage",
- };
+	const handleManualRefresh = () => {
+		fetchStatus(true);
+		countdownRef.current = 30;
+		setCountdown(30);
+	};
 
- return (
- <Layout>
- <div className="max-w-4xl mx-auto px-4 sm:px-6 py-16">
- {/* Header */}
- <div className="text-center mb-12">
- <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold mb-4 ${
- currentServices.every(s => s.status === "operational")
- ? "bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400"
- : currentServices.some(s => s.status === "outage")
- ? "bg-red-500/10 dark:bg-red-500/20 text-red-600 dark:text-red-400"
- : "bg-amber-500/10 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400"
- }`}>
- <div className={`w-2 h-2 rounded-full animate-pulse ${currentServices.every(s => s.status === "operational") ? "bg-emerald-500 dark:bg-emerald-400" : currentServices.some(s => s.status === "outage") ? "bg-red-500" : "bg-amber-500 dark:bg-amber-400"}`} aria-hidden="true" />
- {currentServices.every(s => s.status === "operational") ? "All systems operational" : "Some services degraded"}
- </div>
- <h1 className="text-4xl sm:text-5xl font-bold tracking-tight text-foreground mb-4">
- System Status
- </h1>
- <p className="text-muted-foreground text-lg max-w-xl mx-auto">
- Real-time status and uptime information for OpusZen services.
- </p>
- {lastChecked && (
- <p className="text-xs text-muted-foreground mt-2">
- Last checked: {new Date(lastChecked).toLocaleString()}
- </p>
- )}
- </div>
+	const getStatusColor = (status: string) => {
+		switch (status) {
+			case "operational":
+				return { text: "text-emerald-700 dark:text-emerald-400", bg: "bg-emerald-500/10 dark:bg-emerald-500/20", dot: "bg-emerald-500" };
+			case "degraded":
+				return { text: "text-amber-700 dark:text-amber-400", bg: "bg-amber-500/10 dark:bg-amber-500/20", dot: "bg-amber-500" };
+			case "outage":
+				return { text: "text-red-700 dark:text-red-400", bg: "bg-red-500/10 dark:bg-red-500/20", dot: "bg-red-500" };
+			default:
+				return { text: "text-gray-600 dark:text-gray-400", bg: "bg-gray-500/10", dot: "bg-gray-400" };
+		}
+	};
 
- {/* Status cards */}
- <div className="grid gap-4 md:grid-cols-2 mb-12">
- {currentServices.map((service) => (
- <div
- key={service.name}
- className="p-6 rounded-2xl border border-border bg-card dark:bg-card/60 hover:border-primary/30 transition-all"
- >
- <div className="flex items-start justify-between mb-3">
- <h2 className="text-lg font-semibold text-foreground">
- {service.name}
- </h2>
- <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${statusBg[service.status as keyof typeof statusBg]} ${statusColors[service.status as keyof typeof statusColors]}`}>
- <div className={`w-1.5 h-1.5 rounded-full ${
- service.status === "operational"
- ? "bg-emerald-500 dark:bg-emerald-400"
- : service.status === "degraded"
- ? "bg-amber-500 dark:bg-amber-400"
- : "bg-red-500"
- }`} aria-hidden="true" />
- {statusLabels[service.status as keyof typeof statusLabels]}
- </div>
- </div>
- <p className="text-sm text-muted-foreground mb-3">
- {service.description}
- </p>
- <div className="flex items-center gap-2 text-sm">
- <span className="text-muted-foreground">Uptime:</span>
- <span className="font-semibold text-foreground">{service.uptime}</span>
- </div>
- </div>
- ))}
- </div>
+	const overallLabel =
+		statusData?.overall === "operational"
+			? "All systems operational"
+			: statusData?.overall === "degraded"
+				? "Some services degraded"
+				: statusData?.overall === "outage"
+					? "Service disruption detected"
+					: "Checking system status…";
 
- {/* API Base URL */}
- <div className="p-6 rounded-2xl border border-border bg-card dark:bg-card/60 mb-8">
- <h2 className="text-lg font-semibold text-foreground mb-4">
- API Base URL
- </h2>
- <div className="flex items-center gap-3 p-4 rounded-xl bg-muted/30 dark:bg-muted/10 border border-border/50">
- <code className="text-sm font-mono text-primary dark:text-primary">
- {loaderData.baseUrl}
- </code>
- <button
- onClick={() => navigator.clipboard.writeText(loaderData.baseUrl)}
- className="ml-auto p-2 rounded-lg hover:bg-muted/50 transition-colors"
- aria-label="Copy API URL"
- >
- <svg xmlns="http://www.w3.org/2000/svg" width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="text-muted-foreground hover:text-foreground" aria-hidden="true">
- <rect width={14} height={14} x={8} y={8} rx={2} ry={2} />
- <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
- </svg>
- </button>
- </div>
- </div>
+	const overallDot =
+		statusData?.overall === "operational"
+			? "bg-emerald-500"
+			: statusData?.overall === "degraded"
+				? "bg-amber-500"
+				: statusData?.overall === "outage"
+					? "bg-red-500"
+					: "bg-gray-400";
 
- {/* Incident history */}
- <div className="rounded-2xl border border-border bg-card dark:bg-card/60">
- <div className="px-6 py-4 border-b border-border">
- <h2 className="text-lg font-semibold text-foreground">
- Incident History
- </h2>
- </div>
- <div className="p-6 text-center text-muted-foreground">
- <svg xmlns="http://www.w3.org/2000/svg" width={48} height={48} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className="mx-auto mb-3 text-muted-foreground/40" aria-hidden="true">
- <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z" />
- <path d="m9 12 2 2 4-4" />
- </svg>
- <p className="text-sm">No incidents reported in the past 30 days.</p>
- <p className="text-xs mt-1">All services are running smoothly.</p>
- </div>
- </div>
- </div>
- </Layout>
- )
+	return (
+		<Layout>
+			<div className="max-w-5xl mx-auto px-4 sm:px-6 py-16">
+				{/* Header */}
+				<div className="text-center mb-12">
+					<div className="inline-flex items-center gap-2.5 px-4 py-2 rounded-full text-sm font-semibold mb-5 bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400">
+						<div className="relative flex items-center justify-center w-2.5 h-2.5">
+							<span className={`absolute inline-flex h-2.5 w-2.5 rounded-full ${overallDot} opacity-75 animate-ping`} />
+							<span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${overallDot}`} />
+						</div>
+						{overallLabel}
+					</div>
+					<h1 className="text-5xl sm:text-6xl font-bold tracking-tight text-foreground mb-5">
+						Service status
+					</h1>
+					<p className="text-muted-foreground text-lg max-w-xl mx-auto leading-relaxed">
+						Health for every layer between your client and the models,
+						probed from your browser every&nbsp;30&nbsp;seconds.
+						What you see here is what your requests would see.
+					</p>
+					<div className="flex items-center justify-center gap-4 mt-4">
+						<span className="text-xs text-muted-foreground">
+							{lastChecked
+								? `Updated ${lastChecked}`
+								: "Loading status…"}
+						</span>
+						{error && (
+							<span className="text-xs text-amber-600 dark:text-amber-400">
+								{error}
+							</span>
+						)}
+					</div>
+				</div>
+
+				{/* Service Cards */}
+				<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 mb-10">
+					{statusData?.services.map((service) => {
+						const colors = getStatusColor(service.status);
+						return (
+							<div
+								key={service.name}
+								className="p-5 rounded-2xl border border-border bg-card dark:bg-card/60 hover:border-border/80 transition-all"
+							>
+								<div className="flex items-start justify-between mb-3">
+									<h2 className="text-base font-semibold text-foreground">
+										{service.name}
+									</h2>
+									<span
+										className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${colors.bg} ${colors.text}`}
+									>
+										<span className={`w-1.5 h-1.5 rounded-full ${colors.dot}`} />
+										{service.status === "operational"
+											? "Operational"
+											: service.status === "degraded"
+												? "Degraded"
+												: service.status === "outage"
+													? "Outage"
+													: "Unknown"}
+									</span>
+								</div>
+								<p className="text-sm text-muted-foreground leading-relaxed">
+									{service.description}
+								</p>
+							</div>
+						);
+					})}
+					{!statusData && (
+						<>
+							{["Proxy service", "API gateway", "Key management"].map((name) => (
+								<div
+									key={name}
+									className="p-5 rounded-2xl border border-border bg-card dark:bg-card/60 animate-pulse"
+								>
+									<div className="flex items-start justify-between mb-3">
+										<div className="h-5 w-24 bg-muted rounded" />
+										<div className="h-6 w-20 bg-muted rounded-full" />
+									</div>
+									<div className="h-4 w-full bg-muted rounded" />
+								</div>
+							))}
+						</>
+					)}
+				</div>
+
+				{/* Metrics Row */}
+				<div className="grid grid-cols-3 gap-4 mb-10">
+					<div className="p-6 rounded-2xl border border-border bg-card dark:bg-card/60 text-center">
+						<p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground mb-2">
+							Latency
+						</p>
+						<p className="text-3xl font-bold text-foreground tracking-tight">
+							{statusData?.metrics?.latency != null
+								? `${statusData.metrics.latency}ms`
+								: "—"}
+						</p>
+					</div>
+					<div className="p-6 rounded-2xl border border-border bg-card dark:bg-card/60 text-center">
+						<p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground mb-2">
+							Uptime
+						</p>
+						<p className="text-3xl font-bold text-foreground tracking-tight">
+							{statusData?.metrics?.uptime || "—"}
+						</p>
+					</div>
+					<div className="p-6 rounded-2xl border border-border bg-card dark:bg-card/60 text-center">
+						<p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground mb-2">
+							Refresh
+						</p>
+						<p className="text-3xl font-bold text-foreground tracking-tight">
+							{countdown}s
+						</p>
+					</div>
+				</div>
+
+				{/* API Base URL */}
+				<div className="p-6 rounded-2xl border border-border bg-card dark:bg-card/60 mb-6">
+					<h2 className="text-lg font-semibold text-foreground mb-4">
+						API Base URL
+					</h2>
+					<div className="flex items-center gap-3 p-4 rounded-xl bg-muted/30 dark:bg-muted/10 border border-border/50">
+						<code className="text-sm font-mono text-foreground/90 flex-1 break-all">
+							{loaderData.baseUrl}
+						</code>
+						<button
+							onClick={() =>
+								navigator.clipboard.writeText(loaderData.baseUrl)
+							}
+							className="flex-shrink-0 p-2 rounded-lg hover:bg-muted/50 transition-colors"
+							aria-label="Copy API URL"
+						>
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								width={16}
+								height={16}
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								strokeWidth={2}
+								strokeLinecap="round"
+								strokeLinejoin="round"
+								className="text-muted-foreground hover:text-foreground"
+								aria-hidden="true"
+							>
+								<rect width={14} height={14} x={8} y={8} rx={2} ry={2} />
+								<path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
+							</svg>
+						</button>
+					</div>
+				</div>
+
+				{/* Refresh Button */}
+				<div className="flex justify-center">
+					<button
+						onClick={handleManualRefresh}
+						disabled={isRefreshing}
+						className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-all disabled:opacity-60 cursor-pointer"
+					>
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							width={16}
+							height={16}
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							strokeWidth={2}
+							strokeLinecap="round"
+							strokeLinejoin="round"
+							className={`transition-transform ${isRefreshing ? "animate-spin" : ""}`}
+							aria-hidden="true"
+						>
+							<path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+							<path d="M3 3v5h5" />
+							<path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" />
+							<path d="M16 16h5v5" />
+						</svg>
+						{isRefreshing ? "Checking…" : "Refresh now"}
+					</button>
+				</div>
+			</div>
+		</Layout>
+	);
 }
