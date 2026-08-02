@@ -326,6 +326,12 @@ export function PlanPurchaseModal({
 			// Store gateway order ID mapping for validation
 			sessionStorage.setItem(`gateway_order_${orderId}`, gatewayOrderId);
 
+			// Update the order with the gateway order ID so finalize-key can find it later
+			await supabase
+				.from("orders")
+				.update({ payment_ref: gatewayOrderId })
+				.eq("id", orderId);
+
 			const checkoutUrl = response.result?.payment_url || response.result?.checkoutUrl || response.result?.paymentUrl || response.result?.payment_link;
 			if (!checkoutUrl) {
 				throw new Error("No payment URL received from gateway");
