@@ -32,8 +32,6 @@ interface LoaderData {
 	query: string;
 }
 
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 async function searchOrdersByTerm(term: string) {
 	const clean = term.trim();
 	if (!clean) return { data: [], error: null };
@@ -46,23 +44,13 @@ async function searchOrdersByTerm(term: string) {
 			.trim();
 	}
 
-	const isUuid = UUID_REGEX.test(clean);
-
-	if (isUuid) {
-		return await supabaseServer
-			.from("orders")
-			.select("*")
-			.or(`id.eq.${clean},display_id.eq.${clean},payment_ref.eq.${clean}`)
-			.limit(10);
-	} else {
-		const safe = sanitizeSearchInput(clean);
-		return await supabaseServer
-			.from("orders")
-			.select("*")
-			.or(`display_id.eq.${safe},payment_ref.eq.${safe},display_id.ilike.%${safe}%,payment_ref.ilike.%${safe}%,username.ilike.%${safe}%`)
-			.order("created_at", { ascending: false })
-			.limit(10);
-	}
+	const safe = sanitizeSearchInput(clean);
+	return await supabaseServer
+		.from("orders")
+		.select("*")
+		.or(`display_id.eq.${safe},payment_ref.eq.${safe},display_id.ilike.%${safe}%,payment_ref.ilike.%${safe}%,username.ilike.%${safe}%`)
+		.order("created_at", { ascending: false })
+		.limit(10);
 }
 
 export async function loader({ request }: LoaderFunctionArgs) {

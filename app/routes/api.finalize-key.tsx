@@ -89,9 +89,9 @@ export async function action({ request }: ActionFunctionArgs) {
 			return jsonResponse({ success: true, alreadyFinalized: true });
 		}
 
-		const targetOrderId = existingOrder?.id || (isUuid ? orderId : null);
+		const dbOrderId = existingOrder?.id || (isUuid ? orderId : null);
 
-		if (targetOrderId) {
+		if (dbOrderId) {
 			// Mark order as completed
 			const { error: orderError } = await supabaseServer
 				.from("orders")
@@ -100,7 +100,7 @@ export async function action({ request }: ActionFunctionArgs) {
 					payment_ref: utr || txnRef || orderId || null,
 					notes: `Order ${orderId} — ${paymentMethod} confirmed${utr ? ` (UTR ${utr})` : ""}`,
 				})
-				.eq("id", targetOrderId)
+				.eq("id", dbOrderId)
 				.eq("status", "pending");
 
 			if (orderError) {
@@ -143,7 +143,7 @@ export async function action({ request }: ActionFunctionArgs) {
 		if (keyError || !keyRow?.id) {
 			console.error("[api/finalize-key] Failed to insert API key:", keyError);
 			// Roll back order status
-			await supabaseServer.from("orders").update({ status: "pending" }).eq("id", targetOrderId);
+			await supabaseServer.from("orders").update({ status: "pending" }).eq("id", dbOrderId);
 			return jsonResponse(false, "Failed to create API key", 500);
 		}
 

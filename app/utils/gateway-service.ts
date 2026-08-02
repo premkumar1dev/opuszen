@@ -236,12 +236,16 @@ function transformRequestBody(
 	request: ChatCompletionRequest
 ): Record<string, any> {
 	if (provider === 'Anthropic') {
-		const systemMsgs = request.messages.filter((m) => m.role === 'system');
-		const otherMsgs = request.messages.filter((m) => m.role !== 'system');
+		const systemMsgs = request.messages?.filter((m) => m.role === 'system') ?? [];
+		const otherMsgs = request.messages?.filter((m) => m.role !== 'system') ?? [];
 
-		const systemContent = systemMsgs.length > 0
-			? systemMsgs.map(m => typeof m.content === 'string' ? m.content : JSON.stringify(m.content)).join('\n')
-			: undefined;
+		let systemContent: any = request.system;
+		if (systemMsgs.length > 0) {
+			const extracted = systemMsgs.map(m => typeof m.content === 'string' ? m.content : JSON.stringify(m.content)).join('\n');
+			systemContent = systemContent
+				? (typeof systemContent === 'string' ? `${systemContent}\n${extracted}` : [systemContent, extracted])
+				: extracted;
+		}
 
 		const anthropicMessages = otherMsgs.map((m) => {
 			if (m.role === 'assistant') {
@@ -277,14 +281,20 @@ function transformRequestBody(
 			return { role: 'user', content: m.content };
 		});
 
-		return {
+		const payload: Record<string, any> = {
 			model: request.model,
 			max_tokens: request.max_tokens ?? 4096,
 			temperature: request.temperature ?? 0.7,
-			...(systemContent ? { system: systemContent } : {}),
 			messages: anthropicMessages,
-			stream: false,
 		};
+
+		if (systemContent) payload.system = systemContent;
+		if (request.tools) payload.tools = request.tools;
+		if (request.tool_choice) payload.tool_choice = request.tool_choice;
+		if (request.top_p !== undefined) payload.top_p = request.top_p;
+		if (request.stop !== undefined) payload.stop_sequences = Array.isArray(request.stop) ? request.stop : [request.stop];
+
+		return payload;
 	}
 
 	return { ...request };
@@ -296,32 +306,65 @@ function transformRequestBody(
 function transformResponse(
 	provider: string,
 	body: any,
-	model: string
-): ChatCompletionResponse {
-	if (provider === 'Anthropic') {
+	model: string,
+	endpointPath?: string
+): any {
+	const isMessagesEndpoint = endpointPath ? endpointPath.includes('/messages') : false;
+
+	if (isMessagesEndpoint) {
+		// Client expects Anthropic message format
+		if (provider === 'Anthropic') {
+			return body;
+		}
+		// Transform OpenAI/Google/Groq/etc. format into Anthropic message format
+		const firstChoice = Array.isArray(body?.choices) ? body.choices[0] : null;
+		const messageText = firstChoice?.message?.content ?? "";
 		return {
-			id: body.id ?? `chatcmpl-${Date.now()}`,
-			choices: Array.isArray((body as any)?.content)
-				? (body as any).content.map((c: Record<string, unknown>) => ({
-					message: { content: (c as any).text ?? "", role: "assistant" },
-					finish_reason: (c as any).stop_reason ?? "stop",
-				}))
-				: [],
-			usage: body.usage ? {
-				promptTokens: Number(body.usage.input_tokens ?? 0),
-				completionTokens: Number(body.usage.output_tokens ?? 0),
-				totalTokens: Number(body.usage.input_tokens ?? 0) + Number(body.usage.output_tokens ?? 0),
-			} : undefined,
+			id: body?.id ?? `msg_${Date.now()}`,
+			type: "message",
+			role: "assistant",
+			model: body?.model ?? model,
+			content: [{ type: "text", text: messageText }],
+			stop_reason: firstChoice?.finish_reason === "stop" ? "end_turn" : (firstChoice?.finish_reason ?? "end_turn"),
+			usage: {
+				input_tokens: body?.usage?.prompt_tokens ?? body?.usage?.promptTokens ?? 0,
+				output_tokens: body?.usage?.completion_tokens ?? body?.usage?.completionTokens ?? 0,
+			},
+		};
+	} else {
+		// Client expects OpenAI chat completion format
+		if (provider === 'Anthropic') {
+			return {
+				id: body?.id ?? `chatcmpl-${Date.now()}`,
+				object: "chat.completion",
+				created: Math.floor(Date.now() / 1000),
+				model: body?.model ?? model,
+				choices: Array.isArray((body as any)?.content)
+					? (body as any).content.map((c: Record<string, unknown>, idx: number) => ({
+						index: idx,
+						message: { content: (c as any).text ?? "", role: "assistant" },
+						finish_reason: body.stop_reason === "end_turn" ? "stop" : (body.stop_reason ?? "stop"),
+					}))
+					: [],
+				usage: body?.usage ? {
+					prompt_tokens: Number(body.usage.input_tokens ?? 0),
+					completion_tokens: Number(body.usage.output_tokens ?? 0),
+					total_tokens: Number(body.usage.input_tokens ?? 0) + Number(body.usage.output_tokens ?? 0),
+				} : undefined,
+				provider,
+			};
+		}
+
+		return {
+			id: body?.id ?? `chatcmpl-${Date.now()}`,
+			object: body?.object ?? "chat.completion",
+			created: body?.created ?? Math.floor(Date.now() / 1000),
+			model: body?.model ?? model,
+			choices: body?.choices ?? [],
+			usage: body?.usage,
 			provider,
 		};
 	}
-
-	return {
-		id: body.id ?? `chatcmpl-${Date.now()}`,
-		choices: body.choices ?? [],
-		usage: body.usage,
-		provider,
-	};
 }
 
 // ---------------------------------------------------------------------------
@@ -372,21 +415,47 @@ export async function handleGatewayRequest(
 	const failoverEnabled = await getGatewayConfig('failover_enabled') ?? true;
 	const requestTimeoutMs = await getGatewayConfig('request_timeout_ms') ?? 120000;
 
+	// Provider matching helper function
+	const matchesProvider = (keyProvider: string, reqProvider: string): boolean => {
+		const kp = (keyProvider || '').toLowerCase().trim();
+		const rp = (reqProvider || '').toLowerCase().trim();
+		if (kp === rp) return true;
+		if (kp.includes(rp) || rp.includes(kp)) return true;
+
+		// Universal providers (opuslive / opuszen / api.opuszen.shop) can serve ALL model/provider requests
+		if (kp.includes('opuslive') || kp.includes('opuszen') || kp.includes('api.opus')) return true;
+		if (rp.includes('opuslive') || rp.includes('opuszen') || rp.includes('api.opus')) return true;
+
+		if ((rp === 'anthropic' || rp.includes('claude')) && (kp.includes('anthropic') || kp.includes('claude'))) return true;
+		if ((rp === 'openai' || rp.includes('gpt')) && (kp.includes('openai') || kp.includes('gpt'))) return true;
+		if ((rp === 'google' || rp.includes('gemini')) && (kp.includes('google') || kp.includes('gemini'))) return true;
+		if (rp.includes('groq') && kp.includes('groq')) return true;
+		if (rp.includes('mistral') && kp.includes('mistral')) return true;
+		if (rp.includes('cohere') && kp.includes('cohere')) return true;
+		return false;
+	};
+
 	// Get all active master keys sorted by priority
 	const allKeys = await getAllMasterKeys();
 	const activeKeys = allKeys.filter((k) => {
-		return (
-			k.status === 'active'
+		const isHealthy = k.status === 'active'
 			&& !['quota_exhausted', 'rate_limited', 'temporarily_failed', 'disabled'].includes(k.health_status)
-			&& (k.remaining_credits ?? 0) > 0
-		);
+			&& (k.remaining_credits ?? 0) > 0;
+		if (!isHealthy) return false;
+
+		if (ctx.userApiKey.allowed_providers && ctx.userApiKey.allowed_providers.length > 0) {
+			const isAllowed = ctx.userApiKey.allowed_providers.some(ap => matchesProvider(k.provider, ap));
+			if (!isAllowed) return false;
+		}
+
+		return matchesProvider(k.provider, ctx.provider);
 	});
 
 	if (activeKeys.length === 0) {
 		return {
 			requestId,
 			masterKeyId: '',
-			provider: '',
+			provider: ctx.provider,
 			httpStatus: 503,
 			isSuccess: false,
 			promptTokens: 0,
@@ -394,16 +463,17 @@ export async function handleGatewayRequest(
 			totalTokens: 0,
 			creditsUsed: 0,
 			responseTimeMs: 0,
-			errorMessage: 'All provider keys are currently unavailable. Please try again later.',
-			responseBody: { error: { message: 'Service Unavailable — all upstream providers are unreachable.', type: 'service_unavailable' } },
+			errorMessage: `No active provider keys available for "${ctx.provider}". Please try again later.`,
+			responseBody: { error: { message: `Service Unavailable — no active master key configured for provider "${ctx.provider}".`, type: 'service_unavailable' } },
 			retryNumber: 0,
 		};
 	}
 
-	// Prepare request — build from full message array
+	// Prepare request — build from full body parameters
 	const request: ChatCompletionRequest = {
 		model: ctx.model,
 		messages: ctx.messages,
+		...(ctx.body ?? {}),
 	};
 
 	const estimatedTokens = estimateTokens(ctx.messages, ctx.model);
@@ -630,7 +700,7 @@ export async function handleGatewayRequest(
 				...usage,
 				creditsUsed: credits,
 				responseTimeMs,
-				responseBody: transformResponse(candidate.provider, responseBody, ctx.model),
+				responseBody: transformResponse(candidate.provider, responseBody, ctx.model, ctx.endpointPath),
 				retryNumber: retryNumber + 1,
 			};
 		}

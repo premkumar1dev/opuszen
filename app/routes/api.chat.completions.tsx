@@ -146,6 +146,8 @@ export async function action({ request }: ActionFunctionArgs) {
 			messages: body.messages ?? [],
 			ipAddress: request.headers.get("x-forwarded-for") ?? request.headers.get("x-real-ip") ?? "",
 			userAgent: request.headers.get("user-agent") ?? "",
+			endpointPath: urlPath,
+			body,
 		};
 
 		// 4. Execute gateway with failover

@@ -233,6 +233,8 @@ export interface GatewayRequestContext {
  messages: any[];
  ipAddress: string;
  userAgent: string;
+ endpointPath?: string;
+ body?: Record<string, any>;
 }
 
 export interface GatewayResponseContext {
