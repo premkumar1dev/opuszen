@@ -147,7 +147,7 @@ export async function action({ request }: ActionFunctionArgs) {
           ? rawProvider.replace(/\/+$/, '')
           : rawProvider.toLowerCase().includes('anthropic')
             ? 'https://api.anthropic.com/v1'
-            : 'https://api.opuszen.shop/v1';
+            : 'https://api.opusmax.live/v1';
 
         const isAnthropicKey = key.api_key.startsWith('sk-ant-') || rawProvider.toLowerCase().includes('anthropic') || rawProvider.toLowerCase().includes('claude');
 
@@ -349,7 +349,7 @@ export default function AdminMasterKeysRoute() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingKey, setEditingKey] = useState<MasterApiKeyRow | null>(null);
   const [form, setForm] = useState({
-    provider: 'https://api.opuszen.shop/v1',
+    provider: 'https://api.opusmax.live/v1',
     name: '',
     api_key: '',
     priority: 1,
@@ -419,7 +419,7 @@ export default function AdminMasterKeysRoute() {
       } else if (data.success) {
         if (data.intent === "create") {
           setShowAddForm(false);
-          setForm({ provider: 'https://api.opuszen.shop/v1', name: '', api_key: '', priority: 1, total_credits: 999999, status: 'active' });
+          setForm({ provider: 'https://api.opusmax.live/v1', name: '', api_key: '', priority: 1, total_credits: 999999, status: 'active' });
           navigate("/auth/admin/gateway/logs");
         } else if (data.intent === "test-connection") {
           setTestingId(null);
@@ -807,7 +807,7 @@ export default function AdminMasterKeysRoute() {
                   <Input
                     value={form.provider}
                     onChange={(e) => setForm((f) => ({ ...f, provider: e.target.value }))}
-                    placeholder="https://api.opuszen.shop/v1"
+                    placeholder="https://api.opusmax.live/v1"
                   />
                 </div>
                 <div>

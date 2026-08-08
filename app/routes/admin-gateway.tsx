@@ -263,7 +263,7 @@ export default function AdminGatewayRoute() {
 						<h3 className="font-bold text-foreground mb-4">Environment Configuration</h3>
 						<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
 							{[
-								{ label: "Gateway URL", value: "https://api.opuszen.shop/api", icon: <Globe className="w-3.5 h-3.5" /> },
+								{ label: "Gateway URL", value: "https://api.opusmax.live/v1", icon: <Globe className="w-3.5 h-3.5" /> },
 								{ label: "Environment", value: "Production", icon: <Server className="w-3.5 h-3.5" /> },
 								{ label: "Node Version", value: "v20.11.0", icon: <Cpu className="w-3.5 h-3.5" /> },
 								{ label: "Database", value: "PostgreSQL 16", icon: <HardDrive className="w-3.5 h-3.5" /> },
