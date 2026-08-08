@@ -394,10 +394,31 @@ export async function handleGatewayRequest(
 	const failoverEnabled = await getGatewayConfig('failover_enabled') ?? true;
 	const requestTimeoutMs = await getGatewayConfig('request_timeout_ms') ?? 120000;
 
-	// Provider matching helper — opusmax is the only allowed provider
+	// Provider matching helper — matches master keys from any existing provider
+	// All requests are forwarded to api.opusmax.live regardless of key provider name
 	const matchesProvider = (keyProvider: string, reqProvider: string): boolean => {
 		const kp = (keyProvider || '').toLowerCase().trim();
-		return kp.includes('opusmax') || kp.includes('api.opusmax');
+		const rp = (reqProvider || '').toLowerCase().trim();
+		if (!rp) return true; // no provider specified → accept any
+		if (!kp) return true; // key has no provider → accept any
+
+		// OpusMax variants
+		if (kp.includes('opusmax') || kp.includes('api.opusmax')) return true;
+
+		// Match by provider name: opuslive, opuszen, anthropic, openai, google, groq, mistral, cohere
+		if ((rp === 'opuslive' || rp.includes('opuslive')) && (kp.includes('opuslive') || kp.includes('opus'))) return true;
+		if ((rp === 'anthropic' || rp.includes('claude')) && (kp.includes('anthropic') || kp.includes('claude'))) return true;
+		if ((rp === 'openai' || rp.includes('gpt')) && (kp.includes('openai') || kp.includes('gpt'))) return true;
+		if ((rp === 'google' || rp.includes('gemini')) && (kp.includes('google') || kp.includes('gemini'))) return true;
+		if ((rp === 'groq') && (kp.includes('groq'))) return true;
+		if ((rp === 'mistral') && (kp.includes('mistral'))) return true;
+		if ((rp === 'cohere') && (kp.includes('cohere'))) return true;
+
+		// Universal match: opuszen domains and api.opus variants can serve any request
+		if (kp.includes('opuszen') || kp.includes('api.opus')) return true;
+		if (rp.includes('opuszen') || rp.includes('opuslive') || rp.includes('opusmax')) return true;
+
+		return false;
 	};
 
 	// Get all active master keys sorted by priority
@@ -457,10 +478,12 @@ export async function handleGatewayRequest(
 	for (const candidate of keysToTry) {
 		masterKey = candidate;
 
-		const config = getProviderConfig(candidate.provider);
-		const url = buildProviderUrl(candidate.provider, ctx.model);
-		const headers = buildProviderHeaders(candidate.provider, candidate);
-		const body = transformRequestBody(candidate.provider, {
+		// All upstream requests go to opusmax regardless of key's stored provider name
+		const upstreamProvider = 'opusmax';
+		const config = getProviderConfig(upstreamProvider);
+		const url = buildProviderUrl(upstreamProvider, ctx.model);
+		const headers = buildProviderHeaders(upstreamProvider, candidate);
+		const body = transformRequestBody(upstreamProvider, {
 			...request,
 			model: ctx.model,
 		});
