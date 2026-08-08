@@ -24,6 +24,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
 		return data({
 			object: "list",
 			data: [
+				{ id: "opuslive-1", name: "OpusLive 1", object: "model", created: 1772496000, launch_date: "Mar 1, 2026", context: "1,000,000", type: "Frontier", owned_by: "opuslive", description: "OpusLive model via api.opuslive.pro proxy with handshake authentication." },
 				{ id: "claude-fable-5", name: "Claude Fable 5", object: "model", created: 1772496000, launch_date: "Mar 1, 2026", context: "1,000,000", type: "Frontier", owned_by: "anthropic", description: "The most capable model in the lineup. Frontier reasoning and long-horizon agentic work." },
 				{ id: "claude-sonnet-5", name: "Claude Sonnet 5", object: "model", created: 1772496000, launch_date: "Mar 1, 2026", context: "1,000,000", type: "Popular", owned_by: "anthropic", description: "Frontier intelligence at Sonnet speed. The new default for day-to-day building." },
 				{ id: "claude-opus-4-8", name: "Claude Opus 4.8", object: "model", created: 1754188800, launch_date: "Aug 3, 2025", context: "1,000,000", type: "Flagship", owned_by: "anthropic", description: "Flagship Opus. Adaptive thinking and sustained agentic coding across a 1M window." },
@@ -52,7 +53,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
 	return data({
 		status: "ok",
 		service: "OpusZen API Gateway",
-		version: "1.3.1",
+		version: "1.4.0",
 		timestamp: new Date().toISOString(),
 		endpoints: {
 			chat: "/v1/chat/completions",
@@ -95,16 +96,10 @@ export async function action({ request }: ActionFunctionArgs) {
 			return data({ error: "Invalid JSON body." }, { status: 400 });
 		}
 
-		// 3. Determine provider from model and request URL path
+		// 3. Set provider — opusmax is the only allowed provider
 		const urlPath = new URL(request.url).pathname;
 		const model = body.model ?? "";
-		let provider = 'OpenAI';
-		if (urlPath.includes('/messages') || model.toLowerCase().includes('claude')) provider = 'Anthropic';
-		else if (model.toLowerCase().includes('opuslive')) provider = 'opuslive';
-		else if (model.toLowerCase().includes('gemini')) provider = 'Google';
-		else if (model.toLowerCase().includes('llama') || model.toLowerCase().includes('mixtral')) provider = 'Groq';
-		else if (model.toLowerCase().includes('mistral')) provider = 'Mistral';
-		else if (model.toLowerCase().includes('command')) provider = 'Cohere';
+		let provider = 'opusmax';
 
 		// 3b. Enforce allowed models restriction
 		if (userKey.allowed_models && userKey.allowed_models.length > 0) {

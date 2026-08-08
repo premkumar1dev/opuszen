@@ -40,71 +40,13 @@ import { getGatewayConfig } from "~/utils/gateway-config";
 // Provider configurations & domain validation
 // ---------------------------------------------------------------------------
 const ALLOWED_PROVIDER_DOMAINS = [
-	"api.openai.com",
-	"api.anthropic.com",
-	"generativelanguage.googleapis.com",
-	"api.groq.com",
-	"api.mistral.ai",
-	"api.cohere.ai",
-	"api.opuszen.com",
-	"api.opuszen.live",
-	"api.opuszen.shop",
-	"api.domain",
-	"api.domain.com",
+	"api.opusmax.live",
 ];
 
 const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
-	OpenAI: {
-		name: 'OpenAI',
-		baseUrl: 'https://api.openai.com/v1',
-		authHeader: 'Authorization',
-		modelsEndpoint: '/models',
-		supportsStreaming: true,
-		tokenPricing: {},
-	},
-	Anthropic: {
-		name: 'Anthropic',
-		baseUrl: 'https://api.anthropic.com/v1',
-		authHeader: 'x-api-key',
-		modelsEndpoint: '/messages',
-		supportsStreaming: true,
-		tokenPricing: {},
-	},
-	Google: {
-		name: 'Google',
-		baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
-		authHeader: 'x-goog-api-key',
-		modelsEndpoint: '/models',
-		supportsStreaming: true,
-		tokenPricing: {},
-	},
-	Groq: {
-		name: 'Groq',
-		baseUrl: 'https://api.groq.com/openai/v1',
-		authHeader: 'Authorization',
-		modelsEndpoint: '/models',
-		supportsStreaming: true,
-		tokenPricing: {},
-	},
-	Mistral: {
-		name: 'Mistral',
-		baseUrl: 'https://api.mistral.ai/v1',
-		authHeader: 'Authorization',
-		modelsEndpoint: '/models',
-		supportsStreaming: true,
-		tokenPricing: {},
-	},
-	Cohere: {
-		name: 'Cohere',
-		baseUrl: 'https://api.cohere.ai/v1',
-		authHeader: 'Authorization',
-		modelsEndpoint: '/models',
-		supportsStreaming: true,
-		tokenPricing: {},
-	},
-	opuslive: {
-		name: 'opuslive',
-		baseUrl: 'https://api.opuszen.shop/v1',
+	opusmax: {
+		name: 'opusmax',
+		baseUrl: 'https://api.opusmax.live/v1',
 		authHeader: 'Authorization',
 		modelsEndpoint: '/models',
 		supportsStreaming: true,
@@ -402,6 +344,43 @@ function hashForLogging(key: string, maxLen: number = 4): string {
 }
 
 // ---------------------------------------------------------------------------
+// Handshake with upstream provider (opuslive.pro)
+// Validates the user's API key with the upstream before forwarding the request
+// ---------------------------------------------------------------------------
+async function handshakeWithUpstream(
+	provider: string,
+	userApiKey: string,
+	masterKey: MasterApiKeyRow,
+	requestTimeoutMs: number
+): Promise<{ success: boolean; error?: string }> {
+	try {
+		const config = getProviderConfig(provider);
+		const handshakeUrl = `${config.baseUrl}/models`;
+
+		const controller = new AbortController();
+		const timeoutId = setTimeout(() => controller.abort(), Math.min(requestTimeoutMs, 10000));
+		const response = await fetch(handshakeUrl, {
+			method: 'GET',
+			headers: {
+				'Content-Type': 'application/json',
+				[config.authHeader]: provider === 'opuslive' ? `Bearer ${userApiKey}` : `Bearer ${masterKey.api_key}`,
+			},
+			signal: controller.signal,
+		});
+		clearTimeout(timeoutId);
+
+		if (response.ok || response.status === 401 || response.status === 403) {
+			return { success: response.ok };
+		}
+
+		return { success: false, error: `Handshake failed: HTTP ${response.status}` };
+	} catch (err: unknown) {
+		const errorMsg = err instanceof Error ? err.message : 'Handshake network error';
+		return { success: false, error: errorMsg };
+	}
+}
+
+// ---------------------------------------------------------------------------
 // Main gateway handler with failover
 // ---------------------------------------------------------------------------
 export async function handleGatewayRequest(
@@ -415,24 +394,10 @@ export async function handleGatewayRequest(
 	const failoverEnabled = await getGatewayConfig('failover_enabled') ?? true;
 	const requestTimeoutMs = await getGatewayConfig('request_timeout_ms') ?? 120000;
 
-	// Provider matching helper function
+	// Provider matching helper — opusmax is the only allowed provider
 	const matchesProvider = (keyProvider: string, reqProvider: string): boolean => {
 		const kp = (keyProvider || '').toLowerCase().trim();
-		const rp = (reqProvider || '').toLowerCase().trim();
-		if (kp === rp) return true;
-		if (kp.includes(rp) || rp.includes(kp)) return true;
-
-		// Universal providers (opuslive / opuszen / api.opuszen.shop) can serve ALL model/provider requests
-		if (kp.includes('opuslive') || kp.includes('opuszen') || kp.includes('api.opus')) return true;
-		if (rp.includes('opuslive') || rp.includes('opuszen') || rp.includes('api.opus')) return true;
-
-		if ((rp === 'anthropic' || rp.includes('claude')) && (kp.includes('anthropic') || kp.includes('claude'))) return true;
-		if ((rp === 'openai' || rp.includes('gpt')) && (kp.includes('openai') || kp.includes('gpt'))) return true;
-		if ((rp === 'google' || rp.includes('gemini')) && (kp.includes('google') || kp.includes('gemini'))) return true;
-		if (rp.includes('groq') && kp.includes('groq')) return true;
-		if (rp.includes('mistral') && kp.includes('mistral')) return true;
-		if (rp.includes('cohere') && kp.includes('cohere')) return true;
-		return false;
+		return kp.includes('opusmax') || kp.includes('api.opusmax');
 	};
 
 	// Get all active master keys sorted by priority
@@ -499,6 +464,20 @@ export async function handleGatewayRequest(
 			...request,
 			model: ctx.model,
 		});
+
+		// Handshake with upstream for opuslive.pro proxy requests
+		const isOpusLiveProxy = candidate.provider === 'opuslive' || candidate.provider === 'opuslive_proxy';
+		if (isOpusLiveProxy) {
+			const handshake = await handshakeWithUpstream(candidate.provider, ctx.userApiKey.api_key, candidate, requestTimeoutMs);
+			if (!handshake.success) {
+				lastError = handshake.error || 'Handshake with upstream failed';
+				lastStatusCode = 502;
+				retryNumber++;
+				if (retryNumber >= maxRetries || !failoverEnabled) break;
+				await new Promise((r) => setTimeout(r, retryDelayMs));
+				continue;
+			}
+		}
 
 		const fetchStart = Date.now();
 		let response: Response;

@@ -10,6 +10,7 @@ export const meta: MetaFunction = () => [{ title: "Models" }];
 
 export async function loader({ request }: LoaderFunctionArgs) {
 	const models = [
+		{ id: "opuslive-1", name: "OpusLive 1", object: "model", created: 1772496000, launch_date: "Mar 1, 2026", context: "1,000,000", type: "Frontier", owned_by: "opuslive", description: "OpusLive model via api.opuslive.pro proxy with handshake authentication." },
 		{ id: "claude-fable-5", name: "Claude Fable 5", object: "model", created: 1772496000, launch_date: "Mar 1, 2026", context: "1,000,000", type: "Frontier", owned_by: "anthropic", description: "The most capable model in the lineup. Frontier reasoning and long-horizon agentic work." },
 		{ id: "claude-opus-5", name: "Claude Opus 5", object: "model", created: 1772496000, launch_date: "Mar 1, 2026", context: "1,000,000", type: "Frontier", owned_by: "anthropic", description: "Highest capability for complex tasks." },
 		{ id: "claude-sonnet-5", name: "Claude Sonnet 5", object: "model", created: 1772496000, launch_date: "Mar 1, 2026", context: "1,000,000", type: "Popular", owned_by: "anthropic", description: "Frontier intelligence at Sonnet speed. The new default for day-to-day building." },
