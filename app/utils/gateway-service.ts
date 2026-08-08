@@ -28,21 +28,16 @@ import {
 	getAllMasterKeys,
 } from "~/utils/master-key-service";
 import {
-	validateUserApiKey,
 	recordUserKeyUsage,
 } from "~/utils/user-key-service";
 import { logApiRequest, logFailover } from "~/utils/logging-service";
 import { recordHealthSuccess, recordHealthFailure } from "~/utils/health-service.server";
-import { calculateCredits, estimateTokens, recordUsage } from "~/utils/usage-service";
+import { calculateCredits, recordUsage } from "~/utils/usage-service";
 import { getGatewayConfig } from "~/utils/gateway-config";
 
 // ---------------------------------------------------------------------------
 // Provider configurations & domain validation
 // ---------------------------------------------------------------------------
-const ALLOWED_PROVIDER_DOMAINS = [
-	"api.opusmax.live",
-];
-
 const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
 	opusmax: {
 		name: 'opusmax',
@@ -124,7 +119,7 @@ function shouldFailover(statusCode: number, error: string | null | undefined): b
 // ---------------------------------------------------------------------------
 // Extract usage from provider response
 // ---------------------------------------------------------------------------
-function extractUsage(responseBody: any, model: string): TokenUsage {
+function extractUsage(responseBody: any): TokenUsage {
 	const usage = responseBody?.usage;
 	if (!usage) return { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
 	// Handle both camelCase (our type) and snake_case (OpenAI/Groq/Mistral raw response)
@@ -139,28 +134,14 @@ function extractUsage(responseBody: any, model: string): TokenUsage {
 // Transform OpenAI-compatible request to provider format
 // ---------------------------------------------------------------------------
 function buildProviderHeaders(
-	provider: string,
 	masterKey: MasterApiKeyRow
 ): Record<string, string> {
-	const config = getProviderConfig(provider);
 	const headers: Record<string, string> = {
 		'Content-Type': 'application/json',
 	};
 
-	const isAnthropicKey = masterKey.api_key.startsWith('sk-ant-') || provider.toLowerCase().includes('anthropic') || provider.toLowerCase().includes('claude');
-
-	if (isAnthropicKey) {
-		headers['x-api-key'] = masterKey.api_key;
-		headers['anthropic-version'] = '2023-06-01';
-		headers['Authorization'] = `Bearer ${masterKey.api_key}`;
-	} else if (config.authHeader === 'x-api-key') {
-		headers['x-api-key'] = masterKey.api_key;
-	} else if (config.authHeader === 'x-goog-api-key') {
-		headers['x-goog-api-key'] = masterKey.api_key;
-	} else {
-		headers['Authorization'] = `Bearer ${masterKey.api_key}`;
-	}
-
+	// All upstream requests go to opusmax (OpenAI-compatible), always use Bearer
+	headers['Authorization'] = `Bearer ${masterKey.api_key}`;
 	return headers;
 }
 
@@ -357,43 +338,6 @@ function hashForLogging(key: string, maxLen: number = 4): string {
 }
 
 // ---------------------------------------------------------------------------
-// Handshake with upstream provider (opuslive.pro)
-// Validates the user's API key with the upstream before forwarding the request
-// ---------------------------------------------------------------------------
-async function handshakeWithUpstream(
-	provider: string,
-	userApiKey: string,
-	masterKey: MasterApiKeyRow,
-	requestTimeoutMs: number
-): Promise<{ success: boolean; error?: string }> {
-	try {
-		const config = getProviderConfig(provider);
-		const handshakeUrl = `${config.baseUrl}/models`;
-
-		const controller = new AbortController();
-		const timeoutId = setTimeout(() => controller.abort(), Math.min(requestTimeoutMs, 10000));
-		const response = await fetch(handshakeUrl, {
-			method: 'GET',
-			headers: {
-				'Content-Type': 'application/json',
-				[config.authHeader]: provider === 'opuslive' ? `Bearer ${userApiKey}` : `Bearer ${masterKey.api_key}`,
-			},
-			signal: controller.signal,
-		});
-		clearTimeout(timeoutId);
-
-		if (response.ok || response.status === 401 || response.status === 403) {
-			return { success: response.ok };
-		}
-
-		return { success: false, error: `Handshake failed: HTTP ${response.status}` };
-	} catch (err: unknown) {
-		const errorMsg = err instanceof Error ? err.message : 'Handshake network error';
-		return { success: false, error: errorMsg };
-	}
-}
-
-// ---------------------------------------------------------------------------
 // Main gateway handler with failover
 // ---------------------------------------------------------------------------
 export async function handleGatewayRequest(
@@ -476,7 +420,6 @@ export async function handleGatewayRequest(
 		...(ctx.body ?? {}),
 	};
 
-	const estimatedTokens = estimateTokens(ctx.messages, ctx.model);
 	const startTime = Date.now();
 
 	let lastError = '';
@@ -491,29 +434,14 @@ export async function handleGatewayRequest(
 	for (const candidate of keysToTry) {
 		masterKey = candidate;
 
-		// Route to candidate's configured provider or URL, falling back to opusmax
-		const upstreamProvider = candidate.provider || 'opusmax';
-		const config = getProviderConfig(upstreamProvider);
+		// All upstream requests go to opusmax regardless of key's stored provider name
+		const upstreamProvider = 'opusmax';
 		const url = buildProviderUrl(upstreamProvider, ctx.model);
-		const headers = buildProviderHeaders(upstreamProvider, candidate);
+		const headers = buildProviderHeaders(candidate);
 		const body = transformRequestBody(upstreamProvider, {
 			...request,
 			model: ctx.model,
 		});
-
-		// Handshake with upstream for opuslive.pro proxy requests
-		const isOpusLiveProxy = candidate.provider === 'opuslive' || candidate.provider === 'opuslive_proxy';
-		if (isOpusLiveProxy) {
-			const handshake = await handshakeWithUpstream(candidate.provider, ctx.userApiKey.api_key, candidate, requestTimeoutMs);
-			if (!handshake.success) {
-				lastError = handshake.error || 'Handshake with upstream failed';
-				lastStatusCode = 502;
-				retryNumber++;
-				if (retryNumber >= maxRetries || !failoverEnabled) break;
-				await new Promise((r) => setTimeout(r, retryDelayMs));
-				continue;
-			}
-		}
 
 		const fetchStart = Date.now();
 		let response: Response;
@@ -569,7 +497,7 @@ export async function handleGatewayRequest(
 
 		if (response.ok) {
 			// Success
-			const usage = extractUsage(responseBody as ChatCompletionResponse, ctx.model);
+			const usage = extractUsage(responseBody as ChatCompletionResponse);
 
 			// Per-token plan billing: use plan's per-token pricing instead of model pricing
 			const userKey = ctx.userApiKey as any;
@@ -609,7 +537,6 @@ export async function handleGatewayRequest(
 				if (!currentKey) continue;
 
 				const prevUsed = currentKey.used_credits ?? 0;
-				const totalCredits = currentKey.total_credits ?? 0;
 				const prevRemaining = currentKey.remaining_credits ?? 0;
 
 				if (prevRemaining <= 0) continue; // no credits left
@@ -633,7 +560,7 @@ export async function handleGatewayRequest(
 				if (updError || count === 0) {
 					// Compare-and-swap failed: concurrent write detected
 					// Re-read and re-derive remaining_credits from authoritative totals
-					const { data: refreshed, error: refetchError } = await supabase
+					const { data: refreshed } = await supabase
 						.from('master_api_keys')
 						.select('used_credits, total_credits')
 						.eq('id', candidate.id)
@@ -759,7 +686,7 @@ export async function handleGatewayRequest(
 		}
 
 		// Non-failover error — log and return immediately
-		const usage = extractUsage(responseBody as ChatCompletionResponse, ctx.model);
+			const usage = extractUsage(responseBody as ChatCompletionResponse);
 
 		await logApiRequest({
 			requestId,
