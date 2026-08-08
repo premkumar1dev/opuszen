@@ -8,7 +8,18 @@ import { type MetaFunction, type LoaderFunctionArgs, data } from "react-router";
 
 export const meta: MetaFunction = () => [{ title: "Models" }];
 
+const CORS_HEADERS = {
+	"Access-Control-Allow-Origin": "*",
+	"Access-Control-Allow-Methods": "GET, POST, OPTIONS, HEAD",
+	"Access-Control-Allow-Headers": "Authorization, Content-Type, x-api-key, anthropic-version, x-goog-api-key, X-Request-Id, X-Requested-With, Accept, api-key",
+	"Access-Control-Max-Age": "86400",
+};
+
 export async function loader({ request }: LoaderFunctionArgs) {
+	if (request.method === "OPTIONS") {
+		return new Response(null, { status: 204, headers: CORS_HEADERS });
+	}
+
 	const models = [
 		{ id: "opuslive-1", name: "OpusLive 1", object: "model", created: 1772496000, launch_date: "Mar 1, 2026", context: "1,000,000", type: "Frontier", owned_by: "opuslive", description: "OpusLive model via api.opuslive.pro proxy with handshake authentication." },
 		{ id: "claude-fable-5", name: "Claude Fable 5", object: "model", created: 1772496000, launch_date: "Mar 1, 2026", context: "1,000,000", type: "Frontier", owned_by: "anthropic", description: "The most capable model in the lineup. Frontier reasoning and long-horizon agentic work." },
@@ -48,5 +59,5 @@ export async function loader({ request }: LoaderFunctionArgs) {
 			description: m.description,
 			object: "model",
 		})),
-	});
+	}, { headers: CORS_HEADERS });
 }

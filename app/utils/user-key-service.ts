@@ -55,7 +55,7 @@ export async function validateUserApiKey(apiKey: string): Promise<UserApiKeyRow 
 	const cleanKey = apiKey.trim().replace(/^Bearer\s+/i, "");
 	if (!cleanKey) return null;
 
-	// Supabase PostgREST read-check-expire pattern
+	// 1. Supabase PostgREST read-check-expire pattern for user keys
 	const { data, error } = await supabase
 		.from('user_api_keys')
 		.select('*')
@@ -63,23 +63,63 @@ export async function validateUserApiKey(apiKey: string): Promise<UserApiKeyRow 
 		.eq('status', 'active')
 		.maybeSingle();
 
-	if (error || !data) return null;
+	if (data && !error) {
+		const key = data as UserApiKeyRow;
 
-	const key = data as UserApiKeyRow;
+		// Check expiry
+		if (key.expiry_date && new Date(key.expiry_date) < new Date()) {
+			await supabase.from('user_api_keys').update({ status: 'expired' }).eq('id', key.id);
+			return null;
+		}
 
-	// Check expiry
-	if (key.expiry_date && new Date(key.expiry_date) < new Date()) {
-		await supabase.from('user_api_keys').update({ status: 'expired' }).eq('id', key.id);
-		return null;
+		// Check credit depletion
+		if (key.allocated_credits > 0 && key.remaining_credits <= 0) {
+			await supabase.from('user_api_keys').update({ status: 'disabled' }).eq('id', key.id);
+			return null;
+		}
+
+		return key;
 	}
 
-	// Check credit depletion
-	if (key.allocated_credits > 0 && key.remaining_credits <= 0) {
-		await supabase.from('user_api_keys').update({ status: 'disabled' }).eq('id', key.id);
-		return null;
+	// 2. Also check master_api_keys table (for direct upstream master key inference & connection testing)
+	try {
+		const { data: masterData } = await supabase
+			.from('master_api_keys')
+			.select('*')
+			.eq('api_key', cleanKey)
+			.maybeSingle();
+
+		if (masterData && masterData.status !== 'disabled') {
+			return {
+				id: masterData.id,
+				user_id: 'master_admin',
+				api_key: masterData.api_key,
+				name: masterData.name || 'Master Gateway Key',
+				status: 'active',
+				allocated_credits: masterData.total_credits || 999999,
+				used_credits: masterData.used_credits || 0,
+				remaining_credits: masterData.remaining_credits || masterData.total_credits || 999999,
+				expiry_date: null,
+				rate_limit: 10000,
+				allowed_models: [],
+				allowed_providers: [],
+				total_requests: masterData.total_requests || 0,
+				success_requests: masterData.success_requests || 0,
+				failed_requests: masterData.failed_requests || 0,
+				last_used: masterData.last_used || null,
+				plan_name: 'Enterprise Master',
+				pricing_type: 'per_request',
+				price_per_1m_input_tokens: 0,
+				price_per_1m_output_tokens: 0,
+				created_at: masterData.created_at || new Date().toISOString(),
+				updated_at: masterData.updated_at || new Date().toISOString(),
+			} as unknown as UserApiKeyRow;
+		}
+	} catch {
+		// ignore
 	}
 
-	return key;
+	return null;
 }
 
 export async function getUserApiKeys(userId: string): Promise<UserApiKeyRow[]> {

@@ -141,51 +141,135 @@ export async function action({ request }: ActionFunctionArgs) {
       let ok = false;
       let message = "";
       try {
-        const isUrl = key.provider.startsWith("http");
-        const isOpus = key.provider.includes("opuszen") || key.provider.includes("opuszen") || key.provider.includes("opuslive") || key.provider === "opuslive";
+        const rawProvider = (key.provider || "").trim();
+        const isUrl = rawProvider.startsWith("http://") || rawProvider.startsWith("https://");
+        let baseUrl = isUrl
+          ? rawProvider.replace(/\/+$/, '')
+          : rawProvider.toLowerCase().includes('anthropic')
+            ? 'https://api.anthropic.com/v1'
+            : 'https://api.opuszen.shop/v1';
 
-        const config = key.provider === 'Anthropic'
-          ? { baseUrl: 'https://api.anthropic.com/v1', authHeader: 'x-api-key' }
-          : isUrl
-            ? { baseUrl: key.provider, authHeader: 'Authorization' }
-            : isOpus
-              ? { baseUrl: 'https://api.opuszen.shop/v1', authHeader: 'Authorization' }
-              : { baseUrl: 'https://api.openai.com/v1', authHeader: 'Authorization' };
+        const isAnthropicKey = key.api_key.startsWith('sk-ant-') || rawProvider.toLowerCase().includes('anthropic') || rawProvider.toLowerCase().includes('claude');
 
-        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-        if (key.provider === 'Anthropic') {
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${key.api_key}`,
+        };
+
+        if (isAnthropicKey) {
           headers['x-api-key'] = key.api_key;
           headers['anthropic-version'] = '2023-06-01';
-        } else {
-          headers['Authorization'] = `Bearer ${key.api_key}`;
         }
 
-        const endpoint = key.provider === 'Anthropic' ? '/messages' : '/chat/completions';
         const startTime = Date.now();
-        const res = await fetch(`${config.baseUrl}${endpoint}`, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify(
-            key.provider === 'Anthropic'
-              ? { model: 'claude-3-5-haiku-20241022', max_tokens: 10, messages: [{ role: 'user', content: 'Hi' }] }
-              : isOpus
-                ? { model: 'opuslive-chat', max_tokens: 10, messages: [{ role: 'user', content: 'Hi' }] }
-                : { model: 'gpt-4o-mini', max_tokens: 10, messages: [{ role: 'user', content: 'Hi' }] }
-          ),
-        });
+        let lastStatus = 0;
 
-        const responseTime = Date.now() - startTime;
+        // Construct probe candidates
+        const probes: { url: string; method: string; body?: any }[] = [];
 
-        if (res.ok) {
-          ok = true;
-          message = `Connection successful (${res.status})`;
-          const { recordHealthSuccess } = await import("~/utils/health-service.server");
-          await recordHealthSuccess(key.id, responseTime);
+        if (baseUrl.endsWith('/chat/completions') || baseUrl.endsWith('/messages')) {
+          // User provided exact endpoint
+          if (baseUrl.endsWith('/messages') || isAnthropicKey) {
+            probes.push({
+              url: baseUrl,
+              method: 'POST',
+              body: { model: 'claude-3-5-haiku-20241022', max_tokens: 5, messages: [{ role: 'user', content: 'Ping' }] },
+            });
+          } else {
+            probes.push({
+              url: baseUrl,
+              method: 'POST',
+              body: { model: 'gpt-4o-mini', max_tokens: 5, messages: [{ role: 'user', content: 'Ping' }] },
+            });
+          }
         } else {
-          const err = await res.json().catch(() => ({}));
-          message = err?.error?.message ?? `HTTP ${res.status}`;
+          // Standard base URL — try appropriate protocol first
+          if (isAnthropicKey) {
+            probes.push({
+              url: `${baseUrl}/messages`,
+              method: 'POST',
+              body: { model: 'claude-3-5-haiku-20241022', max_tokens: 5, messages: [{ role: 'user', content: 'Ping' }] },
+            });
+            probes.push({
+              url: `${baseUrl}/chat/completions`,
+              method: 'POST',
+              body: { model: 'claude-3-5-haiku-20241022', max_tokens: 5, messages: [{ role: 'user', content: 'Ping' }] },
+            });
+          } else {
+            probes.push({
+              url: `${baseUrl}/chat/completions`,
+              method: 'POST',
+              body: { model: 'gpt-4o-mini', max_tokens: 5, messages: [{ role: 'user', content: 'Ping' }] },
+            });
+            probes.push({
+              url: `${baseUrl}/messages`,
+              method: 'POST',
+              body: { model: 'claude-3-5-haiku-20241022', max_tokens: 5, messages: [{ role: 'user', content: 'Ping' }] },
+            });
+          }
+
+          // Fallback probe: GET /models
+          const modelsUrl = baseUrl.endsWith('/v1') ? `${baseUrl}/models` : `${baseUrl}/v1/models`;
+          probes.push({ url: modelsUrl, method: 'GET' });
+        }
+
+        // Execute probes sequentially until one connects
+        let connected = false;
+        for (const probe of probes) {
+          try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+            const res = await fetch(probe.url, {
+              method: probe.method,
+              headers,
+              body: probe.body ? JSON.stringify(probe.body) : undefined,
+              signal: controller.signal,
+            });
+            clearTimeout(timeoutId);
+
+            lastStatus = res.status;
+            const responseTime = Date.now() - startTime;
+
+            if (res.ok) {
+              ok = true;
+              connected = true;
+              message = `Connection verified (${res.status} OK in ${responseTime}ms)`;
+              const { recordHealthSuccess } = await import("~/utils/health-service.server");
+              await recordHealthSuccess(key.id, responseTime);
+              break;
+            } else if (res.status === 401 || res.status === 403) {
+              const errBody = await res.json().catch(() => ({}));
+              message = errBody?.error?.message ?? `Unauthorized (HTTP ${res.status}): Please verify the API key`;
+              connected = true;
+              break;
+            } else if (res.status === 400) {
+              // 400 Bad Request means the endpoint was reached and authenticated successfully
+              ok = true;
+              connected = true;
+              message = `Connection verified (${res.status} in ${responseTime}ms)`;
+              const { recordHealthSuccess } = await import("~/utils/health-service.server");
+              await recordHealthSuccess(key.id, responseTime);
+              break;
+            } else if (res.status !== 404) {
+              const errBody = await res.json().catch(() => ({}));
+              message = errBody?.error?.message ?? `Endpoint returned HTTP ${res.status}`;
+              connected = true;
+              break;
+            }
+          } catch (probeErr: any) {
+            if (probeErr.name === 'AbortError') {
+              message = `Connection timed out after 8s at ${probe.url}`;
+            } else {
+              message = probeErr.message || 'Connection failed';
+            }
+          }
+        }
+
+        if (!ok) {
+          if (!message) message = `Could not reach endpoint at ${baseUrl} (HTTP ${lastStatus || 'Failed'})`;
           const { recordHealthFailure } = await import("~/utils/health-service.server");
-          await recordHealthFailure(key.id, message, res.status);
+          await recordHealthFailure(key.id, message, lastStatus || 500);
         }
       } catch (err: any) {
         message = err.message ?? 'Connection failed';

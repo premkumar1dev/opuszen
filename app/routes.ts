@@ -181,6 +181,31 @@ export default [
 		file: "routes/api.chat.completions.tsx",
 	},
 	{
+		id: "chat-completions-root",
+		path: "/chat/completions",
+		file: "routes/api.chat.completions.tsx",
+	},
+	{
+		id: "messages-root",
+		path: "/messages",
+		file: "routes/api.chat.completions.tsx",
+	},
+	{
+		id: "models-root",
+		path: "/models",
+		file: "routes/api.v1.models.tsx",
+	},
+	{
+		id: "health-root",
+		path: "/health",
+		file: "routes/api.status.tsx",
+	},
+	{
+		id: "v1-health",
+		path: "/v1/health",
+		file: "routes/api.status.tsx",
+	},
+	{
 		id: "v1-chat-completions",
 		path: "/v1/chat/completions",
 		file: "routes/api.chat.completions.tsx",

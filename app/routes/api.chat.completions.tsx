@@ -18,7 +18,18 @@ const MAX_BODY_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
 
 export const meta: MetaFunction = () => [{ title: "API Gateway" }];
 
+const CORS_HEADERS: Record<string, string> = {
+	"Access-Control-Allow-Origin": "*",
+	"Access-Control-Allow-Methods": "GET, POST, OPTIONS, HEAD, PUT, DELETE",
+	"Access-Control-Allow-Headers": "Authorization, Content-Type, x-api-key, anthropic-version, x-goog-api-key, X-Request-Id, X-Requested-With, Accept, api-key",
+	"Access-Control-Max-Age": "86400",
+};
+
 export async function loader({ request }: LoaderFunctionArgs) {
+	if (request.method === "OPTIONS") {
+		return new Response(null, { status: 204, headers: CORS_HEADERS });
+	}
+
 	const url = new URL(request.url);
 	if (url.pathname.endsWith("/models")) {
 		return data({
@@ -47,7 +58,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
 				{ id: "claude-3-opus-20240229", name: "Claude 3 Opus", object: "model", created: 1709164800, launch_date: "Feb 29, 2024", context: "200,000", type: "Chat / Completion", owned_by: "anthropic", description: "Anthropic Claude 3 Opus." },
 				{ id: "mistral-large-latest", name: "Mistral Large", object: "model", created: 1708905600, launch_date: "Feb 26, 2024", context: "128,000", type: "Chat / Completion", owned_by: "mistral", description: "Mistral Large flagship." },
 			],
-		});
+		}, { headers: CORS_HEADERS });
 	}
 
 	return data({
@@ -61,31 +72,35 @@ export async function loader({ request }: LoaderFunctionArgs) {
 			models: "/v1/models",
 			keyStatus: "/api/key-status",
 		},
-	});
+	}, { headers: CORS_HEADERS });
 }
 
 export async function action({ request }: ActionFunctionArgs) {
+	if (request.method === "OPTIONS") {
+		return new Response(null, { status: 204, headers: CORS_HEADERS });
+	}
+
 	const requestId = `req_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
 	const startTime = Date.now();
 
 	try {
-		// 1. Extract and validate user API key
-		const authHeader = request.headers.get("authorization") ?? request.headers.get("Authorization") ?? request.headers.get("x-api-key") ?? "";
+		// 1. Extract and validate user or master API key
+		const authHeader = request.headers.get("authorization") ?? request.headers.get("Authorization") ?? request.headers.get("x-api-key") ?? request.headers.get("api-key") ?? "";
 		const apiKey = authHeader.replace(/^Bearer\s+/i, "").trim();
 
 		if (!apiKey) {
-			return data({ error: "Missing API key. Provide Authorization: Bearer <key> or x-api-key header." }, { status: 401 });
+			return data({ error: "Missing API key. Provide Authorization: Bearer <key> or x-api-key header." }, { status: 401, headers: CORS_HEADERS });
 		}
 
 		const userKey = await import("~/utils/user-key-service").then(m => m.validateUserApiKey(apiKey));
 		if (!userKey) {
-			return data({ error: "Invalid or expired API key." }, { status: 401 });
+			return data({ error: "Invalid or expired API key." }, { status: 401, headers: CORS_HEADERS });
 		}
 
 		// 1b. Enforce body size limit to prevent memory exhaustion
 		const contentLength = request.headers.get("content-length");
 		if (contentLength && parseInt(contentLength, 10) > MAX_BODY_SIZE_BYTES) {
-			return data({ error: `Request body too large. Maximum size is ${MAX_BODY_SIZE_BYTES / 1024 / 1024} MB.` }, { status: 413 });
+			return data({ error: `Request body too large. Maximum size is ${MAX_BODY_SIZE_BYTES / 1024 / 1024} MB.` }, { status: 413, headers: CORS_HEADERS });
 		}
 
 		// 2. Parse request body
@@ -93,12 +108,12 @@ export async function action({ request }: ActionFunctionArgs) {
 		try {
 			body = await request.json();
 		} catch {
-			return data({ error: "Invalid JSON body." }, { status: 400 });
+			return data({ error: "Invalid JSON body." }, { status: 400, headers: CORS_HEADERS });
 		}
 
-		// 3. Set provider — opusmax is the only allowed provider
+		// 3. Extract requested model
 		const urlPath = new URL(request.url).pathname;
-		const model = body.model ?? "";
+		const model = body.model ?? "claude-3-5-haiku-20241022";
 		let provider = 'opusmax';
 
 		// 3b. Enforce allowed models restriction
@@ -109,7 +124,7 @@ export async function action({ request }: ActionFunctionArgs) {
 			if (!modelAllowed) {
 				return data({
 					error: `Model "${model}" is not allowed for this API key. Allowed: ${userKey.allowed_models.join(", ")}`,
-				}, { status: 403 });
+				}, { status: 403, headers: CORS_HEADERS });
 			}
 		}
 
@@ -118,7 +133,7 @@ export async function action({ request }: ActionFunctionArgs) {
 			if (!userKey.allowed_providers.includes(provider)) {
 				return data({
 					error: `Provider "${provider}" is not allowed for this API key. Allowed: ${userKey.allowed_providers.join(", ")}`,
-				}, { status: 403 });
+				}, { status: 403, headers: CORS_HEADERS });
 			}
 		}
 
@@ -129,7 +144,7 @@ export async function action({ request }: ActionFunctionArgs) {
 				return data({
 					error: `Rate limit exceeded. Max ${userKey.rate_limit} requests per minute.`,
 					retry_after: rateResult.retryAfter,
-				}, { status: 429 });
+				}, { status: 429, headers: CORS_HEADERS });
 			}
 		}
 
@@ -153,6 +168,7 @@ export async function action({ request }: ActionFunctionArgs) {
 			return data(result.responseBody ?? { choices: [] }, {
 				status: result.httpStatus === 0 ? 200 : result.httpStatus,
 				headers: {
+					...CORS_HEADERS,
 					'X-Request-Id': requestId,
 					'X-Master-Key-Id': result.masterKeyId,
 					'X-Provider': result.provider,
@@ -170,7 +186,7 @@ export async function action({ request }: ActionFunctionArgs) {
 					request_id: requestId,
 					retries: result.retryNumber,
 				},
-			}, { status });
+			}, { status, headers: CORS_HEADERS });
 		}
 
 	} catch (err: any) {
@@ -181,6 +197,6 @@ export async function action({ request }: ActionFunctionArgs) {
 				type: "internal_error",
 				request_id: requestId,
 			},
-		}, { status: 500 });
+		}, { status: 500, headers: CORS_HEADERS });
 	}
 }

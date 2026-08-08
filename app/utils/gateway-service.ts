@@ -147,11 +147,18 @@ function buildProviderHeaders(
 		'Content-Type': 'application/json',
 	};
 
-	if (provider === 'Anthropic') {
+	const isAnthropicKey = masterKey.api_key.startsWith('sk-ant-') || provider.toLowerCase().includes('anthropic') || provider.toLowerCase().includes('claude');
+
+	if (isAnthropicKey) {
 		headers['x-api-key'] = masterKey.api_key;
 		headers['anthropic-version'] = '2023-06-01';
+		headers['Authorization'] = `Bearer ${masterKey.api_key}`;
+	} else if (config.authHeader === 'x-api-key') {
+		headers['x-api-key'] = masterKey.api_key;
+	} else if (config.authHeader === 'x-goog-api-key') {
+		headers['x-goog-api-key'] = masterKey.api_key;
 	} else {
-		headers[config.authHeader] = `Bearer ${masterKey.api_key}`;
+		headers['Authorization'] = `Bearer ${masterKey.api_key}`;
 	}
 
 	return headers;
@@ -162,12 +169,18 @@ function buildProviderHeaders(
 // ---------------------------------------------------------------------------
 function buildProviderUrl(provider: string, model: string): string {
 	const config = getProviderConfig(provider);
+	const base = config.baseUrl.replace(/\/+$/, '');
 
-	if (provider === 'Anthropic') {
-		return `${config.baseUrl}/messages`;
+	if (base.endsWith('/chat/completions') || base.endsWith('/messages')) {
+		return base;
 	}
 
-	return `${config.baseUrl}/chat/completions`;
+	const isAnthropic = provider.toLowerCase().includes('anthropic') || model.toLowerCase().startsWith('claude');
+	if (isAnthropic && (base.includes('anthropic') || provider === 'Anthropic')) {
+		return `${base}/messages`;
+	}
+
+	return `${base}/chat/completions`;
 }
 
 // ---------------------------------------------------------------------------
@@ -478,8 +491,8 @@ export async function handleGatewayRequest(
 	for (const candidate of keysToTry) {
 		masterKey = candidate;
 
-		// All upstream requests go to opusmax regardless of key's stored provider name
-		const upstreamProvider = 'opusmax';
+		// Route to candidate's configured provider or URL, falling back to opusmax
+		const upstreamProvider = candidate.provider || 'opusmax';
 		const config = getProviderConfig(upstreamProvider);
 		const url = buildProviderUrl(upstreamProvider, ctx.model);
 		const headers = buildProviderHeaders(upstreamProvider, candidate);
