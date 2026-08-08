@@ -4,7 +4,23 @@ import { useState, useEffect } from "react";
 import { verifyAdminSession } from "~/utils/admin-auth";
 import { AdminSidebar } from "~/components/admin/admin-sidebar";
 import { cn } from "@/lib/utils";
-import { FiSettings, FiUser, FiKey, FiBell, FiGlobe, FiShield, FiSave, FiLock, FiDatabase, FiMail, FiCheck, FiMoon, FiSun, FiMonitor, FiCreditCard } from "react-icons/fi";
+import {
+	Settings,
+	User,
+	Key,
+	Bell,
+	Globe,
+	Shield,
+	Save,
+	Lock,
+	Database,
+	Mail,
+	Check,
+	Moon,
+	Sun,
+	Monitor,
+	CreditCard,
+} from "lucide-react";
 
 export const meta: MetaFunction = () => [{ title: "Settings | Admin | OpusZen" }];
 
@@ -17,19 +33,19 @@ export async function loader({ request }: LoaderFunctionArgs) {
 	const adminCheck = await verifyAdminSession(request);
 	if (!adminCheck.isAdmin) return redirect("/auth/admin");
 	return {
-		adminEmail: adminCheck.adminEmail || import.meta.env.VITE_ADMIN_EMAIL || "",
+		adminEmail: adminCheck.adminEmail || "",
 		planName: "Enterprise Admin",
 	};
 }
 
 const TABS = [
-	{ id: "profile", label: "Profile", icon: <FiUser className="w-4 h-4" />, href: "/auth/admin/settings?tab=profile" },
-	{ id: "security", label: "Security", icon: <FiShield className="w-4 h-4" />, href: "/auth/admin/settings?tab=security" },
-	{ id: "notifications", label: "Notifications", icon: <FiBell className="w-4 h-4" />, href: "/auth/admin/settings?tab=notifications" },
-	{ id: "appearance", label: "Appearance", icon: <FiMonitor className="w-4 h-4" />, href: "/auth/admin/settings?tab=appearance" },
-	{ id: "data", label: "Data & Storage", icon: <FiDatabase className="w-4 h-4" />, href: "/auth/admin/settings?tab=data" },
-	{ id: "site", label: "Site Config", icon: <FiGlobe className="w-4 h-4" />, href: "/auth/admin/settings/site" },
-	{ id: "payments", label: "Payment Gateway", icon: <FiCreditCard className="w-4 h-4" />, href: "/auth/admin/settings/payments" },
+	{ id: "profile", label: "Profile", icon: <User className="w-4 h-4" />, href: "/auth/admin/settings?tab=profile" },
+	{ id: "security", label: "Security", icon: <Shield className="w-4 h-4" />, href: "/auth/admin/settings?tab=security" },
+	{ id: "notifications", label: "Notifications", icon: <Bell className="w-4 h-4" />, href: "/auth/admin/settings?tab=notifications" },
+	{ id: "appearance", label: "Appearance", icon: <Monitor className="w-4 h-4" />, href: "/auth/admin/settings?tab=appearance" },
+	{ id: "data", label: "Data & Storage", icon: <Database className="w-4 h-4" />, href: "/auth/admin/settings?tab=data" },
+	{ id: "site", label: "Site Config", icon: <Globe className="w-4 h-4" />, href: "/auth/admin/settings/site" },
+	{ id: "payments", label: "Payment Gateway", icon: <CreditCard className="w-4 h-4" />, href: "/auth/admin/settings/payments" },
 ];
 
 export default function AdminSettingsRoute() {
@@ -151,7 +167,7 @@ export default function AdminSettingsRoute() {
 				<div className="flex-1 space-y-4">
 					{saved && (
 						<div className="flex items-center gap-2 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 text-sm font-medium">
-							<FiCheck className="w-4 h-4" />
+							<Check className="w-4 h-4" />
 							Settings saved successfully
 						</div>
 					)}
@@ -277,7 +293,7 @@ export default function AdminSettingsRoute() {
 								))}
 							</div>
 							<div className="flex items-start gap-3 p-4 rounded-xl bg-violet-500/5 border border-violet-500/15">
-								<FiMail className="w-4 h-4 text-violet-400 shrink-0 mt-0.5" />
+								<Mail className="w-4 h-4 text-violet-400 shrink-0 mt-0.5" />
 								<div className="space-y-1">
 									<p className="text-xs font-semibold text-foreground">Outbound Mail Configuration</p>
 									<p className="text-[11px] text-muted-foreground">
@@ -296,9 +312,9 @@ export default function AdminSettingsRoute() {
 							</div>
 							<div className="grid grid-cols-3 gap-3">
 								{[
-									{ id: "light", label: "Light", icon: <FiSun className="w-5 h-5" /> },
-									{ id: "dark", label: "Dark", icon: <FiMoon className="w-5 h-5" /> },
-									{ id: "system", label: "System", icon: <FiMonitor className="w-5 h-5" /> },
+									{ id: "light", label: "Light", icon: <Sun className="w-5 h-5" /> },
+									{ id: "dark", label: "Dark", icon: <Moon className="w-5 h-5" /> },
+									{ id: "system", label: "System", icon: <Monitor className="w-5 h-5" /> },
 								].map((t) => (
 									<button
 										key={t.id}
@@ -368,7 +384,7 @@ export default function AdminSettingsRoute() {
 							onClick={handleSave}
 							className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-all cursor-pointer shadow-md shadow-primary/20"
 						>
-							<FiSave className="w-4 h-4" />
+							<Save className="w-4 h-4" />
 							Save Changes
 						</button>
 					</div>

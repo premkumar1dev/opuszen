@@ -8,23 +8,23 @@ import { ContactAdminModal } from "~/components/ui/contact-admin-modal";
 import { AdminSidebar } from "~/components/admin/admin-sidebar";
 import { cn } from "@/lib/utils";
 import {
-	FiSearch,
-	FiRefreshCw,
-	FiDownload,
-	FiFilter,
-	FiEye,
-	FiCheck,
-	FiChevronLeft,
-	FiChevronRight,
-	FiLoader,
-	FiShoppingBag,
-	FiTrendingUp,
-	FiClock,
-	FiPercent,
-	FiXCircle,
-	FiCopy,
-} from "react-icons/fi";
-import { FaRupeeSign } from "react-icons/fa6";
+	Search,
+	RefreshCw,
+	Download,
+	Filter,
+	Eye,
+	Check,
+	ChevronLeft,
+	ChevronRight,
+	Loader,
+	ShoppingBag,
+	TrendingUp,
+	Clock,
+	Percent,
+	XCircle,
+	Copy,
+} from "lucide-react";
+import { IndianRupee } from "lucide-react";
 import {
 	Sheet,
 	SheetContent,
@@ -218,7 +218,7 @@ function OrderDetailSheet({ order, onClose }: OrderDetailSheetProps) {
 			<SheetContent side="right" className="w-full sm:max-w-[480px] overflow-y-auto">
 				<SheetHeader>
 					<SheetTitle className="flex items-center gap-2">
-						<FiEye className="w-4 h-4" />
+						<Eye className="w-4 h-4" />
 						Order Details
 					</SheetTitle>
 					<SheetDescription>
@@ -307,7 +307,7 @@ function OrderDetailSheet({ order, onClose }: OrderDetailSheetProps) {
 										className="flex items-center gap-1.5 text-xs font-mono text-foreground hover:text-primary transition-colors"
 									>
 										{order.payment_ref || "—"}
-										{order.payment_ref && <FiCopy className="w-3 h-3" />}
+										{order.payment_ref && <Copy className="w-3 h-3" />}
 									</button>
 								</div>
 							</div>
@@ -350,7 +350,7 @@ function OrderDetailSheet({ order, onClose }: OrderDetailSheetProps) {
 								animate={{ opacity: 1, y: 0 }}
 								className="flex items-center gap-1.5 text-xs text-emerald-400 font-medium"
 							>
-								<FiCheck className="w-3.5 h-3.5" />
+								<Check className="w-3.5 h-3.5" />
 								Copied to clipboard
 							</motion.div>
 						)}
@@ -381,13 +381,13 @@ const SortIcon = ({
 	sortDir: "asc" | "desc";
 }) => (
 	<span className="ml-1 inline-flex flex-col gap-[1px]">
-		<FiChevronRight
+		<ChevronRight
 			className={`w-2.5 h-2.5 -ml-0.5 transition-colors ${
 				sortField === field && sortDir === "asc" ? "text-primary" : "text-muted-foreground/40"
 			}`}
 			style={{ transform: "rotate(-90deg)" }}
 		/>
-		<FiChevronRight
+		<ChevronRight
 			className={`w-2.5 h-2.5 -ml-0.5 -mt-[3px] transition-colors ${
 				sortField === field && sortDir === "desc" ? "text-primary" : "text-muted-foreground/40"
 			}`}
@@ -558,7 +558,7 @@ export default function AdminOrdersRoute() {
 					<div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
 						<div>
 							<div className="inline-flex items-center gap-1.5 mb-3 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-xs font-mono font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">
-								<FiShoppingBag className="w-3.5 h-3.5" />
+								<ShoppingBag className="w-3.5 h-3.5" />
 								Order Management
 							</div>
 							<h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-foreground text-gradient">
@@ -572,11 +572,11 @@ export default function AdminOrdersRoute() {
 
 						<div className="flex items-center gap-2 flex-wrap">
 							<Button variant="outline" size="sm" onClick={handleExport} className="gap-1.5">
-								<FiDownload className="w-3.5 h-3.5" />
+								<Download className="w-3.5 h-3.5" />
 								Export
 							</Button>
 							<Button variant="outline" size="sm" onClick={refresh} disabled={loading} className="gap-1.5">
-								<FiRefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
+								<RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
 								Refresh
 							</Button>
 							<Button
@@ -585,7 +585,7 @@ export default function AdminOrdersRoute() {
 								onClick={() => setShowFilters((v) => !v)}
 								className="gap-1.5"
 							>
-								<FiFilter className="w-3.5 h-3.5" />
+								<Filter className="w-3.5 h-3.5" />
 								Filters
 								{activeFilterCount > 0 && (
 									<span className="ml-1 w-4 h-4 rounded-full bg-primary text-[10px] font-bold text-white flex items-center justify-center">
@@ -615,12 +615,12 @@ export default function AdminOrdersRoute() {
 					{/* Stats Row */}
 					<div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-6 gap-3 mb-6">
 						{[
-							{ label: "Total Orders", value: stats.total, color: "text-foreground", icon: <FiShoppingBag className="w-4 h-4" /> },
-							{ label: "Revenue", value: formatCurrency(stats.totalRevenue), color: "text-emerald-500", icon: <FaRupeeSign className="w-3.5 h-3.5" /> },
-							{ label: "Avg Order", value: formatCurrency(stats.avgOrderValue), color: "text-amber-500", icon: <FiTrendingUp className="w-4 h-4" /> },
-							{ label: "Pending", value: stats.pendingCount, color: "text-amber-500", icon: <FiClock className="w-4 h-4" /> },
-							{ label: "Failed", value: stats.failedCount, color: "text-red-500", icon: <FiXCircle className="w-4 h-4" /> },
-							{ label: "Completion", value: `${stats.completionRate.toFixed(0)}%`, color: "text-indigo-500", icon: <FiPercent className="w-4 h-4" /> },
+							{ label: "Total Orders", value: stats.total, color: "text-foreground", icon: <ShoppingBag className="w-4 h-4" /> },
+							{ label: "Revenue", value: formatCurrency(stats.totalRevenue), color: "text-emerald-500", icon: <IndianRupee className="w-3.5 h-3.5" /> },
+							{ label: "Avg Order", value: formatCurrency(stats.avgOrderValue), color: "text-amber-500", icon: <TrendingUp className="w-4 h-4" /> },
+							{ label: "Pending", value: stats.pendingCount, color: "text-amber-500", icon: <Clock className="w-4 h-4" /> },
+							{ label: "Failed", value: stats.failedCount, color: "text-red-500", icon: <XCircle className="w-4 h-4" /> },
+							{ label: "Completion", value: `${stats.completionRate.toFixed(0)}%`, color: "text-indigo-500", icon: <Percent className="w-4 h-4" /> },
 						].map((stat) => (
 							<div key={stat.label} className="p-4 rounded-xl border border-border bg-card dark:bg-card/60">
 								<div className="flex items-center gap-2 mb-1.5">
@@ -683,7 +683,7 @@ export default function AdminOrdersRoute() {
 										onClick={() => setFilters({ search: "", status: "all" })}
 										className="h-9"
 									>
-										<FiRefreshCw className="w-3.5 h-3.5 mr-1" />
+										<RefreshCw className="w-3.5 h-3.5 mr-1" />
 										Clear
 									</Button>
 								</div>
@@ -695,7 +695,7 @@ export default function AdminOrdersRoute() {
 					<div className="rounded-2xl border border-border bg-card dark:bg-card/60 overflow-hidden">
 						{loading && allOrders.length === 0 ? (
 							<div className="flex items-center justify-center py-20">
-								<FiLoader className="w-8 h-8 animate-spin text-muted-foreground" />
+								<Loader className="w-8 h-8 animate-spin text-muted-foreground" />
 							</div>
 						) : (
 							<>
@@ -746,7 +746,7 @@ export default function AdminOrdersRoute() {
 												<tr>
 													<td colSpan={7} className="px-4 py-16 text-center text-muted-foreground">
 														<div className="flex flex-col items-center gap-2">
-															<FiShoppingBag className="w-10 h-10 opacity-30" />
+															<ShoppingBag className="w-10 h-10 opacity-30" />
 															<p className="text-sm font-medium">No orders found</p>
 															<p className="text-xs">Try adjusting your filters</p>
 														</div>
@@ -847,7 +847,7 @@ export default function AdminOrdersRoute() {
 																													title="View details"
 																													type="button"
 																												>
-																													<FiEye className="w-3.5 h-3.5" />
+																													<Eye className="w-3.5 h-3.5" />
 																												</button>
 																											</div>
 																										</td>
@@ -873,7 +873,7 @@ export default function AdminOrdersRoute() {
 																							onClick={() => setPage((p) => Math.max(1, p - 1))}
 																							disabled={page === 1}
 																						>
-																							<FiChevronLeft className="w-4 h-4" />
+																							<ChevronLeft className="w-4 h-4" />
 																						</Button>
 																						{Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
 																							const p = i + 1;
@@ -899,7 +899,7 @@ export default function AdminOrdersRoute() {
 																							onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
 																							disabled={page === totalPages}
 																						>
-																							<FiChevronRight className="w-4 h-4" />
+																							<ChevronRight className="w-4 h-4" />
 																						</Button>
 																					</div>
 																				</div>

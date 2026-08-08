@@ -11,29 +11,29 @@ import { AdminSidebar } from "~/components/admin/admin-sidebar";
 import { cn } from "~/lib/utils";
 import type { MasterApiKeyRow, MasterApiKeyStats } from "~/types/gateway";
 import {
-  FiKey,
-  FiPlus,
-  FiTrash2,
-  FiEdit3,
-  FiToggleLeft,
-  FiToggleRight,
-  FiRefreshCw,
-  FiPlay,
-  FiPause,
-  FiActivity,
-  FiAlertTriangle,
-  FiCheckCircle,
-  FiXCircle,
-  FiClock,
-  FiCopy,
-  FiShield,
-  FiZap,
-  FiLoader,
-  FiChevronDown,
-  FiExternalLink,
-  FiHelpCircle,
-  FiEye,
-} from "react-icons/fi";
+  Key,
+  Plus,
+  Trash2,
+  Edit3,
+  ToggleLeft,
+  ToggleRight,
+  RefreshCw,
+  Play,
+  Pause,
+  Activity,
+  AlertTriangle,
+  CheckCircle,
+  XCircle,
+  Clock,
+  Copy,
+  Shield,
+  Zap,
+  Loader,
+  ChevronDown,
+  ExternalLink,
+  HelpCircle,
+  Eye,
+} from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -455,15 +455,15 @@ export default function AdminMasterKeysRoute() {
             </div>
             <div className="flex items-center gap-2">
               <Button variant="outline" size="sm" onClick={() => navigate("/auth/admin/gateway/logs")} className="gap-1.5">
-                <FiActivity className="w-3.5 h-3.5 text-emerald-500 animate-pulse" />
+                <Activity className="w-3.5 h-3.5 text-emerald-500 animate-pulse" />
                 Live Monitor
               </Button>
               <Button variant="outline" size="sm" onClick={refresh} disabled={loading} className="gap-1.5">
-                <FiRefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+                <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
                 Refresh
               </Button>
               <Button size="sm" className="gap-1.5" onClick={() => setShowAddForm(true)}>
-                <FiPlus className="w-3.5 h-3.5" />
+                <Plus className="w-3.5 h-3.5" />
                 Add Key
               </Button>
             </div>
@@ -489,7 +489,7 @@ export default function AdminMasterKeysRoute() {
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div>
                 <h3 className="font-semibold text-foreground flex items-center gap-1.5 mb-1 text-sm">
-                  <FiHelpCircle className="w-4 h-4 text-primary" /> Key Status & Health Guide
+                  <HelpCircle className="w-4 h-4 text-primary" /> Key Status & Health Guide
                 </h3>
                 <p className="text-muted-foreground">Understanding administrative statuses and automated gateway health indicators.</p>
               </div>
@@ -538,7 +538,7 @@ export default function AdminMasterKeysRoute() {
                   {keys.length === 0 ? (
                     <tr>
                       <td colSpan={10} className="px-4 py-12 text-center text-muted-foreground">
-                        <FiKey className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                        <Key className="w-8 h-8 mx-auto mb-2 opacity-30" />
                         <p className="text-sm font-medium">No master keys configured</p>
                         <p className="text-xs">Add your first provider key to get started</p>
                       </td>
@@ -597,7 +597,7 @@ export default function AdminMasterKeysRoute() {
                         </td>
                         <td className="px-4 py-3">
                           <span className={cn("inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold", isActive ? "bg-emerald-500/10 text-emerald-600" : "bg-red-500/10 text-red-500")}>
-                            {isActive ? <FiCheckCircle className="w-3 h-3" /> : <FiXCircle className="w-3 h-3" />}
+                            {isActive ? <CheckCircle className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
                             {isActive ? 'Active' : 'Disabled'}
                           </span>
                         </td>
@@ -652,7 +652,7 @@ export default function AdminMasterKeysRoute() {
                               className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
                               title="View detailed status"
                             >
-                              <FiEye className="w-3.5 h-3.5" />
+                              <Eye className="w-3.5 h-3.5" />
                             </button>
                             <button
                               onClick={() => handleTestConnection(key)}
@@ -660,28 +660,28 @@ export default function AdminMasterKeysRoute() {
                               className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
                               title="Test connection"
                             >
-                              {testingId === key.id ? <FiLoader className="w-3.5 h-3.5 animate-spin" /> : <FiPlay className="w-3.5 h-3.5" />}
+                              {testingId === key.id ? <Loader className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
                             </button>
                             <button
                               onClick={() => handleResetHealth(key.id)}
                               className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
                               title="Reset health"
                             >
-                              <FiActivity className="w-3.5 h-3.5" />
+                              <Activity className="w-3.5 h-3.5" />
                             </button>
                             <button
                               onClick={() => handleToggleStatus(key)}
                               className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
                               title={isActive ? 'Disable' : 'Enable'}
                             >
-                              {isActive ? <FiPause className="w-3.5 h-3.5" /> : <FiPlay className="w-3.5 h-3.5" />}
+                              {isActive ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
                             </button>
                             <button
                               onClick={() => handleDelete(key.id)}
                               className="p-1.5 rounded-lg hover:bg-red-500/10 text-muted-foreground hover:text-red-400 transition-colors cursor-pointer"
                               title="Delete"
                             >
-                              <FiTrash2 className="w-3.5 h-3.5" />
+                              <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           </div>
                         </td>
@@ -698,7 +698,7 @@ export default function AdminMasterKeysRoute() {
             <SheetContent side="right" className="w-full sm:max-w-[480px]">
               <SheetHeader>
                 <SheetTitle className="flex items-center gap-2">
-                  <FiPlus className="w-4 h-4" />
+                  <Plus className="w-4 h-4" />
                   Add Master API Key
                 </SheetTitle>
                 <SheetDescription>
@@ -741,7 +741,7 @@ export default function AdminMasterKeysRoute() {
               </div>
               <SheetFooter className="mt-6 pt-4 border-t border-border flex flex-col gap-2">
                 <Button className="w-full" onClick={handleAdd} disabled={loading || !form.name || !form.provider || !form.api_key}>
-                  {loading ? <><FiLoader className="w-4 h-4 mr-1.5 animate-spin" /> Adding...</> : <><FiPlus className="w-4 h-4 mr-1.5" /> Add Key</>}
+                  {loading ? <><Loader className="w-4 h-4 mr-1.5 animate-spin" /> Adding...</> : <><Plus className="w-4 h-4 mr-1.5" /> Add Key</>}
                 </Button>
                 <Button variant="outline" className="w-full" onClick={() => setShowAddForm(false)}>Cancel</Button>
               </SheetFooter>
@@ -753,7 +753,7 @@ export default function AdminMasterKeysRoute() {
             <SheetContent side="right" className="w-full sm:max-w-[480px]">
               <SheetHeader>
                 <SheetTitle className="flex items-center gap-2">
-                  <FiKey className="w-4 h-4" />
+                  <Key className="w-4 h-4" />
                   Key Details
                 </SheetTitle>
                 <SheetDescription>
@@ -764,7 +764,7 @@ export default function AdminMasterKeysRoute() {
               <div className="mt-6 space-y-6">
                 {detailsLoading && (
                   <div className="flex flex-col items-center justify-center py-12 text-muted-foreground gap-2">
-                    <FiLoader className="w-8 h-8 animate-spin text-primary" />
+                    <Loader className="w-8 h-8 animate-spin text-primary" />
                     <p className="text-sm font-medium">Fetching details from provider...</p>
                   </div>
                 )}

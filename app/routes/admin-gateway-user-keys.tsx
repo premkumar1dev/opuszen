@@ -3,26 +3,26 @@
  * Route: /auth/admin/gateway/user-keys
  */
 import { useState, useCallback, useEffect } from "react";
-import { type LoaderFunctionArgs, type ActionFunctionArgs, type MetaFunction, redirect } from "react-router";
-import { useLoaderData, useFetcher, useNavigate } from "react-router";
+import { type LoaderFunctionArgs, type ActionFunctionArgs, type MetaFunction, redirect, useLocation, useNavigate } from "react-router";
+import { useLoaderData, useFetcher } from "react-router";
 import { verifyAdminSession } from "~/utils/admin-auth";
 import { supabaseServer } from "~/utils/supabase.server";
 import { AdminSidebar } from "~/components/admin/admin-sidebar";
 import { cn } from "~/lib/utils";
 import type { UserApiKeyRow } from "~/types/gateway";
 import {
- FiKey,
- FiPlus,
- FiTrash2,
- FiToggleLeft,
- FiToggleRight,
- FiRefreshCw,
- FiCopy,
- FiClock,
- FiLoader,
- FiCheck,
- FiUser,
-} from "react-icons/fi";
+ Key,
+ Plus,
+ Trash2,
+ ToggleLeft,
+ ToggleRight,
+ RefreshCw,
+ Copy,
+ Clock,
+ Loader,
+ Check,
+ User,
+} from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import {
@@ -193,9 +193,16 @@ async function copyToClipboard(text: string): Promise<boolean> {
 export default function AdminUserKeysRoute() {
   const { keys, users = [], plans = [], adminEmail } = useLoaderData<typeof loader>();
   const fetcher = useFetcher();
-  const navigate = useNavigate();
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [allowAllModels, setAllowAllModels] = useState(true);
+ const navigate = useNavigate();
+ const location = useLocation();
+ const [mobileOpen, setMobileOpen] = useState(false);
+ const [showAddForm, setShowAddForm] = useState(false);
+
+ useEffect(() => {
+ setMobileOpen(false);
+ }, [location.pathname]);
+
+ const [allowAllModels, setAllowAllModels] = useState(true);
   const [form, setForm] = useState({
     user_id: '',
     name: 'Default Key',
@@ -303,9 +310,18 @@ export default function AdminUserKeysRoute() {
 
  return (
  <div className="min-h-screen bg-background text-foreground">
- <AdminSidebar collapsed={false} onToggle={() => {}} adminEmail={adminEmail || undefined} />
- <main className="ml-[220px] min-h-screen">
- <div className="max-w-[1400px] space-y-6">
+ <AdminSidebar collapsed={false} onToggle={() => {}} adminEmail={adminEmail || undefined} mobileOpen={mobileOpen} onMobileToggle={() => setMobileOpen((v) => !v)} />
+ <main className="min-h-screen md:ml-[220px]">
+ {/* Mobile header bar with hamburger */}
+ <div className="sticky top-0 z-30 flex items-center gap-3 px-4 h-14 border-b border-border/60 bg-background/95 backdrop-blur md:hidden">
+ <button onClick={() => setMobileOpen(true)} className="p-2 -ml-2 rounded-lg hover:bg-muted text-muted-foreground transition-colors" aria-label="Open menu">
+ <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+ <path d="M4 6h16M4 12h16M4 18h16" />
+ </svg>
+ </button>
+ <span className="text-sm font-semibold">User API Keys</span>
+ </div>
+ <div className="max-w-[1400px] px-4 sm:px-6 lg:px-8 space-y-6">
  {/* Header */}
  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
  <div>
@@ -314,11 +330,11 @@ export default function AdminUserKeysRoute() {
  </div>
  <div className="flex items-center gap-2">
  <Button variant="outline" size="sm" onClick={refresh} disabled={loading} className="gap-1.5">
- <FiRefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+ <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
  Refresh
  </Button>
  <Button size="sm" className="gap-1.5" onClick={() => setShowAddForm(true)}>
- <FiPlus className="w-3.5 h-3.5" />
+ <Plus className="w-3.5 h-3.5" />
  Generate Key
  </Button>
  </div>
@@ -360,7 +376,7 @@ export default function AdminUserKeysRoute() {
  {keys.length === 0 ? (
  <tr>
  <td colSpan={9} className="px-4 py-12 text-center text-muted-foreground">
- <FiKey className="w-8 h-8 mx-auto mb-2 opacity-30" />
+ <Key className="w-8 h-8 mx-auto mb-2 opacity-30" />
  <p className="text-sm font-medium">No user keys generated yet</p>
  <p className="text-xs">Generate a key for a user to get started</p>
  </td>
@@ -378,7 +394,7 @@ export default function AdminUserKeysRoute() {
  {key.api_key.slice(0, 6)}...
  </code>
  <button onClick={() => handleCopy(key)} className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground cursor-pointer">
- {copiedId === key.id ? <FiCheck className="w-3.5 h-3.5 text-emerald-500" /> : <FiCopy className="w-3.5 h-3.5" />}
+ {copiedId === key.id ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
  </button>
  </div>
  </td>
@@ -421,16 +437,16 @@ export default function AdminUserKeysRoute() {
  <td className="px-4 py-3">
  <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
  <button onClick={() => handleToggle(key)} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer" title={key.status === 'active' ? 'Disable' : 'Enable'}>
- {key.status === 'active' ? <FiToggleLeft className="w-4 h-4" /> : <FiToggleRight className="w-4 h-4" />}
+ {key.status === 'active' ? <ToggleLeft className="w-4 h-4" /> : <ToggleRight className="w-4 h-4" />}
  </button>
  <button onClick={() => handleRegenerate(key)} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer" title="Regenerate">
- <FiRefreshCw className="w-3.5 h-3.5" />
+ <RefreshCw className="w-3.5 h-3.5" />
  </button>
  <button onClick={() => handleResetUsage(key)} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer" title="Reset usage">
- <FiClock className="w-3.5 h-3.5" />
+ <Clock className="w-3.5 h-3.5" />
  </button>
  <button onClick={() => handleDelete(key)} className="p-1.5 rounded-lg hover:bg-red-500/10 text-muted-foreground hover:text-red-400 cursor-pointer" title="Delete">
- <FiTrash2 className="w-3.5 h-3.5" />
+ <Trash2 className="w-3.5 h-3.5" />
  </button>
  </div>
  </td>
@@ -447,7 +463,7 @@ export default function AdminUserKeysRoute() {
  <SheetContent side="right" className="w-full sm:max-w-[480px]">
  <SheetHeader>
  <SheetTitle className="flex items-center gap-2">
- <FiKey className="w-4 h-4" />
+ <Key className="w-4 h-4" />
  Generate User API Key
  </SheetTitle>
  <SheetDescription>
@@ -562,7 +578,7 @@ export default function AdminUserKeysRoute() {
  </div>
  <SheetFooter className="mt-6 pt-4 border-t border-border flex flex-col gap-2">
  <Button className="w-full" onClick={handleAdd} disabled={loading || !form.user_id}>
- {loading ? <><FiLoader className="w-4 h-4 mr-1.5 animate-spin" /> Generating...</> : <><FiKey className="w-4 h-4 mr-1.5" /> Generate Key</>}
+ {loading ? <><Loader className="w-4 h-4 mr-1.5 animate-spin" /> Generating...</> : <><Key className="w-4 h-4 mr-1.5" /> Generate Key</>}
  </Button>
  <Button variant="outline" className="w-full" onClick={() => setShowAddForm(false)}>Cancel</Button>
  </SheetFooter>

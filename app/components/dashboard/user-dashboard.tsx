@@ -1,12 +1,12 @@
 import { useState, useEffect, useCallback } from "react";
 import { NavLink, useNavigate } from "react-router";
 import {
-	FiActivity,
-	FiZap,
-	FiClock,
-	FiExternalLink,
-	FiRefreshCw,
-} from "react-icons/fi";
+	Activity,
+	Zap,
+	Clock,
+	ExternalLink,
+	RefreshCw,
+} from "lucide-react";
 import {
 	LineChart,
 	Line,
@@ -21,6 +21,7 @@ import {
 } from "recharts";
 import { DashboardSidebar } from "./dashboard-sidebar";
 import { supabase } from "../../utils/supabase";
+import { useAccessGuard } from "../../utils/use-access-guard";
 import { useDashboardTheme } from "../../utils/theme";
 import type {
 	UserDashboardData,
@@ -204,6 +205,7 @@ export default function UserDashboard({
 }) {
 	const { theme, toggleTheme } = useDashboardTheme();
 	const navigate = useNavigate();
+	const access = useAccessGuard();
 	const [collapsed, setCollapsed] = useState(false);
 	const [timeRange, setTimeRange] = useState("30d");
 	const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -359,12 +361,17 @@ export default function UserDashboard({
 	const displayUser = initialEmail || user?.email;
 
 	return (
-		<div className="dashboard flex min-h-screen">
+		access === null ? (
+			<div className="flex items-center justify-center min-h-screen">
+				<div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+			</div>
+		) : (
+			<div className="dashboard flex min-h-screen">
 			{/* Overlay */}
-			{sidebarOpen && <div className="fixed inset-0 z-[55] dashboard-overlay backdrop-blur-sm md:hidden" onClick={() => setSidebarOpen(false)} />}
+			{sidebarOpen && <div className="fixed inset-0 z-dropdown dashboard-overlay backdrop-blur-sm md:hidden" onClick={() => setSidebarOpen(false)} />}
 
 			{/* Mobile sidebar */}
-			<div className={`fixed top-0 left-0 z-[60] h-full md:hidden transform transition-transform duration-300 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
+			<div className={`fixed top-0 left-0 z-dropdown h-full md:hidden transform transition-transform duration-300 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
 				<DashboardSidebar collapsed={false} onToggle={() => setSidebarOpen(false)} userEmail={displayUser} theme={theme} onThemeToggle={toggleTheme} onLogout={handleLogout} />
 			</div>
 
@@ -374,7 +381,7 @@ export default function UserDashboard({
 			</div>
 
 			{/* Main */}
-			<main className={`flex-1 min-h-screen transition-all duration-300 ${collapsed ? "md:ml-[68px]" : "md:ml-[240px]"}`}>
+			<main className={`flex-1 min-h-screen transition-all duration-300 ${collapsed ? "md:ml-[68px]" : "md:ml-[220px]"}`}>
 				<header className="sticky top-0 z-40 border-b border-[var(--dashboard-border)]" style={{ backgroundColor: `color-mix(in srgb, var(--dashboard-bg) 80%, transparent)`, WebkitBackdropFilter: "saturate(180%) blur(8px)", backdropFilter: "saturate(180%) blur(8px)" }}>
 					<div className="flex items-center justify-between h-14 px-4 sm:px-6 lg:px-8">
 						<div className="flex items-center gap-3">
@@ -390,7 +397,7 @@ export default function UserDashboard({
 						</div>
 						<div className="flex items-center gap-2">
 							<button onClick={refresh} disabled={loading} className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium text-[var(--dashboard-text-secondary)] hover:text-[var(--dashboard-text)] hover:bg-[var(--dashboard-nav-hover)] transition-all disabled:opacity-50 cursor-pointer">
-								<FiRefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
+								<RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
 								<span className="hidden sm:inline">Refresh</span>
 							</button>
 							{stats.activeKeys > 0 && (
@@ -423,10 +430,10 @@ export default function UserDashboard({
 
 					{/* Stat cards */}
 					<div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-						<Card title="Total Requests" value={fmt(stats.totalRequests)} subtitle={`${fmt(todayReqs)} today`} icon={FiActivity} color="orange" />
-						<Card title="API Keys" value={`${stats.activeKeys}/${stats.totalKeys}`} subtitle="Active / Total" icon={FiClock} color="emerald" />
-						<Card title="Avg Latency" value={`${stats.avgLatency}ms`} subtitle="Response time" icon={FiZap} color="orange" />
-						<Card title="Success Rate" value={`${stats.successRate}%`} subtitle={`${stats.errorRate}% error rate`} icon={FiActivity} color={stats.successRate > 95 ? "emerald" : "amber"} />
+						<Card title="Total Requests" value={fmt(stats.totalRequests)} subtitle={`${fmt(todayReqs)} today`} icon={Activity} color="orange" />
+						<Card title="API Keys" value={`${stats.activeKeys}/${stats.totalKeys}`} subtitle="Active / Total" icon={Clock} color="emerald" />
+						<Card title="Avg Latency" value={`${stats.avgLatency}ms`} subtitle="Response time" icon={Zap} color="orange" />
+						<Card title="Success Rate" value={`${stats.successRate}%`} subtitle={`${stats.errorRate}% error rate`} icon={Activity} color={stats.successRate > 95 ? "emerald" : "amber"} />
 					</div>
 
 					{/* Usage bars */}
@@ -472,7 +479,7 @@ export default function UserDashboard({
 								</div>
 							</div>
 							{filtered.length > 0 ? (
-								<ResponsiveContainer width="100%" height={200}>
+								<ResponsiveContainer width="100%" height={180}>
 									<LineChart data={filtered}>
 										<defs>
 											<linearGradient id="rg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#f97316" stopOpacity={0.3} /><stop offset="100%" stopColor="#f97316" stopOpacity={0} /></linearGradient>
@@ -594,7 +601,7 @@ export default function UserDashboard({
 									<p className="text-[11px] text-[var(--dashboard-text-muted)]">{keys.length} key{keys.length !== 1 ? "s" : ""} configured</p>
 								</div>
 								<NavLink to="/user/my-keys" className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-400 transition-colors">
-									Manage <FiExternalLink className="w-3 h-3" />
+									Manage <ExternalLink className="w-3 h-3" />
 								</NavLink>
 							</div>
 							<div className="space-y-2">
@@ -672,5 +679,6 @@ export default function UserDashboard({
 				</div>
 			</main>
 		</div>
+		)
 	);
 }

@@ -7,7 +7,10 @@ function generateChildKey(): string {
 }
 
 function jsonResponse(body: any, error?: string, status = 200): Response {
-	const payload = typeof body === "boolean" ? { success: body, error } : body;
+	const payload =
+		typeof body === "boolean"
+			? { success: body, ...(error ? { error } : {}) }
+			: body;
 	return new Response(JSON.stringify(payload), {
 		status,
 		headers: { "Content-Type": "application/json" },
@@ -21,8 +24,8 @@ async function getAuthenticatedUserId(request: Request): Promise<string | null> 
 
 	try {
 		const { createClient } = require("@supabase/supabase-js");
-		const url = process.env.VITE_SUPABASE_URL || import.meta.env.VITE_SUPABASE_URL;
-		const pubKey = process.env.VITE_SUPABASE_PUBLISHABLE_KEY || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+		const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || import.meta.env.VITE_SUPABASE_URL;
+		const pubKey = process.env.SUPABASE_PUBLISHABLE_KEY || process.env.VITE_SUPABASE_PUBLISHABLE_KEY || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 		if (!url || !pubKey) return null;
 		const supa = createClient(url, pubKey);
 		const { data, error } = await supa.auth.getUser(accessTokenMatch[1]);

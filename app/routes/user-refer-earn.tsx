@@ -2,13 +2,13 @@ import { useState, useEffect } from "react";
 import { type MetaFunction, data, type ActionFunctionArgs, useNavigate } from "react-router";
 import { DashboardSidebar } from "../components/dashboard/dashboard-sidebar";
 import {
-	FiUsers,
-	FiCopy,
-	FiShare2,
-	FiGift,
-	FiLink,
-	FiMail,
-} from "react-icons/fi";
+	Users,
+	Copy,
+	Share2,
+	Gift,
+	Link2,
+	Mail,
+} from "lucide-react";
 import { supabase } from "~/utils/supabase";
 import { supabaseServer } from "~/utils/supabase.server";
 import { useDashboardTheme } from "~/utils/theme";
@@ -116,8 +116,8 @@ export default function UserReferEarnRoute() {
 
 	return (
 		<div className="dashboard flex min-h-screen">
-			{sidebarOpen && <div className="fixed inset-0 z-[55] dashboard-overlay backdrop-blur-sm md:hidden" onClick={() => setSidebarOpen(false)} />}
-			<div className={`fixed top-0 left-0 z-[60] h-full md:hidden transform transition-transform duration-300 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
+			{sidebarOpen && <div className="fixed inset-0 z-dropdown dashboard-overlay backdrop-blur-sm md:hidden" onClick={() => setSidebarOpen(false)} />}
+			<div className={`fixed top-0 left-0 z-dropdown h-full md:hidden transform transition-transform duration-300 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
 				<DashboardSidebar collapsed={false} onToggle={() => setSidebarOpen(false)} userEmail={user?.email} theme={theme} onThemeToggle={toggleTheme} onLogout={handleLogout} />
 			</div>
 			<div className="hidden md:block">
@@ -144,7 +144,7 @@ export default function UserReferEarnRoute() {
 					<div className="p-4 sm:p-6 lg:p-8 rounded-2xl border border-[var(--dashboard-border)] bg-gradient-to-br from-primary/10 via-primary/5 to-transparent mb-6 sm:mb-8">
 						<div className="flex items-start gap-3 sm:gap-4">
 							<div className="p-2.5 sm:p-3 rounded-xl bg-primary/10 border border-primary/20 shrink-0">
-								<FiGift className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
+								<Gift className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
 							</div>
 							<div className="min-w-0">
 								<h2 className="text-base sm:text-xl font-bold text-[var(--dashboard-text)] mb-1">Share OpusZen, Earn Rewards</h2>
@@ -178,9 +178,9 @@ export default function UserReferEarnRoute() {
 						<h3 className="text-sm font-semibold text-[var(--dashboard-text)] mb-4">How It Works</h3>
 						<div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
 							{[
-								{ icon: FiLink, title: "Share Link", desc: "Send your unique referral link to friends" },
-								{ icon: FiUsers, title: "Friend Signs Up", desc: "They create an account using your link" },
-								{ icon: FiGift, title: "You Earn", desc: `Get $${REWARD} credit when they pay` },
+								{ icon: Link2, title: "Share Link", desc: "Send your unique referral link to friends" },
+								{ icon: Users, title: "Friend Signs Up", desc: "They create an account using your link" },
+								{ icon: Gift, title: "You Earn", desc: `Get $${REWARD} credit when they pay` },
 							].map((step, i) => (
 								<div key={i} className="flex items-start gap-3">
 									<div className="p-2 rounded-lg bg-primary/10 border border-primary/20 shrink-0">
@@ -200,15 +200,15 @@ export default function UserReferEarnRoute() {
 						<h3 className="text-sm font-semibold text-[var(--dashboard-text)] mb-3">Your Referral Link</h3>
 						<div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
 							<div className="flex-1 flex items-center gap-2 px-3 sm:px-4 py-2.5 rounded-xl bg-[var(--dashboard-input-bg)] border border-[var(--dashboard-border)] min-w-0">
-								<FiLink className="w-4 h-4 text-[var(--dashboard-text-muted)] shrink-0" />
+								<Link2 className="w-4 h-4 text-[var(--dashboard-text-muted)] shrink-0" />
 								<code className="text-[10px] sm:text-xs font-mono text-[var(--dashboard-text-secondary)] truncate">{link}</code>
 							</div>
 							<div className="flex items-center gap-2 shrink-0">
 								<button onClick={copyLink} className="flex items-center justify-center gap-2 flex-1 sm:flex-none px-4 py-2.5 rounded-xl bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-all cursor-pointer touch-manipulation">
-									<FiCopy className="w-3.5 h-3.5" />
+									<Copy className="w-3.5 h-3.5" />
 									{copied ? "Copied!" : "Copy"}
 								</button>
-								<button onClick={() => window.location.href = `mailto:?subject=Try OpusZen - Get $${REWARD} Free Credits&body=Hey! Use my referral link: ${encodeURIComponent(link)}`} className="hidden sm:flex p-2.5 rounded-xl border border-[var(--dashboard-border)] text-[var(--dashboard-text-secondary)] hover:text-[var(--dashboard-text)] hover:bg-[var(--dashboard-nav-hover)] transition-all cursor-pointer shrink-0 touch-manipulation" title="Share via email" aria-label="Share via email"><FiMail className="w-4 h-4" /></button>
+								<button onClick={() => window.location.href = `mailto:?subject=Try OpusZen - Get $${REWARD} Free Credits&body=Hey! Use my referral link: ${encodeURIComponent(link)}`} className="hidden sm:flex p-2.5 rounded-xl border border-[var(--dashboard-border)] text-[var(--dashboard-text-secondary)] hover:text-[var(--dashboard-text)] hover:bg-[var(--dashboard-nav-hover)] transition-all cursor-pointer shrink-0 touch-manipulation" title="Share via email" aria-label="Share via email"><Mail className="w-4 h-4" /></button>
 							</div>
 						</div>
 					</div>
@@ -220,10 +220,10 @@ export default function UserReferEarnRoute() {
 							<p className="text-[11px] text-[var(--dashboard-text-muted)] mt-0.5">{referrals.length} referral{referrals.length !== 1 ? "s" : ""}</p>
 						</div>
 						{loading ? (
-							<div className="flex items-center justify-center py-12"><FiUsers className="w-6 h-6 animate-spin text-[var(--dashboard-text-muted)]" /></div>
+							<div className="flex items-center justify-center py-12"><Users className="w-6 h-6 animate-spin text-[var(--dashboard-text-muted)]" /></div>
 						) : referrals.length === 0 ? (
 							<div className="text-center py-12 sm:py-16 px-4">
-								<FiUsers className="w-10 h-10 text-[var(--dashboard-text-muted)] mx-auto mb-3" />
+								<Users className="w-10 h-10 text-[var(--dashboard-text-muted)] mx-auto mb-3" />
 								<p className="text-sm text-[var(--dashboard-text-secondary)] font-medium">No referrals yet</p>
 								<p className="text-xs text-[var(--dashboard-text-muted)] mt-1">Share your link to start earning!</p>
 							</div>

@@ -10,14 +10,14 @@ import { AdminSidebar } from "~/components/admin/admin-sidebar";
 import { cn } from "~/lib/utils";
 import type { ApiFailoverLogRow } from "~/types/gateway";
 import {
- FiAlertTriangle,
- FiRefreshCw,
- FiClock,
- FiServer,
- FiArrowRight,
- FiDownload,
- FiLoader,
-} from "react-icons/fi";
+ AlertTriangle,
+ RefreshCw,
+ Clock,
+ Server,
+ ArrowRight,
+ Download,
+ Loader,
+} from "lucide-react";
 import { Button } from "~/components/ui/button";
 
 export const meta: MetaFunction = () => [{ title: "Failover Logs | Admin | OpusZen" }];
@@ -114,11 +114,11 @@ export default function AdminFailoverLogsRoute() {
  </div>
  <div className="flex items-center gap-2">
  <Button variant="outline" size="sm" onClick={handleExport} disabled={logs.length === 0} className="gap-1.5">
- <FiDownload className="w-3.5 h-3.5" />
+ <Download className="w-3.5 h-3.5" />
  Export
  </Button>
  <Button variant="outline" size="sm" onClick={refresh} disabled={loading} className="gap-1.5">
- <FiRefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+ <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
  Refresh
  </Button>
  </div>
@@ -127,7 +127,7 @@ export default function AdminFailoverLogsRoute() {
  {/* Summary */}
  {logs.length > 0 && (
  <div className="p-4 rounded-xl border border-amber-500/20 bg-amber-500/5 flex items-center gap-3">
- <FiAlertTriangle className="w-5 h-5 text-amber-500 shrink-0" />
+ <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0" />
  <p className="text-sm text-muted-foreground">
  <span className="font-semibold text-foreground">{total}</span> failover events recorded.
  {logs.filter(l => l.new_master_key_id && l.new_master_key_id !== l.original_master_key_id).length > 0 && (
@@ -155,7 +155,7 @@ export default function AdminFailoverLogsRoute() {
  {logs.length === 0 ? (
  <tr>
  <td colSpan={6} className="px-4 py-12 text-center text-muted-foreground">
- <FiServer className="w-8 h-8 mx-auto mb-2 opacity-30" />
+ <Server className="w-8 h-8 mx-auto mb-2 opacity-30" />
  <p className="text-sm font-medium">No failover events</p>
  <p className="text-xs">When a master key fails, the event appears here</p>
  </td>
@@ -170,7 +170,7 @@ export default function AdminFailoverLogsRoute() {
  <span className={cn("px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-500/10 text-red-500")}>
  {log.original_provider}
  </span>
- <FiArrowRight className="w-3 h-3 text-muted-foreground" />
+ <ArrowRight className="w-3 h-3 text-muted-foreground" />
  <span className={cn("px-1.5 py-0.5 rounded text-[10px] font-bold", log.new_master_key_id ? "bg-emerald-500/10 text-emerald-500" : "bg-red-500/10 text-red-500")}>
  {log.new_provider || 'FAILED'}
  </span>

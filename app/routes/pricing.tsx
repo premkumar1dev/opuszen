@@ -1,12 +1,20 @@
 import { useState, useEffect } from "react";
-import { type MetaFunction, type LoaderFunctionArgs, useLoaderData, useSearchParams } from "react-router";
+import { type MetaFunction, type LoaderFunctionArgs, useLoaderData, useSearchParams, redirect } from "react-router";
 import { Layout } from "../components/Layout";
 import { supabase } from "~/utils/supabase";
-import { FiCheck, FiZap, FiArrowRight } from "react-icons/fi";
-import { FaWhatsapp } from "react-icons/fa";
+import { Check, Zap, IndianRupee, MessageCircle } from "lucide-react";
+import {
+	GooglePayIcon,
+	PhonePeIcon,
+	PaytmIcon,
+	WhatsAppIcon,
+	CreditCardIcon,
+} from "~/components/ui/brand-icons";
 import { PlanPurchaseModal, type PlanOption } from "~/components/ui/plan-purchase-modal";
 import { ContactAdminModal, getContactAdminWhatsAppUrl } from "~/components/ui/contact-admin-modal";
 import { PlanPurchaseOptionModal } from "~/components/ui/plan-purchase-option-modal";
+import { PhoneRequiredModal } from "~/components/ui/phone-required-modal";
+import { extractMobile } from "~/utils/payment-sdk";
 
 const ADMIN_WHATSAPP_NUMBER = "918098830937";
 
@@ -20,6 +28,7 @@ export const meta: MetaFunction = () => [
 
 export async function loader({ request }: LoaderFunctionArgs) {
 	const srv = await import("~/utils/supabase.server");
+
 	const { data, error } = await srv.supabaseServer
 		.from("plans")
 		.select("*")
@@ -120,6 +129,8 @@ export default function PricingPage() {
 	const [contactAdminPlan, setContactAdminPlan] = useState<PlanOption | null>(null);
 	const [gatewayOrderId, setGatewayOrderId] = useState<string>("");
 	const [keyName, setKeyName] = useState<string>("");
+	const [showPhoneModal, setShowPhoneModal] = useState(false);
+	const [pendingOnlinePlan, setPendingOnlinePlan] = useState<PlanOption | null>(null);
 
 	// After gateway redirects back to pricing page with payment=verify,
 	// immediately show ContactAdminModal with payment details embedded
@@ -166,15 +177,15 @@ export default function PricingPage() {
 
 	return (
 		<Layout>
-			<div className="bg-[#FAF7F2] dark:bg-[#121110] text-[#1C1917] dark:text-[#F5F2EB] min-h-screen py-12 px-4 transition-colors">
+			<div className="bg-[var(--color-pricing-bg)] dark:bg-[var(--color-pricing-bg-dark)] text-[var(--color-pricing-text)] dark:text-[var(--color-pricing-text-dark)] min-h-screen py-12 px-4 transition-colors">
 				<div className="max-w-6xl mx-auto">
 					
 
 
 					{/* Plans Grid */}
 					{plans.length === 0 ? (
-						<div className="text-center py-20 bg-white dark:bg-[#1A1918] rounded-3xl border border-[#E7E2D8] dark:border-[#2B2724]">
-							<FiZap className="w-12 h-12 text-[#EA580C] mx-auto mb-4" />
+						<div className="text-center py-20 bg-[var(--color-pricing-card)] dark:bg-[var(--color-pricing-card-dark)] rounded-3xl border border-[var(--color-pricing-border)]">
+							<Zap className="w-12 h-12 text-[#EA580C] mx-auto mb-4" />
 							<p className="text-[#78716C] text-lg font-medium">
 								No subscription plans available right now. Please check back soon.
 							</p>
@@ -275,7 +286,7 @@ export default function PricingPage() {
 																isDark ? "text-[#D6D3D1]" : "text-[#44403C]"
 															}`}
 														>
-															<FiCheck className="w-4 h-4 text-[#EA580C] mt-0.5 shrink-0 stroke-[2.5]" />
+															<Check className="w-4 h-4 text-[#EA580C] mt-0.5 shrink-0 stroke-[2.5]" />
 															<span>{feature}</span>
 														</li>
 													))}
@@ -291,7 +302,7 @@ export default function PricingPage() {
 					{/* Footer INR & Admin Contact Info Note */}
 					<div className="text-center py-4 px-6 rounded-2xl bg-[#F4EFEC] dark:bg-[#1A1918] border border-[#E8E3D9] dark:border-[#2B2724] max-w-3xl mx-auto">
 						<p className="text-xs text-[#78716C] dark:text-[#A8A29E] font-medium flex items-center justify-center gap-1.5 flex-wrap">
-							<span className="text-[#EA580C] font-bold">💳 Paid in INR (UPI / GPay / PhonePe / Cards).</span>
+							<CreditCardIcon className="w-3.5 h-3.5 shrink-0" /> Paid in INR (UPI / GPay / PhonePe / Cards).
 							<span>Pay online directly or</span>
 							<a
 								href={`https://wa.me/${ADMIN_WHATSAPP_NUMBER}?text=${encodeURIComponent("Hi Admin! I want to subscribe to an OpusZen API plan.")}`}
@@ -299,7 +310,7 @@ export default function PricingPage() {
 								rel="noopener noreferrer"
 								className="text-[#EA580C] hover:underline font-bold inline-flex items-center gap-1"
 							>
-								<FaWhatsapp className="w-3.5 h-3.5" /> Contact Admin on WhatsApp
+								<WhatsAppIcon className="w-3.5 h-3.5 shrink-0" /> Contact Admin on WhatsApp
 							</a>
 							<span>for instant key delivery.</span>
 						</p>
@@ -325,12 +336,11 @@ export default function PricingPage() {
 							// Get user session for mobile
 							const { data: sessionData } = await supabase.auth.getSession();
 							const user = sessionData.session?.user;
-							const customerMobile = user?.phone
-								? user.phone.replace(/\D/g, "").slice(-10)
-								: null;
+							const customerMobile = extractMobile(user);
 
 							if (!customerMobile) {
-								alert("Please add a phone number to your account before purchasing.");
+								setPendingOnlinePlan(plan);
+								setShowPhoneModal(true);
 								return;
 							}
 
@@ -482,6 +492,18 @@ export default function PricingPage() {
 						plan={contactAdminPlan || selectedPlan}
 						gatewayOrderId={gatewayOrderId}
 						keyName={keyName}
+					/>
+
+					{/* Phone Number Required Modal */}
+					<PhoneRequiredModal
+						open={showPhoneModal}
+						onClose={() => setShowPhoneModal(false)}
+						onSuccess={() => {
+							setShowPhoneModal(false);
+							if (pendingOnlinePlan) {
+								setShowOptionModal(true);
+							}
+						}}
 					/>
 				</div>
 			</div>

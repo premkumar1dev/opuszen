@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import { NavLink, useNavigate } from "react-router";
-import { FiShield, FiLogOut, FiUsers, FiHome, FiKey, FiCreditCard, FiShoppingBag, FiSettings, FiGlobe, FiMail } from "react-icons/fi";
+import { Shield, LogOut, Users, Home, Key, CreditCard, ShoppingBag, Settings, Globe } from "lucide-react";
 import { supabase } from "~/utils/supabase";
 
 interface AdminHeaderProps {
@@ -29,12 +29,12 @@ export function AdminHeader({ adminEmail }: AdminHeaderProps) {
  className="flex items-center gap-2.5 font-bold tracking-tight text-foreground transition-opacity hover:opacity-90"
  >
  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-violet-600 shadow-md shadow-primary/20">
- <FiShield className="h-4 w-4 text-white" />
+ <Shield className="h-4 w-4 text-white" />
  </div>
  <span className="hidden sm:inline text-sm font-semibold">Admin Panel</span>
  </NavLink>
 
- <nav className="flex items-center gap-1.5 sm:gap-2">
+ <nav className="flex items-center gap-1 sm:gap-2 overflow-x-auto scrollbar-none [-ms-overflow-style:none] [scrollbar-width:none]">
  <NavLink
   to="/auth/admin/dashboard"
  end
@@ -45,7 +45,7 @@ export function AdminHeader({ adminEmail }: AdminHeaderProps) {
  : "text-muted-foreground hover:text-foreground hover:bg-muted/50"}
  `}
  >
- <FiHome className="h-3.5 w-3.5" />
+ <Home className="h-3.5 w-3.5" />
  <span>Dashboard</span>
  </NavLink>
 
@@ -58,7 +58,7 @@ export function AdminHeader({ adminEmail }: AdminHeaderProps) {
  : "text-muted-foreground hover:text-foreground hover:bg-muted/50"}
  `}
  >
- <FiUsers className="h-3.5 w-3.5" />
+ <Users className="h-3.5 w-3.5" />
  <span>Users</span>
  </NavLink>
 
@@ -71,7 +71,7 @@ export function AdminHeader({ adminEmail }: AdminHeaderProps) {
  : "text-muted-foreground hover:text-foreground hover:bg-muted/50"}
  `}
  >
- <FiCreditCard className="h-3.5 w-3.5" />
+ <CreditCard className="h-3.5 w-3.5" />
  <span>Plans</span>
  </NavLink>
 
@@ -84,7 +84,7 @@ export function AdminHeader({ adminEmail }: AdminHeaderProps) {
  : "text-muted-foreground hover:text-foreground hover:bg-muted/50"}
  `}
  >
- <FiShoppingBag className="h-3.5 w-3.5" />
+ <ShoppingBag className="h-3.5 w-3.5" />
  <span>Orders</span>
  </NavLink>
 
@@ -96,7 +96,7 @@ export function AdminHeader({ adminEmail }: AdminHeaderProps) {
  ? "bg-primary/10 text-primary font-semibold"
  : "text-muted-foreground hover:text-foreground hover:bg-muted/50"}`}
  >
- <FiSettings className="h-3.5 w-3.5" />
+ <Settings className="h-3.5 w-3.5" />
  <span>Payments</span>
  </NavLink>
 
@@ -108,7 +108,7 @@ export function AdminHeader({ adminEmail }: AdminHeaderProps) {
  ? "bg-primary/10 text-primary font-semibold"
  : "text-muted-foreground hover:text-foreground hover:bg-muted/50"}`}
  >
- <FiGlobe className="h-3.5 w-3.5" />
+ <Globe className="h-3.5 w-3.5" />
  <span>Site</span>
  </NavLink>
 
@@ -116,7 +116,7 @@ export function AdminHeader({ adminEmail }: AdminHeaderProps) {
  to="/dashboard"
  className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-all duration-200"
  >
- <FiKey className="h-3.5 w-3.5" />
+ <Key className="h-3.5 w-3.5" />
  <span>API Keys</span>
  </NavLink>
  </nav>
@@ -132,10 +132,10 @@ export function AdminHeader({ adminEmail }: AdminHeaderProps) {
 
  <button
  onClick={handleLogout}
- className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-muted-foreground hover:text-red-400 hover:bg-red-500/10 border border-transparent hover:border-red-500/20 transition-all duration-200 cursor-pointer"
+ className="flex items-center gap-1.5 px-3 py-2.5 rounded-lg text-xs font-medium text-muted-foreground hover:text-red-400 hover:bg-red-500/10 border border-transparent hover:border-red-500/20 transition-all duration-200 cursor-pointer min-h-[44px]"
  title="Logout"
  >
- <FiLogOut className="h-3.5 w-3.5" />
+ <LogOut className="h-3.5 w-3.5" />
  <span className="hidden sm:inline">Logout</span>
  </button>
  </div>

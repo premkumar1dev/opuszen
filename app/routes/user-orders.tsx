@@ -2,11 +2,11 @@ import { useState, useEffect } from "react";
 import { type MetaFunction, data, type ActionFunctionArgs, useNavigate } from "react-router";
 import { DashboardSidebar } from "../components/dashboard/dashboard-sidebar";
 import {
-	FiShoppingBag,
-	FiRefreshCw,
-	FiEye,
-	FiLoader,
-} from "react-icons/fi";
+	ShoppingBag,
+	RefreshCw,
+	Eye,
+	Loader,
+} from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "~/utils/supabase";
 import { supabaseServer } from "~/utils/supabase.server";
@@ -122,10 +122,10 @@ export default function UserOrdersRoute() {
 	return (
 		<div className="dashboard flex min-h-screen">
 			{/* Mobile overlay */}
-			{sidebarOpen && <div className="fixed inset-0 z-[55] dashboard-overlay backdrop-blur-sm md:hidden" onClick={() => setSidebarOpen(false)} />}
+			{sidebarOpen && <div className="fixed inset-0 z-dropdown dashboard-overlay backdrop-blur-sm md:hidden" onClick={() => setSidebarOpen(false)} />}
 
 			{/* Mobile sidebar drawer */}
-			<div className={`fixed top-0 left-0 z-[60] h-full md:hidden transform transition-transform duration-300 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
+			<div className={`fixed top-0 left-0 z-dropdown h-full md:hidden transform transition-transform duration-300 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
 				<DashboardSidebar collapsed={false} onToggle={() => setSidebarOpen(false)} userEmail={user?.email} theme={theme} onThemeToggle={toggleTheme} onLogout={handleLogout} />
 			</div>
 
@@ -148,7 +148,7 @@ export default function UserOrdersRoute() {
 							</div>
 						</div>
 						<button onClick={fetchOrders} disabled={loading} className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium text-[var(--dashboard-text-secondary)] hover:text-[var(--dashboard-text)] hover:bg-[var(--dashboard-nav-hover)] transition-all disabled:opacity-50 shrink-0 touch-manipulation">
-							<FiRefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
+							<RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
 							<span className="hidden sm:inline">Refresh</span>
 						</button>
 					</div>
@@ -189,11 +189,11 @@ export default function UserOrdersRoute() {
 					<div className="dashboard-card rounded-2xl overflow-hidden">
 						{loading && orders.length === 0 ? (
 							<div className="flex items-center justify-center py-16 sm:py-20">
-								<FiLoader className="w-8 h-8 animate-spin text-[var(--dashboard-text-muted)]" />
+								<Loader className="w-8 h-8 animate-spin text-[var(--dashboard-text-muted)]" />
 							</div>
 						) : filtered.length === 0 ? (
 							<div className="text-center py-16 sm:py-20 px-4">
-								<FiShoppingBag className="w-10 h-10 text-[var(--dashboard-text-muted)] mx-auto mb-3" />
+								<ShoppingBag className="w-10 h-10 text-[var(--dashboard-text-muted)] mx-auto mb-3" />
 								<p className="text-sm text-[var(--dashboard-text-secondary)] font-medium">No orders found</p>
 								<p className="text-xs text-[var(--dashboard-text-muted)] mt-1">{filter !== "all" ? `No ${filter} orders yet.` : "Your orders will appear here after making a purchase."}</p>
 							</div>
@@ -264,7 +264,7 @@ export default function UserOrdersRoute() {
 														<td className="px-4 py-3 hidden lg:table-cell"><span className="text-[11px] text-[var(--dashboard-text-secondary)]">{order.payment_method || "—"}</span></td>
 														<td className="px-4 py-3 hidden lg:table-cell"><span className="text-[11px] text-[var(--dashboard-text-muted)]">{fmtDate(order.created_at)}</span></td>
 														<td className="px-4 py-3 text-center">
-															<button onClick={(e) => { e.stopPropagation(); setSelected(order); }} className="p-1.5 rounded-lg hover:bg-primary/10 text-[var(--dashboard-text-muted)] hover:text-primary transition-colors cursor-pointer" aria-label="View"><FiEye className="w-3.5 h-3.5" /></button>
+															<button onClick={(e) => { e.stopPropagation(); setSelected(order); }} className="p-1.5 rounded-lg hover:bg-primary/10 text-[var(--dashboard-text-muted)] hover:text-primary transition-colors cursor-pointer" aria-label="View"><Eye className="w-3.5 h-3.5" /></button>
 														</td>
 													</tr>
 												);
@@ -280,12 +280,12 @@ export default function UserOrdersRoute() {
 				{/* Detail modal */}
 				<AnimatePresence>
 					{selected && (
-						<div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4" role="dialog" aria-modal="true">
+						<div className="fixed inset-0 z-modal flex items-center justify-center p-3 sm:p-4" role="dialog" aria-modal="true">
 							<motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 dashboard-overlay backdrop-blur-sm" onClick={() => setSelected(null)} />
 							<motion.div initial={{ opacity: 0, y: 8, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 8, scale: 0.96 }} transition={{ duration: 0.18 }} className="dashboard-modal-bg dashboard-card relative w-full max-w-md rounded-2xl p-5 sm:p-6 shadow-2xl max-h-[85vh] overflow-y-auto border border-[var(--dashboard-border)]">
 								<div className="flex items-center justify-between mb-5 sm:mb-6">
 									<h2 className="text-base sm:text-lg font-bold text-[var(--dashboard-text)]">Order Details</h2>
-									<button onClick={() => setSelected(null)} className="p-1.5 rounded-lg text-[var(--dashboard-text-muted)] hover:text-[var(--dashboard-text)] hover:bg-[var(--dashboard-nav-hover)] transition-all" aria-label="Close"><FiEye className="w-4 h-4 rotate-90" /></button>
+									<button onClick={() => setSelected(null)} className="p-1.5 rounded-lg text-[var(--dashboard-text-muted)] hover:text-[var(--dashboard-text)] hover:bg-[var(--dashboard-nav-hover)] transition-all" aria-label="Close"><Eye className="w-4 h-4 rotate-90" /></button>
 								</div>
 								<div className={`p-3 rounded-xl mb-4 border ${STATUS[selected.status]?.bg} ${STATUS[selected.status]?.border}`}>
 									<div className="flex items-center gap-2">

@@ -160,7 +160,10 @@ export function buildUserToken(userId: string): string {
  return btoa(binary).replace(/[+/=]/g, "");
 }
 
-/** Extract a phone-like string from a user profile */
-export function extractMobile(user: { phone?: string | null; email?: string | null }): string {
-	return (user.phone || "0000000000").replace(/\D/g, "").slice(-10) || "0000000000";
+/** Extract a phone-like 10-digit string from a user profile */
+export function extractMobile(user: any): string {
+	if (!user) return "";
+	const raw = user?.user_metadata?.phone || user?.phone || "";
+	const clean = String(raw).replace(/\D/g, "");
+	return clean.length >= 10 ? clean.slice(-10) : "";
 }

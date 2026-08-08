@@ -91,6 +91,14 @@ export default [
 		file: "routes/admin-plans.tsx",
 	},
 	{
+		path: "/auth/admin/assign-plans",
+		file: "routes/admin-assign-plans.tsx",
+	},
+	{
+		path: "/auth/admin/activity-logs",
+		file: "routes/admin-activity-logs.tsx",
+	},
+	{
 		path: "/auth/admin/orders",
 		file: "routes/admin-orders.tsx",
 	},
@@ -166,10 +174,6 @@ export default [
 	{
 		path: "/privacy",
 		file: "routes/privacy.tsx",
-	},
-	{
-		path: "/demo/buttons",
-		file: "routes/demo-buttons.tsx",
 	},
 	{
 		id: "api-chat-completions",

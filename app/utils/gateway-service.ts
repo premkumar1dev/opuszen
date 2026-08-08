@@ -438,6 +438,7 @@ export async function handleGatewayRequest(
 	// Get all active master keys sorted by priority
 	const allKeys = await getAllMasterKeys();
 	const activeKeys = allKeys.filter((k) => {
+		if (k.api_key === '[encrypted — decryption failed]') return false;
 		const isHealthy = k.status === 'active'
 			&& !['quota_exhausted', 'rate_limited', 'temporarily_failed', 'disabled'].includes(k.health_status)
 			&& (k.remaining_credits ?? 0) > 0;
@@ -848,28 +849,6 @@ export async function getKeyStatus(apiKey: string): Promise<{ status: string;[ke
 	const cleanKey = apiKey.trim().replace(/^Bearer\s+/i, "");
 	if (!cleanKey) {
 		return { status: 'error', error: 'API key is empty' };
-	}
-
-	// 0. Upstream Remote API Gateway fetch (from commit 1e9da231ffa3c5992a42cefe792d41b61cdfda80)
-	if (cleanKey.startsWith("sk-ant-opm-") || cleanKey.startsWith("sk-ant-api") || cleanKey.startsWith("sk-ant-") || cleanKey.startsWith("sk-")) {
-		try {
-			const res = await fetch(`https://api.opusmax.live/api/key-status?key=${encodeURIComponent(cleanKey)}`, {
-				method: 'GET',
-				headers: { 'Content-Type': 'application/json' },
-			});
-			if (res.ok) {
-				const remoteData = await res.json();
-				if (remoteData && remoteData.status !== "error" && !remoteData.error) {
-					return {
-						status: 'ok',
-						isRealtime: true,
-						...remoteData,
-					};
-				}
-			}
-		} catch (e) {
-			console.error("[gateway] Failed to fetch key status from remote API:", e);
-		}
 	}
 
 	// 1. Check user_api_keys table (regardless of status, so detailed status can be reported)

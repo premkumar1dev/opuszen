@@ -9,25 +9,25 @@ import { AdminSidebar } from "~/components/admin/admin-sidebar";
 import { StatCard } from "~/components/admin/stat-card";
 import { cn } from "@/lib/utils";
 import {
-	FiSearch,
-	FiPlus,
-	FiEdit2,
-	FiTrash2,
-	FiMoreVertical,
-	FiMail,
-	FiShield,
-	FiCheck,
-	FiX,
-	FiChevronLeft,
-	FiChevronRight,
-	FiDownload,
-	FiFilter,
-	FiRefreshCw,
-	FiUserCheck,
-	FiUserX,
-	FiLoader,
-	FiAlertCircle,
-} from "react-icons/fi";
+	Search,
+	Plus,
+	Edit2,
+	Trash2,
+	MoreVertical,
+	Mail,
+	Shield,
+	Check,
+	X,
+	ChevronLeft,
+	ChevronRight,
+	Download,
+	Filter,
+	RefreshCw,
+	UserCheck,
+	UserX,
+	Loader,
+	AlertCircle,
+} from "lucide-react";
 import {
 	Sheet,
 	SheetContent,
@@ -245,7 +245,7 @@ function EditUserSheet({ user, isNew, onClose, onSave, onAdd, onDelete, saving }
 	const FieldError = ({ field }: { field: string }) =>
 		errors[field] ? (
 			<p className="flex items-center gap-1 text-xs text-red-500 mt-1">
-				<FiAlertCircle className="w-3 h-3" />
+				<AlertCircle className="w-3 h-3" />
 				{errors[field]}
 			</p>
 		) : null;
@@ -255,7 +255,7 @@ function EditUserSheet({ user, isNew, onClose, onSave, onAdd, onDelete, saving }
 		<SheetContent side="right" className="w-full sm:max-w-[480px] overflow-y-auto">
 		<SheetHeader>
 		<SheetTitle className="flex items-center gap-2">
-		{isNew ? <FiPlus className="w-4 h-4" /> : <FiEdit2 className="w-4 h-4" />}
+		{isNew ? <Plus className="w-4 h-4" /> : <Edit2 className="w-4 h-4" />}
 		{isNew ? "Add New User" : "Edit User"}
 		</SheetTitle>
 		<SheetDescription>
@@ -425,12 +425,12 @@ function EditUserSheet({ user, isNew, onClose, onSave, onAdd, onDelete, saving }
 		>
 		{saving ? (
 		<>
-		<FiLoader className="w-4 h-4 mr-1.5 animate-spin" />
+		<Loader className="w-4 h-4 mr-1.5 animate-spin" />
 		Saving…
 		</>
 		) : (
 		<>
-		<FiCheck className="w-4 h-4 mr-1.5" />
+		<Check className="w-4 h-4 mr-1.5" />
 		{isNew ? "Create User" : "Save Changes"}
 		</>
 		)}
@@ -451,7 +451,7 @@ function EditUserSheet({ user, isNew, onClose, onSave, onAdd, onDelete, saving }
 		onClick={handleDelete}
 		disabled={saving}
 		>
-		<FiTrash2 className="w-4 h-4 mr-1.5" />
+		<Trash2 className="w-4 h-4 mr-1.5" />
 		{deleting ? "Click again to confirm delete" : "Delete User"}
 		</Button>
 		)}
@@ -749,13 +749,13 @@ export default function AdminUsersRoute() {
 
 	const SortIcon = ({ field }: { field: keyof User }) => (
 		<span className="ml-1 inline-flex flex-col gap-[1px]">
-		<FiChevronRight
+		<ChevronRight
 		className={`w-2.5 h-2.5 -ml-0.5 transition-colors ${
 			sortField === field && sortDir === "asc" ? "text-primary" : "text-muted-foreground/40"
 		}`}
 		style={{ transform: "rotate(-90deg)" }}
 		/>
-		<FiChevronRight
+		<ChevronRight
 		className={`w-2.5 h-2.5 -ml-0.5 -mt-[3px] transition-colors ${
 			sortField === field && sortDir === "desc" ? "text-primary" : "text-muted-foreground/40"
 		}`}
@@ -796,11 +796,11 @@ export default function AdminUsersRoute() {
 
 		<div className="flex items-center gap-2 flex-wrap">
 		<Button variant="outline" size="sm" onClick={handleExport} className="gap-1.5">
-		<FiDownload className="w-3.5 h-3.5" />
+		<Download className="w-3.5 h-3.5" />
 		Export
 		</Button>
 		<Button variant="outline" size="sm" onClick={refresh} disabled={loading} className="gap-1.5">
-		<FiRefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
+		<RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
 		Refresh
 		</Button>
 		<Button
@@ -809,7 +809,7 @@ export default function AdminUsersRoute() {
 		onClick={() => setShowFilters((v) => !v)}
 		className="gap-1.5"
 		>
-		<FiFilter className="w-3.5 h-3.5" />
+		<Filter className="w-3.5 h-3.5" />
 		Filters
 		{activeFilterCount > 0 && (
 		<span className="ml-1 w-4 h-4 rounded-full bg-primary text-[10px] font-bold text-white flex items-center justify-center">
@@ -818,7 +818,7 @@ export default function AdminUsersRoute() {
 		)}
 		</Button>
 		<Button size="sm" className="gap-1.5" onClick={() => { setSelectedUser(null); setIsNewUser(true); }}>
-		<FiPlus className="w-3.5 h-3.5" />
+		<Plus className="w-3.5 h-3.5" />
 		Add User
 		</Button>
 		</div>
@@ -879,7 +879,7 @@ export default function AdminUsersRoute() {
 		onClick={() => setFilters({ search: "" })}
 		className="h-9"
 		>
-		<FiRefreshCw className="w-3.5 h-3.5 mr-1" />
+		<RefreshCw className="w-3.5 h-3.5 mr-1" />
 		Clear
 		</Button>
 		</div>
@@ -891,7 +891,7 @@ export default function AdminUsersRoute() {
 		<div className="rounded-2xl border border-border bg-card dark:bg-card/60 overflow-hidden">
 		{loading && allUsers.length === 0 ? (
 		<div className="flex items-center justify-center py-20">
-		<FiLoader className="w-8 h-8 animate-spin text-muted-foreground" />
+		<Loader className="w-8 h-8 animate-spin text-muted-foreground" />
 		</div>
 		) : (
 		<>
@@ -934,7 +934,7 @@ export default function AdminUsersRoute() {
 		<tr>
 		<td colSpan={6} className="px-4 py-12 text-center text-muted-foreground">
 		<div className="flex flex-col items-center gap-2">
-		<FiUserX className="w-8 h-8 opacity-40" />
+		<UserX className="w-8 h-8 opacity-40" />
 		<p className="text-sm font-medium">No users found</p>
 		<p className="text-xs">Try adjusting your filters</p>
 		</div>
@@ -991,7 +991,7 @@ export default function AdminUsersRoute() {
 		title="Edit user"
 		type="button"
 		>
-		<FiEdit2 className="w-3.5 h-3.5" />
+		<Edit2 className="w-3.5 h-3.5" />
 		</button>
 		<button
 		onClick={() => {
@@ -1003,7 +1003,7 @@ export default function AdminUsersRoute() {
 		title="Delete user"
 		type="button"
 		>
-		<FiTrash2 className="w-3.5 h-3.5" />
+		<Trash2 className="w-3.5 h-3.5" />
 		</button>
 		</div>
 		</td>
@@ -1027,7 +1027,7 @@ export default function AdminUsersRoute() {
 		onClick={() => setPage((p) => Math.max(1, p - 1))}
 		disabled={page === 1}
 		>
-		<FiChevronLeft className="w-4 h-4" />
+		<ChevronLeft className="w-4 h-4" />
 		</Button>
 {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
 		const maxVisible = Math.min(totalPages, 5);
@@ -1056,7 +1056,7 @@ export default function AdminUsersRoute() {
 		onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
 		disabled={page === totalPages}
 		>
-		<FiChevronRight className="w-4 h-4" />
+		<ChevronRight className="w-4 h-4" />
 		</Button>
 		</div>
 		</div>

@@ -9,18 +9,18 @@ import { verifyAdminSession } from "~/utils/admin-auth";
 import { AdminSidebar } from "~/components/admin/admin-sidebar";
 import { cn } from "~/lib/utils";
 import {
- FiActivity,
- FiRefreshCw,
- FiPlay,
- FiRotateCcw,
- FiClock,
- FiServer,
- FiAlertTriangle,
- FiCheckCircle,
- FiXCircle,
- FiZap,
- FiLoader,
-} from "react-icons/fi";
+ Activity,
+ RefreshCw,
+ Play,
+ RotateCcw,
+ Clock,
+ Server,
+ AlertTriangle,
+ CheckCircle,
+ XCircle,
+ Zap,
+ Loader,
+} from "lucide-react";
 import { Button } from "~/components/ui/button";
 import {
  resetHealthStatus,
@@ -180,11 +180,11 @@ export default function AdminHealthMonitorRoute() {
  </div>
  <div className="flex items-center gap-2">
  <Button variant="outline" size="sm" onClick={refresh} disabled={loading} className="gap-1.5">
- <FiRefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+ <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
  Refresh
  </Button>
  <Button size="sm" className="gap-1.5" onClick={() => window.location.reload()}>
- <FiActivity className="w-3.5 h-3.5" />
+ <Activity className="w-3.5 h-3.5" />
  Check All
  </Button>
  </div>
@@ -281,7 +281,7 @@ export default function AdminHealthMonitorRoute() {
  {record.last_error && (
  <div className="mt-3 p-2.5 rounded-lg bg-red-500/5 border border-red-500/15">
  <p className="text-[11px] text-red-400 font-mono truncate" title={record.last_error}>
- <FiAlertTriangle className="w-3 h-3 inline mr-1" />
+ <AlertTriangle className="w-3 h-3 inline mr-1" />
  {record.last_error}
  </p>
  </div>
@@ -289,11 +289,11 @@ export default function AdminHealthMonitorRoute() {
 
  <div className="flex gap-2 mt-4 pt-3 border-t border-border/50">
  <Button variant="outline" size="sm" className="flex-1 gap-1.5" onClick={() => handleRetest(record.master_api_key_id)} disabled={isResetting}>
- {isResetting ? <FiLoader className="w-3.5 h-3.5 animate-spin" /> : <FiPlay className="w-3.5 h-3.5" />}
+ {isResetting ? <Loader className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
  Retry Test
  </Button>
  <Button variant="outline" size="sm" className="flex-1 gap-1.5" onClick={() => handleReset(record.master_api_key_id)} disabled={isResetting}>
- {isResetting ? <FiLoader className="w-3.5 h-3.5 animate-spin" /> : <FiRotateCcw className="w-3.5 h-3.5" />}
+ {isResetting ? <Loader className="w-3.5 h-3.5 animate-spin" /> : <RotateCcw className="w-3.5 h-3.5" />}
  Reset Status
  </Button>
  </div>

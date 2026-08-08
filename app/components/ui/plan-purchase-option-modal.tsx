@@ -1,7 +1,7 @@
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { FiX, FiZap, FiCreditCard, FiArrowRight, FiShield } from "react-icons/fi";
-import { FaWhatsapp } from "react-icons/fa";
+import { X, Zap, CreditCard, ArrowRight, Shield } from "lucide-react";
+import { WhatsAppIcon } from "./brand-icons";
 import type { PlanOption } from "./plan-purchase-modal";
 
 export interface PlanPurchaseOptionModalProps {
@@ -28,7 +28,7 @@ export function PlanPurchaseOptionModal({
 	return createPortal(
 		<AnimatePresence>
 			<div
-				className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6"
+				className="fixed inset-0 z-modal flex items-center justify-center p-4 sm:p-6"
 				role="dialog"
 				aria-modal="true"
 			>
@@ -58,7 +58,7 @@ export function PlanPurchaseOptionModal({
 					<div className="flex items-start justify-between gap-4 p-6 border-b border-[#262320]">
 						<div>
 							<div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-orange-500/10 border border-orange-500/20 text-[10px] font-bold text-[#EA580C] uppercase tracking-wider mb-1.5">
-								<FiZap className="w-3 h-3" /> Select Payment Option
+								<Zap className="w-3 h-3" /> Select Payment Option
 							</div>
 							<h2 className="text-xl font-black text-white">
 								Subscribe to {plan.name}
@@ -73,7 +73,7 @@ export function PlanPurchaseOptionModal({
 							className="p-2 rounded-xl text-[#A8A29E] hover:text-white hover:bg-[#1F1D1B] transition-colors cursor-pointer"
 							aria-label="Close"
 						>
-							<FiX className="w-4 h-4" />
+							<X className="w-4 h-4" />
 						</button>
 					</div>
 
@@ -113,7 +113,7 @@ export function PlanPurchaseOptionModal({
 							className="w-full p-4 rounded-2xl border-2 border-orange-500/30 hover:border-orange-500 bg-gradient-to-br from-[#1E1915] to-[#171513] text-left transition-all duration-200 group cursor-pointer shadow-lg hover:shadow-orange-500/10 flex items-start gap-4"
 						>
 							<div className="w-11 h-11 rounded-xl bg-[#EA580C] flex items-center justify-center text-white shrink-0 shadow-md shadow-orange-600/30">
-								<FiCreditCard className="w-5 h-5" />
+								<CreditCard className="w-5 h-5" />
 							</div>
 							<div className="flex-1 min-w-0">
 								<div className="flex items-center justify-between gap-2">
@@ -128,7 +128,7 @@ export function PlanPurchaseOptionModal({
 									Pay securely with UPI, GPay, PhonePe, Paytm, or Credit/Debit Card. Automatic key generation.
 								</p>
 							</div>
-							<FiArrowRight className="w-5 h-5 text-[#EA580C] shrink-0 mt-3 group-hover:translate-x-1 transition-transform" />
+							<ArrowRight className="w-5 h-5 text-[#EA580C] shrink-0 mt-3 group-hover:translate-x-1 transition-transform" />
 						</button>
 
 						{/* Option 2: Contact Admin on WhatsApp */}
@@ -141,7 +141,7 @@ export function PlanPurchaseOptionModal({
 							className="w-full p-4 rounded-2xl border border-[#2B2724] hover:border-[#25D366]/50 bg-[#161514] hover:bg-[#1A1917] text-left transition-all duration-200 group cursor-pointer flex items-start gap-4"
 						>
 							<div className="w-11 h-11 rounded-xl bg-[#25D366] flex items-center justify-center text-white shrink-0 shadow-md shadow-emerald-900/30">
-								<FaWhatsapp className="w-5 h-5" />
+								<WhatsAppIcon className="w-5 h-5" />
 							</div>
 							<div className="flex-1 min-w-0">
 								<div className="flex items-center justify-between gap-2">
@@ -156,14 +156,14 @@ export function PlanPurchaseOptionModal({
 									Chat directly with our Admin on WhatsApp for custom key setup, instant delivery & assistance.
 								</p>
 							</div>
-							<FiArrowRight className="w-5 h-5 text-[#25D366] shrink-0 mt-3 group-hover:translate-x-1 transition-transform" />
+							<ArrowRight className="w-5 h-5 text-[#25D366] shrink-0 mt-3 group-hover:translate-x-1 transition-transform" />
 						</button>
 					</div>
 
 					{/* Footer */}
 					<div className="p-4 sm:p-5 border-t border-[#262320] bg-[#0F0E0D] flex items-center justify-between text-xs text-[#78716C]">
 						<div className="flex items-center gap-1.5">
-							<FiShield className="w-3.5 h-3.5 text-[#EA580C]" />
+							<Shield className="w-3.5 h-3.5 text-[#EA580C]" />
 							<span>256-bit SSL Secure Checkout</span>
 						</div>
 						<button

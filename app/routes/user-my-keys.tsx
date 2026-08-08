@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams, data } from "react-router";
 import { type MetaFunction, type ActionFunctionArgs } from "react-router";
+import { useAccessGuard } from "~/utils/use-access-guard";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,20 +9,20 @@ import { supabase } from "~/utils/supabase";
 import { useDashboardTheme } from "~/utils/theme";
 import { DashboardSidebar } from "../components/dashboard/dashboard-sidebar";
 import {
-	FiKey,
-	FiCopy,
-	FiTrash2,
-	FiPlus,
-	FiRefreshCw,
-	FiEye,
-	FiEyeOff,
-	FiShield,
-	FiClock,
-	FiActivity,
-	FiAlertTriangle,
-	FiZap,
-	FiCheck,
-} from "react-icons/fi";
+	Key,
+	Copy,
+	Trash2,
+	Plus,
+	RefreshCw,
+	Eye,
+	EyeOff,
+	Shield,
+	Clock,
+	Activity,
+	AlertTriangle,
+	Zap,
+	Check,
+} from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
 	PlanPurchaseModal,
@@ -189,6 +190,15 @@ export default function UserMyKeysRoute() {
 
 	const [verificationStatus, setVerificationStatus] = useState<"idle" | "verifying" | "success" | "failed">("idle");
 	const [verificationMessage, setVerificationMessage] = useState("");
+	const access = useAccessGuard();
+
+	if (access === null) {
+		return (
+			<div className="flex items-center justify-center min-h-screen">
+				<div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+			</div>
+		);
+	}
 
 	useEffect(() => {
 		supabase.auth.getUser().then(({ data }) => {
@@ -739,8 +749,8 @@ export default function UserMyKeysRoute() {
 
 	return (
 		<div className="dashboard flex min-h-screen">
-			{sidebarOpen && <div className="fixed inset-0 z-[55] dashboard-overlay backdrop-blur-sm md:hidden" onClick={() => setSidebarOpen(false)} />}
-			<div className={`fixed top-0 left-0 z-[60] h-full md:hidden transform transition-transform duration-300 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
+			{sidebarOpen && <div className="fixed inset-0 z-dropdown dashboard-overlay backdrop-blur-sm md:hidden" onClick={() => setSidebarOpen(false)} />}
+			<div className={`fixed top-0 left-0 z-dropdown h-full md:hidden transform transition-transform duration-300 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
 				<DashboardSidebar collapsed={false} onToggle={() => setSidebarOpen(false)} userEmail={user?.email} theme={theme} onThemeToggle={toggleTheme} onLogout={handleLogout} />
 			</div>
 			<div className="hidden md:block">
@@ -761,11 +771,11 @@ export default function UserMyKeysRoute() {
 						</div>
 						<div className="flex items-center gap-2 shrink-0">
 							<button onClick={fetchKeys} disabled={loading} className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium text-[var(--dashboard-text-secondary)] hover:text-[var(--dashboard-text)] hover:bg-[var(--dashboard-nav-hover)] transition-all disabled:opacity-50">
-								<FiRefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
+								<RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
 								<span className="hidden sm:inline">Refresh</span>
 							</button>
 							<button onClick={() => setShowPlanModal(true)} className="flex items-center gap-2 px-3 sm:px-4 py-1.5 rounded-lg text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-all">
-								<FiPlus className="w-3.5 h-3.5" /><span className="hidden sm:inline">New Key</span>
+								<Plus className="w-3.5 h-3.5" /><span className="hidden sm:inline">New Key</span>
 							</button>
 						</div>
 					</div>
@@ -796,7 +806,7 @@ export default function UserMyKeysRoute() {
 					<div className="space-y-3">
 						{keys.length === 0 && !loading && (
 							<div className="text-center py-16 sm:py-20 dashboard-card rounded-2xl">
-								<FiKey className="w-10 h-10 text-[var(--dashboard-text-muted)] mx-auto mb-3" />
+								<Key className="w-10 h-10 text-[var(--dashboard-text-muted)] mx-auto mb-3" />
 								<p className="text-sm text-[var(--dashboard-text-secondary)] font-medium">No API keys yet</p>
 								<p className="text-xs text-[var(--dashboard-text-muted)] mt-1">Create your first key to start using the API</p>
 							</div>
@@ -823,15 +833,15 @@ export default function UserMyKeysRoute() {
 												</div>
 												<div className="flex flex-wrap items-center gap-2 mt-1.5">
 													<code className="text-[11px] font-mono text-[var(--dashboard-text-muted)] bg-[var(--dashboard-input-bg)] px-2 py-0.5 rounded">{displayKey}</code>
-													<button onClick={() => setRevealed((s) => { const n = new Set(s); n.has(key.id) ? n.delete(key.id) : n.add(key.id); return n; })} className="text-[var(--dashboard-text-muted)] hover:text-[var(--dashboard-text)] transition-colors p-0.5" aria-label={isRevealed ? "Hide" : "Reveal"}>{isRevealed ? <FiEyeOff className="w-3.5 h-3.5" /> : <FiEye className="w-3.5 h-3.5" />}</button>
-													<button onClick={() => copy(key.api_key, key.id)} className="text-[var(--dashboard-text-muted)] hover:text-[var(--dashboard-text)] transition-colors p-0.5" aria-label="Copy"><FiCopy className="w-3.5 h-3.5" /></button>
+													<button onClick={() => setRevealed((s) => { const n = new Set(s); n.has(key.id) ? n.delete(key.id) : n.add(key.id); return n; })} className="text-[var(--dashboard-text-muted)] hover:text-[var(--dashboard-text)] transition-colors p-0.5" aria-label={isRevealed ? "Hide" : "Reveal"}>{isRevealed ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}</button>
+													<button onClick={() => copy(key.api_key, key.id)} className="text-[var(--dashboard-text-muted)] hover:text-[var(--dashboard-text)] transition-colors p-0.5" aria-label="Copy"><Copy className="w-3.5 h-3.5" /></button>
 													{copiedId === key.id && <span className="text-[10px] text-emerald-500 font-medium">Copied!</span>}
 												</div>
 											</div>
 										</div>
 										<div className="flex items-center gap-0.5 shrink-0">
-											<button onClick={() => toggleActive(key.id, isActive)} className={`p-2 rounded-lg transition-all cursor-pointer touch-manipulation ${isActive ? "text-[var(--dashboard-text-muted)] hover:text-amber-500 hover:bg-amber-500/5" : "text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/5"}`} title={isActive ? "Deactivate" : "Activate"}><FiShield className="w-4 h-4" /></button>
-											<button onClick={() => deleteKey(key.id)} className="p-2 rounded-lg text-[var(--dashboard-text-muted)] hover:text-red-500 hover:bg-red-500/5 transition-all cursor-pointer touch-manipulation" title="Delete"><FiTrash2 className="w-4 h-4" /></button>
+											<button onClick={() => toggleActive(key.id, isActive)} className={`p-2 rounded-lg transition-all cursor-pointer touch-manipulation ${isActive ? "text-[var(--dashboard-text-muted)] hover:text-amber-500 hover:bg-amber-500/5" : "text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/5"}`} title={isActive ? "Deactivate" : "Activate"}><Shield className="w-4 h-4" /></button>
+											<button onClick={() => deleteKey(key.id)} className="p-2 rounded-lg text-[var(--dashboard-text-muted)] hover:text-red-500 hover:bg-red-500/5 transition-all cursor-pointer touch-manipulation" title="Delete"><Trash2 className="w-4 h-4" /></button>
 										</div>
 									</div>
 									<div className="mt-4">
@@ -844,9 +854,9 @@ export default function UserMyKeysRoute() {
 										</div>
 									</div>
 									<div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-[var(--dashboard-text-muted)]">
-										<span className="flex items-center gap-1"><FiActivity className="w-3 h-3" />{(key.total_requests || 0).toLocaleString()} req</span>
-										<span className="flex items-center gap-1"><FiClock className="w-3 h-3" />{daysLeft < 30 && daysLeft > 0 ? `${Math.ceil(daysLeft)}d left` : daysLeft <= 0 ? "Expired" : "No expiry"}</span>
-										<span className="flex items-center gap-1"><FiShield className="w-3 h-3" />{key.rate_limit}/min</span>
+										<span className="flex items-center gap-1"><Activity className="w-3 h-3" />{(key.total_requests || 0).toLocaleString()} req</span>
+										<span className="flex items-center gap-1"><Clock className="w-3 h-3" />{daysLeft < 30 && daysLeft > 0 ? `${Math.ceil(daysLeft)}d left` : daysLeft <= 0 ? "Expired" : "No expiry"}</span>
+										<span className="flex items-center gap-1"><Shield className="w-3 h-3" />{key.rate_limit}/min</span>
 										<span className="truncate">{key.plan_name}</span>
 									</div>
 								</div>
@@ -885,7 +895,7 @@ export default function UserMyKeysRoute() {
 						<div className="flex flex-col items-center justify-center space-y-4">
 							{verificationStatus === "verifying" && (
 								<>
-									<FiRefreshCw className="w-12 h-12 text-primary animate-spin" />
+									<RefreshCw className="w-12 h-12 text-primary animate-spin" />
 									<h2 className="text-lg font-bold text-[var(--dashboard-text)]">Verifying Payment</h2>
 									<p className="text-xs text-[var(--dashboard-text-muted)] leading-relaxed">{verificationMessage}</p>
 								</>
@@ -893,7 +903,7 @@ export default function UserMyKeysRoute() {
 							{verificationStatus === "success" && (
 								<>
 									<div className="w-14 h-14 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-500">
-										<FiCheck className="w-8 h-8" />
+										<Check className="w-8 h-8" />
 									</div>
 									<h2 className="text-lg font-bold text-[var(--dashboard-text)]">Payment Verified!</h2>
 									<p className="text-xs text-[var(--dashboard-text-muted)] leading-relaxed">{verificationMessage}</p>
@@ -902,7 +912,7 @@ export default function UserMyKeysRoute() {
 							{verificationStatus === "failed" && (
 								<>
 									<div className="w-14 h-14 rounded-full bg-red-500/10 flex items-center justify-center text-red-500">
-										<FiAlertTriangle className="w-8 h-8" />
+										<AlertTriangle className="w-8 h-8" />
 									</div>
 									<h2 className="text-lg font-bold text-[var(--dashboard-text)]">Verification Failed</h2>
 									<p className="text-xs text-[var(--dashboard-text-muted)] leading-relaxed">{verificationMessage}</p>

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,6 +31,9 @@ const Login1 = ({
 	signupUrl = "/auth/signup",
 }: Login1Props) => {
 	const navigate = useNavigate();
+	const [searchParams] = useSearchParams();
+	const rawRedirect = searchParams.get("redirect") || "/";
+	const redirectTo = rawRedirect.replace(/\.data(\?|$)/, "$1") || "/";
 	const [email, setEmail] = useState("");
 	const [password, setPassword] = useState("");
 	const [loading, setLoading] = useState(false);
@@ -51,7 +54,7 @@ const Login1 = ({
 				setLoading(false);
 			} else {
 				setSuccess(true);
-				navigate("/user/dashboard");
+				navigate(redirectTo);
 			}
 		} catch (err: unknown) {
 			setError(err instanceof Error ? err.message : String(err));
@@ -76,6 +79,11 @@ const Login1 = ({
 							</a>
 						</div>
 						{heading && <h1 className="text-xl font-semibold mt-2">{heading}</h1>}
+						{redirectTo !== "/" && (
+							<p className="text-xs text-muted-foreground text-center">
+								Please log in to continue to your requested page.
+							</p>
+						)}
 					</div>
 					<form className="flex w-full flex-col gap-6" onSubmit={handleSubmit}>
 						{error && (

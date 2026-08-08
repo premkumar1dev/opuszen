@@ -14,8 +14,5 @@ export default defineConfig({
 			"@": path.resolve(__dirname, "./app"),
 		},
 	},
-	ssr: {
-		noExternal: ["react-icons"],
-	},
 });
 

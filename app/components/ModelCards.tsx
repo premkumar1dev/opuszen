@@ -71,7 +71,6 @@ export default function ModelCards() {
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const [searchQuery, setSearchQuery] = useState("");
-	const [selectedProvider, setSelectedProvider] = useState<string>("all");
 	const [copiedId, setCopiedId] = useState<string | null>(null);
 
 	const fetchRealtimeModels = async () => {
@@ -124,21 +123,14 @@ export default function ModelCards() {
 		}
 	};
 
-	// Filter models by search and provider
+	// Filter models by search (Anthropic only)
 	const filteredModels = realtimeModels.filter((m) => {
 		const matchesSearch =
 			(m.name || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
 			(m.id || "").toLowerCase().includes(searchQuery.toLowerCase());
-		
-		if (!matchesSearch) return false;
 
-		if (selectedProvider === "all") return true;
-		if (selectedProvider === "anthropic") return (m.owned_by === "anthropic" || m.id.includes("claude"));
-		if (selectedProvider === "openai") return (m.owned_by === "openai" || m.id.includes("gpt"));
-		if (selectedProvider === "google") return (m.owned_by === "google" || m.id.includes("gemini"));
-		if (selectedProvider === "other") return (m.owned_by === "groq" || m.owned_by === "mistral" || m.id.includes("llama") || m.id.includes("mistral"));
-		
-		return true;
+		if (!matchesSearch) return false;
+		return (m.owned_by === "anthropic" || m.id.includes("claude"));
 	});
 
 	return (
@@ -250,7 +242,7 @@ export default function ModelCards() {
 
 			{/* Real-time Claude & Models Modal */}
 			<Dialog open={isOpen} onOpenChange={setIsOpen}>
-				<DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0 overflow-hidden bg-card border-border shadow-2xl">
+				<DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0 overflow-hidden bg-card border-border shadow-2xl w-full">
 					{/* Modal Header */}
 					<DialogHeader className="p-6 pb-4 border-b border-border text-left">
 						<div className="flex items-start justify-between gap-4">
@@ -309,26 +301,12 @@ export default function ModelCards() {
 								/>
 							</div>
 
-							<div className="flex items-center gap-1 overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0">
-								{[
-									{ id: "all", label: "All" },
-									{ id: "anthropic", label: "Anthropic" },
-									{ id: "openai", label: "OpenAI" },
-									{ id: "google", label: "Google" },
-									{ id: "other", label: "Llama / Mistral" },
-								].map((tab) => (
-									<button
-										key={tab.id}
-										onClick={() => setSelectedProvider(tab.id)}
-										className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap cursor-pointer ${
-											selectedProvider === tab.id
-												? "bg-indigo-600 text-white font-semibold shadow-sm"
-												: "bg-muted/40 text-muted-foreground hover:bg-muted hover:text-foreground"
-										}`}
-									>
-										{tab.label}
-									</button>
-								))}
+							<div className="flex items-center gap-2 overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0">
+								<span
+									className="px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap bg-indigo-600 text-white shadow-sm"
+								>
+									Anthropic
+								</span>
 							</div>
 						</div>
 					</DialogHeader>

@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
 import { useDataProvider, useNotify } from "react-admin";
 import {
-  FiKey,
-  FiActivity,
-  FiAlertTriangle,
-  FiCheckCircle,
-  FiClock,
-  FiZap,
-} from "react-icons/fi";
+  Key,
+  Activity,
+  AlertTriangle,
+  CheckCircle,
+  Clock,
+  Zap,
+} from "lucide-react";
 import { type ApiKey, type RequestLog } from "./dataProvider";
 
 export function DashboardHome() {
@@ -104,7 +104,7 @@ export function DashboardHome() {
       {/* Welcome Header */}
       <div>
         <h1 className="text-3xl font-extrabold tracking-tight text-white flex items-center gap-2">
-          <FiZap className="text-indigo-400 size-7" />
+          <Zap className="text-indigo-400 size-7" />
           Gateway Control Core
         </h1>
         <p className="text-zinc-400 text-sm mt-1">
@@ -125,7 +125,7 @@ export function DashboardHome() {
             </div>
           </div>
           <div className="p-3 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 rounded-xl">
-            <FiKey className="size-6" />
+            <Key className="size-6" />
           </div>
         </div>
 
@@ -135,12 +135,12 @@ export function DashboardHome() {
             <span className="text-zinc-400 text-xs font-semibold uppercase tracking-wider">Total Requests</span>
             <div className="text-3xl font-bold text-white">{stats.totalRequests.toLocaleString()}</div>
             <div className="text-xs text-indigo-400 flex items-center gap-1 font-mono">
-              <FiActivity className="size-3" />
+              <Activity className="size-3" />
               All-time routed requests
             </div>
           </div>
           <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-xl">
-            <FiZap className="size-6" />
+            <Zap className="size-6" />
           </div>
         </div>
 
@@ -150,12 +150,12 @@ export function DashboardHome() {
             <span className="text-zinc-400 text-xs font-semibold uppercase tracking-wider">Avg Latency</span>
             <div className="text-3xl font-bold text-white">{stats.avgLatency}ms</div>
             <div className="text-xs text-zinc-400 flex items-center gap-1 font-mono">
-              <FiClock className="size-3 text-zinc-500" />
+              <Clock className="size-3 text-zinc-500" />
               Response stream handshake
             </div>
           </div>
           <div className="p-3 bg-violet-500/10 border border-violet-500/20 text-violet-400 rounded-xl">
-            <FiClock className="size-6" />
+            <Clock className="size-6" />
           </div>
         </div>
 
@@ -167,17 +167,17 @@ export function DashboardHome() {
             <div className={`text-xs flex items-center gap-1 font-mono ${stats.errorRate < 10 ? "text-emerald-400" : "text-amber-400"}`}>
               {stats.errorRate < 10 ? (
                 <>
-                  <FiCheckCircle className="size-3" /> System healthy
+                  <CheckCircle className="size-3" /> System healthy
                 </>
               ) : (
                 <>
-                  <FiAlertTriangle className="size-3" /> Degraded system health
+                  <AlertTriangle className="size-3" /> Degraded system health
                 </>
               )}
             </div>
           </div>
           <div className={`p-3 rounded-xl border ${stats.errorRate < 10 ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400" : "bg-amber-500/10 border-amber-500/20 text-amber-400"}`}>
-            <FiAlertTriangle className="size-6" />
+            <AlertTriangle className="size-6" />
           </div>
         </div>
       </div>
@@ -215,14 +215,14 @@ export function DashboardHome() {
             <h2 className="text-lg font-bold text-white mb-4">Live Diagnostics</h2>
             <div className="space-y-3 font-mono text-xs">
               <div className="p-3 bg-zinc-900 border border-zinc-800 rounded-xl flex items-start gap-2.5">
-                <FiCheckCircle className="text-emerald-400 size-4 mt-0.5 shrink-0" />
+                <CheckCircle className="text-emerald-400 size-4 mt-0.5 shrink-0" />
                 <div>
                   <div className="text-zinc-300 font-semibold">Supabase Auth Gateway</div>
                   <div className="text-zinc-500 mt-0.5">TLS 1.3 handshake operational. Session validation active.</div>
                 </div>
               </div>
               <div className="p-3 bg-zinc-900 border border-zinc-800 rounded-xl flex items-start gap-2.5">
-                <FiAlertTriangle className="text-amber-400 size-4 mt-0.5 shrink-0" />
+                <AlertTriangle className="text-amber-400 size-4 mt-0.5 shrink-0" />
                 <div>
                   <div className="text-zinc-300 font-semibold">Key Expired Notification</div>
                   <div className="text-zinc-500 mt-0.5">Key Prefix "op_live_q4k1" exceeded trial time limit. Routed to offline handler.</div>

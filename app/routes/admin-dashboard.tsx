@@ -7,20 +7,21 @@ import { AdminSidebar } from "~/components/admin/admin-sidebar";
 import { StatCard, Skeleton } from "~/components/admin/stat-card";
 import { cn } from "@/lib/utils";
 import {
-	FiUsers,
-	FiShoppingCart,
-	FiCreditCard,
-	FiKey,
-	FiRefreshCw,
-	FiBell,
-	FiClock,
-	FiUserPlus,
-	FiCheckCircle,
-	FiXCircle,
-	FiActivity,
-	FiShoppingBag,
-	FiSettings,
-} from "react-icons/fi";
+	Users,
+	ShoppingCart,
+	CreditCard,
+	Key,
+	RefreshCw,
+	Bell,
+	Clock,
+	UserPlus,
+	CheckCircle,
+	XCircle,
+	Activity,
+	ShoppingBag,
+	Settings,
+	Globe,
+} from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { Button } from "~/components/ui/button";
 
@@ -96,12 +97,12 @@ function formatRelative(iso: string): string {
 }
 
 const ACTIVITY_ICONS: Record<string, React.ReactNode> = {
-	user_signup: <FiUserPlus className="w-3.5 h-3.5" />,
-	order_placed: <FiShoppingCart className="w-3.5 h-3.5" />,
-	payment_success: <FiCheckCircle className="w-3.5 h-3.5" />,
-	payment_failed: <FiXCircle className="w-3.5 h-3.5" />,
-	order_cancelled: <FiXCircle className="w-3.5 h-3.5" />,
-	order_refunded: <FiRefreshCw className="w-3.5 h-3.5" />,
+	user_signup: <UserPlus className="w-3.5 h-3.5" />,
+	order_placed: <ShoppingCart className="w-3.5 h-3.5" />,
+	payment_success: <CheckCircle className="w-3.5 h-3.5" />,
+	payment_failed: <XCircle className="w-3.5 h-3.5" />,
+	order_cancelled: <XCircle className="w-3.5 h-3.5" />,
+	order_refunded: <RefreshCw className="w-3.5 h-3.5" />,
 };
 
 const ACTIVITY_COLORS: Record<string, string> = {
@@ -114,10 +115,12 @@ const ACTIVITY_COLORS: Record<string, string> = {
 };
 
 const QUICK_ACTIONS = [
-	{ to: "/auth/admin/users", label: "Add User", icon: FiUserPlus, color: "from-indigo-500 to-violet-600" },
-	{ to: "/auth/admin/orders", label: "New Order", icon: FiShoppingBag, color: "from-emerald-500 to-teal-600" },
-	{ to: "/auth/admin/gateway/keys", label: "Manage Keys", icon: FiKey, color: "from-amber-500 to-orange-600" },
-	{ to: "/auth/admin/settings", label: "Settings", icon: FiSettings, color: "from-slate-500 to-slate-700" },
+	{ to: "/auth/admin/users", label: "Add User", icon: UserPlus, color: "from-indigo-500 to-violet-600" },
+	{ to: "/auth/admin/orders", label: "New Order", icon: ShoppingBag, color: "from-emerald-500 to-teal-600" },
+	{ to: "/auth/admin/gateway/keys", label: "Manage Keys", icon: Key, color: "from-amber-500 to-orange-600" },
+	{ to: "/auth/admin/plans", label: "Create Plan", icon: Globe, color: "from-violet-500 to-fuchsia-600" },
+	{ to: "/auth/admin/assign-plans", label: "Assign Plans", icon: CreditCard, color: "from-blue-500 to-indigo-600" },
+	{ to: "/auth/admin/settings", label: "Settings", icon: Settings, color: "from-slate-500 to-slate-700" },
 ];
 
 export async function loader({ request }: LoaderFunctionArgs): Promise<LoaderData> {
@@ -487,7 +490,7 @@ export default function AdminDashboardRoute() {
 							</div>
 							<div className="flex items-center gap-2">
 								<div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-muted/50 border border-border/50 text-[11px] text-muted-foreground">
-									<FiClock className="w-3 h-3" />
+									<Clock className="w-3 h-3" />
 									Updated just now
 								</div>
 								<button
@@ -497,7 +500,7 @@ export default function AdminDashboardRoute() {
 										refreshing && "pointer-events-none",
 									)}
 								>
-									<FiRefreshCw className={`w-3.5 h-3.5 ${refreshing ? "animate-spin" : ""}`} />
+									<RefreshCw className={`w-3.5 h-3.5 ${refreshing ? "animate-spin" : ""}`} />
 									Refresh
 								</button>
 							</div>
@@ -510,7 +513,7 @@ export default function AdminDashboardRoute() {
 								value={loading ? "—" : stats.totalUsers.toLocaleString()}
 								change={stats.usersChange}
 								subtitle={!loading ? usersSubtitle : undefined}
-								icon={<FiUsers className="w-5 h-5" />}
+								icon={<Users className="w-5 h-5" />}
 								iconBg="bg-indigo-500/10"
 								iconColor="text-indigo-500"
 								loading={loading}
@@ -520,7 +523,7 @@ export default function AdminDashboardRoute() {
 								value={loading ? "—" : stats.totalOrders.toLocaleString()}
 								change={stats.ordersChange}
 								subtitle={!loading ? ordersSubtitle : undefined}
-								icon={<FiShoppingCart className="w-5 h-5" />}
+								icon={<ShoppingCart className="w-5 h-5" />}
 								iconBg="bg-emerald-500/10"
 								iconColor="text-emerald-500"
 								loading={loading}
@@ -530,7 +533,7 @@ export default function AdminDashboardRoute() {
 								value={loading ? "—" : `₹${stats.totalRevenue.toLocaleString()}`}
 								change={stats.revenueChange}
 								subtitle={!loading ? revenueSubtitle : undefined}
-								icon={<FiCreditCard className="w-5 h-5" />}
+								icon={<CreditCard className="w-5 h-5" />}
 								iconBg="bg-amber-500/10"
 								iconColor="text-amber-500"
 								loading={loading}
@@ -540,7 +543,7 @@ export default function AdminDashboardRoute() {
 								value={loading ? "—" : stats.totalApiKeys.toLocaleString()}
 								change={stats.apiKeysChange}
 								subtitle={!loading ? apiKeysSubtitle : undefined}
-								icon={<FiKey className="w-5 h-5" />}
+								icon={<Key className="w-5 h-5" />}
 								iconBg="bg-violet-500/10"
 								iconColor="text-violet-500"
 								loading={loading}
@@ -627,7 +630,7 @@ export default function AdminDashboardRoute() {
 								<div className="flex-1 space-y-1 max-h-[280px] overflow-y-auto custom-scrollbar">
 									{recentActivity.length === 0 ? (
 										<div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-											<FiActivity className="w-8 h-8 opacity-30 mb-2" />
+											<Activity className="w-8 h-8 opacity-30 mb-2" />
 											<p className="text-xs">No activity yet</p>
 										</div>
 									) : (
@@ -637,7 +640,7 @@ export default function AdminDashboardRoute() {
 												className="flex items-start gap-3 p-2.5 rounded-xl hover:bg-muted/20 transition-colors"
 											>
 												<div className={cn("shrink-0 w-7 h-7 rounded-lg flex items-center justify-center", ACTIVITY_COLORS[item.type] || "text-muted-foreground bg-muted/50")}>
-													{ACTIVITY_ICONS[item.type] || <FiBell className="w-3.5 h-3.5" />}
+													{ACTIVITY_ICONS[item.type] || <Bell className="w-3.5 h-3.5" />}
 												</div>
 												<div className="flex-1 min-w-0">
 													<div className="flex items-center justify-between">
@@ -698,7 +701,7 @@ export default function AdminDashboardRoute() {
 										</span>
 										<Button variant="ghost" size="sm" asChild className="h-7 text-[10px] gap-1 text-muted-foreground hover:text-foreground">
 											<Link to="/auth/admin/gateway/health">
-												<FiActivity className="w-3 h-3" />
+												<Activity className="w-3 h-3" />
 												Health Monitor
 											</Link>
 										</Button>

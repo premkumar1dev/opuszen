@@ -1,19 +1,19 @@
 import {
-	FiHome,
-	FiKey,
-	FiGitBranch,
-	FiActivity,
-	FiChevronLeft,
-	FiChevronRight,
-	FiLogOut,
-	FiZap,
-	FiShoppingBag,
-	FiGift,
-	FiHelpCircle,
-	FiUser,
-	FiSun,
-	FiMoon,
-} from "react-icons/fi";
+	Home,
+	Key,
+	GitBranch,
+	Activity,
+	ChevronLeft,
+	ChevronRight,
+	LogOut,
+	Zap,
+	ShoppingBag,
+	Gift,
+	HelpCircle,
+	User,
+	Sun,
+	Moon,
+} from "lucide-react";
 import { NavLink } from "react-router";
 import { useState, useEffect } from "react";
 
@@ -27,14 +27,14 @@ interface DashboardSidebarProps {
 }
 
 const NAV_ITEMS = [
-	{ to: "/user/dashboard", label: "Overview", icon: FiHome, end: true },
-	{ to: "/user/my-keys", label: "My Keys", icon: FiKey },
-	{ to: "/user/child-keys", label: "Child Keys", icon: FiGitBranch },
-	{ to: "/user/orders", label: "Orders", icon: FiShoppingBag },
-	{ to: "/user/refer-earn", label: "Refer & Earn", icon: FiGift },
-	{ to: "/docs", label: "Documentation", icon: FiActivity },
-	{ to: "/user/support", label: "Support", icon: FiHelpCircle },
-	{ to: "/user/account", label: "Account", icon: FiUser },
+	{ to: "/user/dashboard", label: "Overview", icon: Home, end: true },
+	{ to: "/user/my-keys", label: "My Keys", icon: Key },
+	{ to: "/user/child-keys", label: "Child Keys", icon: GitBranch },
+	{ to: "/user/orders", label: "Orders", icon: ShoppingBag },
+	{ to: "/user/refer-earn", label: "Refer & Earn", icon: Gift },
+	{ to: "/docs", label: "Documentation", icon: Activity },
+	{ to: "/user/support", label: "Support", icon: HelpCircle },
+	{ to: "/user/account", label: "Account", icon: User },
 ];
 
 export function DashboardSidebar({
@@ -52,14 +52,14 @@ export function DashboardSidebar({
 			dashboard-sidebar border-r
 			transition-all duration-300 ease-in-out
 			flex flex-col
-			${collapsed ? "w-[68px]" : "w-[240px]"}
+			${collapsed ? "w-[68px]" : "w-[220px]"}
 			`}
 		>
 			{/* Logo */}
 			<div className="flex items-center h-16 px-4 border-b border-[var(--dashboard-border)] shrink-0">
 				<div className="flex items-center gap-2.5 min-w-0">
 					<div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-600 to-blue-700 flex items-center justify-center shrink-0 shadow-lg shadow-blue-600/20">
-						<FiZap className="h-4 w-4 text-white" />
+						<Zap className="h-4 w-4 text-white" />
 					</div>
 					{!collapsed && (
 						<div className="transition-opacity duration-200">
@@ -125,9 +125,9 @@ export function DashboardSidebar({
 					>
 						<span className="shrink-0 w-[18px] h-[18px] flex items-center justify-center">
 							{theme === "dark" ? (
-								<FiSun className="w-[18px] h-[18px] text-amber-500" />
+								<Sun className="w-[18px] h-[18px] text-amber-500" />
 							) : (
-								<FiMoon className="w-[18px] h-[18px] text-blue-600" />
+								<Moon className="w-[18px] h-[18px] text-blue-600" />
 							)}
 						</span>
 						<span>{theme === "dark" ? "Light Mode" : "Dark Mode"}</span>
@@ -141,9 +141,9 @@ export function DashboardSidebar({
 						title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
 					>
 						{theme === "dark" ? (
-							<FiSun className="w-4 h-4 text-amber-500" />
+							<Sun className="w-4 h-4 text-amber-500" />
 							) : (
-								<FiMoon className="w-4 h-4 text-blue-600" />
+								<Moon className="w-4 h-4 text-blue-600" />
 						)}
 					</button>
 				)}
@@ -154,7 +154,7 @@ export function DashboardSidebar({
 						className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium text-[var(--dashboard-text-muted)] hover:text-red-400 hover:bg-red-500/5 transition-all cursor-pointer"
 						title={collapsed ? "Logout" : undefined}
 					>
-						<FiLogOut className={`shrink-0 ${collapsed ? "w-[18px] h-[18px]" : "w-4 h-4"}`} />
+						<LogOut className={`shrink-0 ${collapsed ? "w-[18px] h-[18px]" : "w-4 h-4"}`} />
 						{!collapsed && <span>Sign Out</span>}
 					</button>
 				)}
@@ -166,10 +166,10 @@ export function DashboardSidebar({
 					title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
 				>
 					{collapsed ? (
-						<FiChevronRight className="w-4 h-4" />
+						<ChevronRight className="w-4 h-4" />
 					) : (
 						<>
-							<FiChevronLeft className="w-4 h-4" />
+							<ChevronLeft className="w-4 h-4" />
 							<span className="hidden sm:inline">Collapse</span>
 						</>
 					)}

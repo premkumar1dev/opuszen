@@ -7,27 +7,27 @@ import { supabase } from "~/utils/supabase";
 import { ContactAdminModal } from "~/components/ui/contact-admin-modal";
 import { AdminSidebar } from "~/components/admin/admin-sidebar";
 import {
-	FiSearch,
-	FiRefreshCw,
-	FiDownload,
-	FiFilter,
-	FiEye,
-	FiChevronLeft,
-	FiChevronRight,
-	FiLoader,
-	FiTrendingUp,
-	FiClock,
-	FiXCircle,
-	FiCopy,
-	FiCheckCircle,
-	FiCreditCard,
-	FiCalendar,
-	FiHash,
-	FiUser,
-	FiArrowUpRight,
-	FiArrowDownRight,
-} from "react-icons/fi";
-import { FaRupeeSign } from "react-icons/fa6";
+	Search,
+	RefreshCw,
+	Download,
+	Filter,
+	Eye,
+	ChevronLeft,
+	ChevronRight,
+	Loader,
+	TrendingUp,
+	Clock,
+	XCircle,
+	Copy,
+	CheckCircle,
+	CreditCard,
+	Calendar,
+	Hash,
+	User,
+	ArrowUpRight,
+	ArrowDownRight,
+} from "lucide-react";
+import { IndianRupee } from "lucide-react";
 import {
 	Sheet,
 	SheetContent,
@@ -219,7 +219,7 @@ function PaymentDetailSheet({ payment, onClose }: PaymentDetailSheetProps) {
 			<SheetContent side="right" className="w-full sm:max-w-[480px] overflow-y-auto">
 				<SheetHeader>
 					<SheetTitle className="flex items-center gap-2">
-						<FiCreditCard className="w-4 h-4" />
+						<CreditCard className="w-4 h-4" />
 						Payment Details
 					</SheetTitle>
 					<SheetDescription>
@@ -261,7 +261,7 @@ function PaymentDetailSheet({ payment, onClose }: PaymentDetailSheetProps) {
 										title="Copy reference"
 										type="button"
 									>
-										{copied ? <FiCheckCircle className="w-3.5 h-3.5 text-emerald-500" /> : <FiCopy className="w-3.5 h-3.5" />}
+										{copied ? <CheckCircle className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
 									</button>
 								</div>
 							</div>
@@ -332,7 +332,7 @@ function PaymentDetailSheet({ payment, onClose }: PaymentDetailSheetProps) {
 
 						{/* Order ID */}
 						<div className="flex items-center gap-2 p-3 rounded-xl border border-border/40 bg-muted/10">
-							<FiHash className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+							<Hash className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
 							<code className="text-[10px] font-mono text-muted-foreground break-all">{payment.id}</code>
 							<button
 								onClick={() => handleCopy(payment.id)}
@@ -340,7 +340,7 @@ function PaymentDetailSheet({ payment, onClose }: PaymentDetailSheetProps) {
 								title="Copy order ID"
 								type="button"
 							>
-								<FiCopy className="w-3 h-3" />
+								<Copy className="w-3 h-3" />
 							</button>
 						</div>
 					</motion.div>
@@ -364,13 +364,13 @@ const SortIcon = ({
 	sortDir: "asc" | "desc";
 }) => (
 	<span className="ml-1 inline-flex flex-col gap-[1px]">
-		<FiChevronRight
+		<ChevronRight
 			className={`w-2.5 h-2.5 -ml-0.5 transition-colors ${
 				sortField === field && sortDir === "asc" ? "text-primary" : "text-muted-foreground/40"
 			}`}
 			style={{ transform: "rotate(-90deg)" }}
 		/>
-		<FiChevronRight
+		<ChevronRight
 			className={`w-2.5 h-2.5 -ml-0.5 -mt-[3px] transition-colors ${
 				sortField === field && sortDir === "desc" ? "text-primary" : "text-muted-foreground/40"
 			}`}
@@ -529,7 +529,7 @@ export default function AdminPaymentsRoute() {
 					<div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
 						<div>
 							<div className="inline-flex items-center gap-1.5 mb-3 px-3 py-1 rounded-full bg-violet-500/10 border border-violet-500/20 text-xs font-mono font-semibold text-violet-600 dark:text-violet-400 uppercase tracking-wider">
-								<FiCreditCard className="w-3.5 h-3.5" />
+								<CreditCard className="w-3.5 h-3.5" />
 								Payment History
 							</div>
 							<h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-foreground text-gradient">
@@ -543,11 +543,11 @@ export default function AdminPaymentsRoute() {
 
 						<div className="flex items-center gap-2 flex-wrap">
 							<Button variant="outline" size="sm" onClick={handleExport} className="gap-1.5">
-								<FiDownload className="w-3.5 h-3.5" />
+								<Download className="w-3.5 h-3.5" />
 								Export CSV
 							</Button>
 							<Button variant="outline" size="sm" onClick={refresh} disabled={loading} className="gap-1.5">
-								<FiRefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
+								<RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
 								Refresh
 							</Button>
 							<Button
@@ -556,7 +556,7 @@ export default function AdminPaymentsRoute() {
 								onClick={() => setShowFilters((v) => !v)}
 								className="gap-1.5"
 							>
-								<FiFilter className="w-3.5 h-3.5" />
+								<Filter className="w-3.5 h-3.5" />
 								Filters
 								{activeFilterCount > 0 && (
 									<span className="ml-1 w-4 h-4 rounded-full bg-primary text-[10px] font-bold text-white flex items-center justify-center">
@@ -581,28 +581,28 @@ export default function AdminPaymentsRoute() {
 								label: "Total Revenue",
 								value: formatCurrency(stats.totalRevenue),
 								color: "text-emerald-500",
-								icon: <FaRupeeSign className="w-3.5 h-3.5" />,
+								icon: <IndianRupee className="w-3.5 h-3.5" />,
 								sub: `${stats.completedCount} completed`,
 							},
 							{
 								label: "Average Payment",
 								value: formatCurrency(stats.avgPayment),
 								color: "text-indigo-500",
-								icon: <FiTrendingUp className="w-4 h-4" />,
+								icon: <TrendingUp className="w-4 h-4" />,
 								sub: `${stats.totalPayments} total`,
 							},
 							{
 								label: "Pending",
 								value: String(stats.pendingCount),
 								color: "text-amber-500",
-								icon: <FiClock className="w-4 h-4" />,
+								icon: <Clock className="w-4 h-4" />,
 								sub: "awaiting payment",
 							},
 							{
 								label: "Failed / Refunded",
 								value: `${stats.failedCount} / ${allPayments.filter((p) => p.status === "refunded").length}`,
 								color: "text-red-500",
-								icon: <FiXCircle className="w-4 h-4" />,
+								icon: <XCircle className="w-4 h-4" />,
 								sub: stats.refundedAmount > 0 ? formatCurrency(stats.refundedAmount) + " refunded" : "no refunds",
 							},
 						].map((stat) => (
@@ -700,7 +700,7 @@ export default function AdminPaymentsRoute() {
 					<div className="rounded-2xl border border-border bg-card dark:bg-card/60 overflow-hidden">
 						{loading && allPayments.length === 0 ? (
 							<div className="flex items-center justify-center py-20">
-								<FiLoader className="w-8 h-8 animate-spin text-muted-foreground" />
+								<Loader className="w-8 h-8 animate-spin text-muted-foreground" />
 							</div>
 						) : (
 							<>
@@ -746,7 +746,7 @@ export default function AdminPaymentsRoute() {
 												<tr>
 													<td colSpan={7} className="px-4 py-16 text-center text-muted-foreground">
 														<div className="flex flex-col items-center gap-2">
-															<FiCreditCard className="w-10 h-10 opacity-30" />
+															<CreditCard className="w-10 h-10 opacity-30" />
 															<p className="text-sm font-medium">No payments found</p>
 															<p className="text-xs">Try adjusting your filters</p>
 														</div>
@@ -840,7 +840,7 @@ export default function AdminPaymentsRoute() {
 																		title="View details"
 																		type="button"
 																	>
-																		<FiEye className="w-3.5 h-3.5" />
+																		<Eye className="w-3.5 h-3.5" />
 																	</button>
 																</div>
 															</td>
@@ -866,7 +866,7 @@ export default function AdminPaymentsRoute() {
 												onClick={() => setPage((p) => Math.max(1, p - 1))}
 												disabled={page === 1}
 											>
-												<FiChevronLeft className="w-4 h-4" />
+												<ChevronLeft className="w-4 h-4" />
 											</Button>
 											{Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
 												const p = i + 1;
@@ -892,7 +892,7 @@ export default function AdminPaymentsRoute() {
 												onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
 												disabled={page === totalPages}
 											>
-												<FiChevronRight className="w-4 h-4" />
+												<ChevronRight className="w-4 h-4" />
 											</Button>
 										</div>
 									</div>

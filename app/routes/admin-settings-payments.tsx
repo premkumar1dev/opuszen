@@ -12,45 +12,45 @@ import { verifyAdminSession } from "~/utils/admin-auth";
 import { requireAdmin } from "~/utils/admin-actions";
 import { supabaseServer } from "~/utils/supabase.server";
 import { cn } from "@/lib/utils";
-import { FaRupeeSign } from "react-icons/fa6";
+import { IndianRupee } from "lucide-react";
 import {
-	FiCreditCard,
-	FiKey,
-	FiGlobe,
-	FiToggleLeft,
-	FiToggleRight,
-	FiSave,
-	FiCheck,
-	FiAlertCircle,
-	FiEye,
-	FiEyeOff,
-	FiRefreshCw,
-	FiSend,
-	FiCheckCircle,
-	FiXCircle,
-	FiShield,
-	FiActivity,
-	FiLink,
-	FiZap,
-	FiInfo,
-	FiSettings,
-	FiLock,
-	FiUser,
-	FiBell,
-	FiMonitor,
-	FiDatabase,
-	FiMail,
-} from "react-icons/fi";
+	CreditCard,
+	Key,
+	Globe,
+	ToggleLeft,
+	ToggleRight,
+	Save,
+	Check,
+	AlertCircle,
+	Eye,
+	EyeOff,
+	RefreshCw,
+	Send,
+	CheckCircle,
+	XCircle,
+	Shield,
+	Activity,
+	Link as LinkIcon,
+	Zap,
+	Info,
+	Settings,
+	Lock,
+	User,
+	Bell,
+	Monitor,
+	Database,
+	Mail,
+} from "lucide-react";
 import { AdminHeader } from "~/components/admin/admin-header";
 
 const TABS = [
-	{ id: "profile", label: "Profile", icon: <FiUser className="w-4 h-4" />, href: "/auth/admin/settings?tab=profile" },
-	{ id: "security", label: "Security", icon: <FiShield className="w-4 h-4" />, href: "/auth/admin/settings?tab=security" },
-	{ id: "notifications", label: "Notifications", icon: <FiBell className="w-4 h-4" />, href: "/auth/admin/settings?tab=notifications" },
-	{ id: "appearance", label: "Appearance", icon: <FiMonitor className="w-4 h-4" />, href: "/auth/admin/settings?tab=appearance" },
-	{ id: "data", label: "Data & Storage", icon: <FiDatabase className="w-4 h-4" />, href: "/auth/admin/settings?tab=data" },
-	{ id: "site", label: "Site Config", icon: <FiGlobe className="w-4 h-4" />, href: "/auth/admin/settings/site" },
-	{ id: "payments", label: "Payment Gateway", icon: <FiCreditCard className="w-4 h-4" />, href: "/auth/admin/settings/payments" },
+	{ id: "profile", label: "Profile", icon: <User className="w-4 h-4" />, href: "/auth/admin/settings?tab=profile" },
+	{ id: "security", label: "Security", icon: <Shield className="w-4 h-4" />, href: "/auth/admin/settings?tab=security" },
+	{ id: "notifications", label: "Notifications", icon: <Bell className="w-4 h-4" />, href: "/auth/admin/settings?tab=notifications" },
+	{ id: "appearance", label: "Appearance", icon: <Monitor className="w-4 h-4" />, href: "/auth/admin/settings?tab=appearance" },
+	{ id: "data", label: "Data & Storage", icon: <Database className="w-4 h-4" />, href: "/auth/admin/settings?tab=data" },
+	{ id: "site", label: "Site Config", icon: <Globe className="w-4 h-4" />, href: "/auth/admin/settings/site" },
+	{ id: "payments", label: "Payment Gateway", icon: <CreditCard className="w-4 h-4" />, href: "/auth/admin/settings/payments" },
 ];
 
 export const meta: MetaFunction = () => [
@@ -398,7 +398,7 @@ export default function AdminSettingsPaymentsRoute() {
 							</div>
 							<h1 className="text-3xl font-bold text-foreground flex items-center gap-3">
 								<div className="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-violet-500/20">
-									<FiCreditCard className="w-5 h-5 text-white" />
+									<CreditCard className="w-5 h-5 text-white" />
 								</div>
 								Payment Gateway
 							</h1>
@@ -453,19 +453,19 @@ export default function AdminSettingsPaymentsRoute() {
 							{/* Toast notifications */}
 							{saveFlash === "success" && (
 								<div className="flex items-center gap-3 p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 text-sm font-medium animate-in fade-in slide-in-from-top-2 duration-300">
-									<FiCheck className="w-4 h-4 shrink-0" />
+									<Check className="w-4 h-4 shrink-0" />
 									Payment gateway settings saved successfully!
 								</div>
 							)}
 							{saveFlash === "error" && (
 								<div className="flex items-center gap-3 p-3.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-500 text-sm font-medium animate-in fade-in slide-in-from-top-2 duration-300">
-									<FiAlertCircle className="w-4 h-4 shrink-0" />
+									<AlertCircle className="w-4 h-4 shrink-0" />
 									{actionData?.error || "Failed to save settings. Please try again."}
 								</div>
 							)}
 							{loaderError && (
 								<div className="flex items-center gap-3 p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-500 text-sm font-medium">
-									<FiAlertCircle className="w-4 h-4 shrink-0" />
+									<AlertCircle className="w-4 h-4 shrink-0" />
 									Could not load saved settings: {loaderError}. Using defaults.
 								</div>
 							)}
@@ -480,7 +480,7 @@ export default function AdminSettingsPaymentsRoute() {
 								<div className="rounded-2xl border border-border bg-card/60 p-6 space-y-5">
 									<div className="flex items-center gap-3">
 										<div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
-											<FiSettings className="w-4 h-4" />
+											<Settings className="w-4 h-4" />
 										</div>
 										<div>
 											<h3 className="text-base font-bold text-foreground">Gateway Control</h3>
@@ -532,7 +532,7 @@ export default function AdminSettingsPaymentsRoute() {
 									<div className="flex items-center justify-between py-3 px-4 rounded-xl bg-amber-500/5 border border-amber-500/15 hover:bg-amber-500/8 transition-colors">
 										<div>
 											<p className="text-sm font-semibold text-foreground flex items-center gap-2">
-												<FiZap className="w-4 h-4 text-amber-500" />
+												<Zap className="w-4 h-4 text-amber-500" />
 												Test Mode
 											</p>
 											<p className="text-xs text-muted-foreground mt-0.5">
@@ -550,7 +550,7 @@ export default function AdminSettingsPaymentsRoute() {
 								<div className="rounded-2xl border border-border bg-card/60 p-6 space-y-5">
 									<div className="flex items-center gap-3">
 										<div className="w-8 h-8 rounded-lg bg-violet-500/10 flex items-center justify-center text-violet-500">
-											<FiKey className="w-4 h-4" />
+											<Key className="w-4 h-4" />
 										</div>
 										<div>
 											<h3 className="text-base font-bold text-foreground">API Credentials</h3>
@@ -567,7 +567,7 @@ export default function AdminSettingsPaymentsRoute() {
 										</label>
 										<div className="relative">
 											<div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-												<FiLock className="w-4 h-4" />
+												<Lock className="w-4 h-4" />
 											</div>
 											<input
 												type={showKey ? "text" : "password"}
@@ -584,9 +584,9 @@ export default function AdminSettingsPaymentsRoute() {
 												title={showKey ? "Hide key" : "Reveal key"}
 											>
 												{showKey ? (
-													<FiEyeOff className="w-4 h-4" />
+													<EyeOff className="w-4 h-4" />
 												) : (
-													<FiEye className="w-4 h-4" />
+													<Eye className="w-4 h-4" />
 												)}
 											</button>
 										</div>
@@ -604,7 +604,7 @@ export default function AdminSettingsPaymentsRoute() {
 										</label>
 										<div className="relative">
 											<div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-												<FiShield className="w-4 h-4" />
+												<Shield className="w-4 h-4" />
 											</div>
 											<input
 												type={showSecret ? "text" : "password"}
@@ -622,9 +622,9 @@ export default function AdminSettingsPaymentsRoute() {
 												className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
 											>
 												{showSecret ? (
-													<FiEyeOff className="w-4 h-4" />
+													<EyeOff className="w-4 h-4" />
 												) : (
-													<FiEye className="w-4 h-4" />
+													<Eye className="w-4 h-4" />
 												)}
 											</button>
 										</div>
@@ -635,7 +635,7 @@ export default function AdminSettingsPaymentsRoute() {
 								<div className="rounded-2xl border border-border bg-card/60 p-6 space-y-5">
 									<div className="flex items-center gap-3">
 										<div className="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-500">
-											<FiGlobe className="w-4 h-4" />
+											<Globe className="w-4 h-4" />
 										</div>
 										<div>
 											<h3 className="text-base font-bold text-foreground">API Endpoints</h3>
@@ -652,7 +652,7 @@ export default function AdminSettingsPaymentsRoute() {
 										</label>
 										<div className="relative">
 											<div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-												<FiGlobe className="w-4 h-4" />
+												<Globe className="w-4 h-4" />
 											</div>
 											<input
 												type="url"
@@ -675,7 +675,7 @@ export default function AdminSettingsPaymentsRoute() {
 											</label>
 											<div className="relative">
 												<div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-													<FiLink className="w-4 h-4" />
+													<LinkIcon className="w-4 h-4" />
 												</div>
 												<input
 													type="text"
@@ -697,7 +697,7 @@ export default function AdminSettingsPaymentsRoute() {
 											</label>
 											<div className="relative">
 												<div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-													<FiActivity className="w-4 h-4" />
+													<Activity className="w-4 h-4" />
 												</div>
 												<input
 													type="text"
@@ -719,7 +719,7 @@ export default function AdminSettingsPaymentsRoute() {
 									{/* Resolved URLs preview */}
 									<div className="space-y-2 pt-1">
 										<p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-											<FiInfo className="w-3.5 h-3.5" />
+											<Info className="w-3.5 h-3.5" />
 											Resolved Endpoint URLs
 										</p>
 										<div className="space-y-1.5">
@@ -746,7 +746,7 @@ export default function AdminSettingsPaymentsRoute() {
 								{/* ── SDK Reference ── */}
 								<div className="rounded-2xl border border-border/50 bg-muted/20 p-5 space-y-3">
 									<p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
-										<FiInfo className="w-3.5 h-3.5" />
+										<Info className="w-3.5 h-3.5" />
 										Create Order — Payload Reference
 									</p>
 									<div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
@@ -780,7 +780,7 @@ export default function AdminSettingsPaymentsRoute() {
 								<div className="rounded-2xl border border-border bg-card/60 p-6 space-y-5">
 									<div className="flex items-center gap-3">
 										<div className="w-8 h-8 rounded-lg bg-cyan-500/10 flex items-center justify-center text-cyan-500">
-											<FiSend className="w-4 h-4" />
+											<Send className="w-4 h-4" />
 										</div>
 										<div>
 											<h3 className="text-base font-bold text-foreground">Test Payment</h3>
@@ -794,7 +794,7 @@ export default function AdminSettingsPaymentsRoute() {
 										{/* Amount input */}
 										<div className="relative flex-1">
 											<div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-												<FaRupeeSign className="w-3.5 h-3.5" />
+												<IndianRupee className="w-3.5 h-3.5" />
 											</div>
 											<input
 												type="number"
@@ -822,12 +822,12 @@ export default function AdminSettingsPaymentsRoute() {
 										>
 											{testLoading ? (
 												<>
-													<FiRefreshCw className="w-4 h-4 animate-spin" />
+													<RefreshCw className="w-4 h-4 animate-spin" />
 													Sending…
 												</>
 											) : (
 												<>
-													<FiSend className="w-4 h-4" />
+													<Send className="w-4 h-4" />
 													Send Test Payment
 												</>
 											)}
@@ -844,9 +844,9 @@ export default function AdminSettingsPaymentsRoute() {
 										>
 											<div className="flex items-center gap-2">
 												{testResult.status === "success" ? (
-													<FiCheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+													<CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
 												) : (
-													<FiXCircle className="w-4 h-4 text-red-500 shrink-0" />
+													<XCircle className="w-4 h-4 text-red-500 shrink-0" />
 												)}
 												<span
 													className={`text-sm font-semibold ${testResult.status === "success" ? "text-emerald-500" : "text-red-500"
@@ -871,7 +871,7 @@ export default function AdminSettingsPaymentsRoute() {
 
 									{/* Info note */}
 									<p className="text-[11px] text-muted-foreground flex items-start gap-1.5">
-										<FiInfo className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+										<Info className="w-3.5 h-3.5 mt-0.5 shrink-0" />
 										This sends a real create-order request to your configured gateway with a test order ID and dummy mobile number (9999999999).
 										Make sure your settings are saved first.
 									</p>
@@ -895,12 +895,12 @@ export default function AdminSettingsPaymentsRoute() {
 									>
 										{isSubmitting ? (
 											<>
-												<FiRefreshCw className="w-4 h-4 animate-spin" />
+												<RefreshCw className="w-4 h-4 animate-spin" />
 												Saving…
 											</>
 										) : (
 											<>
-												<FiSave className="w-4 h-4" />
+												<Save className="w-4 h-4" />
 												Save Gateway Settings
 											</>
 										)}

@@ -1,22 +1,23 @@
 import { useState, useEffect, useCallback } from "react";
 import { NavLink } from "react-router";
+import { useAccessGuard } from "~/utils/use-access-guard";
 import {
-	FiKey,
-	FiPlus,
-	FiTrash2,
-	FiShield,
-	FiCopy,
-	FiEye,
-	FiEyeOff,
-	FiRefreshCw,
-	FiChevronDown,
-	FiChevronRight,
-	FiClock,
-	FiZap,
-	FiLink,
-	FiGitBranch,
-	FiActivity,
-} from "react-icons/fi";
+	Key,
+	Plus,
+	Trash2,
+	Shield,
+	Copy,
+	Eye,
+	EyeOff,
+	RefreshCw,
+	ChevronDown,
+	ChevronRight,
+	Clock,
+	Zap,
+	Link,
+	GitBranch,
+	Activity,
+} from "lucide-react";
 import { supabase } from "~/utils/supabase";
 import { DashboardSidebar } from "~/components/dashboard/dashboard-sidebar";
 
@@ -50,6 +51,15 @@ export default function UserChildKeys() {
 	const [copiedId, setCopiedId] = useState<string | null>(null);
 	const [expanded, setExpanded] = useState<Set<string>>(new Set());
 	const [refreshTick, setRefreshTick] = useState(0);
+	const access = useAccessGuard();
+
+	if (access === null) {
+		return (
+			<div className="flex items-center justify-center min-h-screen">
+				<div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+			</div>
+		);
+	}
 
 	useEffect(() => { loadUser(); }, []);
 
@@ -173,9 +183,9 @@ export default function UserChildKeys() {
 	return (
 		<div className="dashboard flex min-h-screen">
 			{sidebarOpen && (
-				<div className="fixed inset-0 z-[55] dashboard-overlay backdrop-blur-sm md:hidden" onClick={() => setSidebarOpen(false)} />
+				<div className="fixed inset-0 z-dropdown dashboard-overlay backdrop-blur-sm md:hidden" onClick={() => setSidebarOpen(false)} />
 			)}
-			<div className={`fixed top-0 left-0 z-[60] h-full md:hidden transform transition-transform duration-300 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
+			<div className={`fixed top-0 left-0 z-dropdown h-full md:hidden transform transition-transform duration-300 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
 				<DashboardSidebar collapsed={false} onToggle={() => setSidebarOpen(false)} userEmail={user?.email} theme={theme} onThemeToggle={() => { }} onLogout={async () => { await supabase.auth.signOut(); window.location.href = "/"; }} />
 			</div>
 			<div className="hidden md:block">
@@ -196,11 +206,11 @@ export default function UserChildKeys() {
 						</div>
 						<div className="flex items-center gap-2 shrink-0">
 							<button onClick={() => { setRefreshTick(t => t + 1); }} disabled={loading} className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium text-[var(--dashboard-text-secondary)] hover:text-[var(--dashboard-text)] hover:bg-[var(--dashboard-nav-hover)] transition-all disabled:opacity-50">
-								<FiRefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
+								<RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
 								<span className="hidden sm:inline">Refresh</span>
 							</button>
 							<NavLink to="/user/my-keys" className="flex items-center gap-2 px-3 sm:px-4 py-1.5 rounded-lg text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-all">
-								<FiKey className="w-3.5 h-3.5" /><span className="hidden sm:inline">All Keys</span>
+								<Key className="w-3.5 h-3.5" /><span className="hidden sm:inline">All Keys</span>
 							</NavLink>
 						</div>
 					</div>
@@ -211,7 +221,7 @@ export default function UserChildKeys() {
 					<div className="dashboard-card p-4 rounded-2xl mb-6 border border-primary/20 bg-primary/5">
 						<div className="flex items-start gap-3">
 							<div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
-								<FiGitBranch className="w-4 h-4 text-primary" />
+								<GitBranch className="w-4 h-4 text-primary" />
 							</div>
 							<div>
 								<h3 className="text-sm font-semibold text-[var(--dashboard-text)]">About Child Keys</h3>
@@ -225,15 +235,15 @@ export default function UserChildKeys() {
 
 					{loading ? (
 						<div className="text-center py-20">
-							<FiRefreshCw className="w-8 h-8 text-[var(--dashboard-text-muted)] mx-auto animate-spin" />
+							<RefreshCw className="w-8 h-8 text-[var(--dashboard-text-muted)] mx-auto animate-spin" />
 						</div>
 					) : parentKeys.length === 0 ? (
 						<div className="text-center py-16 sm:py-20 dashboard-card rounded-2xl">
-							<FiKey className="w-10 h-10 text-[var(--dashboard-text-muted)] mx-auto mb-3" />
+							<Key className="w-10 h-10 text-[var(--dashboard-text-muted)] mx-auto mb-3" />
 							<p className="text-sm text-[var(--dashboard-text-secondary)] font-medium">No parent keys found</p>
 							<p className="text-xs text-[var(--dashboard-text-muted)] mt-1">Purchase a plan to create a parent key, then spawn child keys from it.</p>
 							<NavLink to="/user/my-keys" className="inline-flex items-center gap-2 mt-4 px-4 py-2 rounded-lg text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-all">
-								<FiPlus className="w-3.5 h-3.5" /> Get a Plan
+								<Plus className="w-3.5 h-3.5" /> Get a Plan
 							</NavLink>
 						</div>
 					) : (
@@ -372,24 +382,24 @@ function ParentKeyCard({
 								r.has(parent.id) ? r.delete(parent.id) : r.add(parent.id);
 								setRevealed(r);
 							}} className="text-[var(--dashboard-text-muted)] hover:text-[var(--dashboard-text)] transition-colors p-0.5" aria-label={revealed.has(parent.id) ? "Hide" : "Reveal"}>
-									{revealed.has(parent.id) ? <FiEyeOff className="w-3.5 h-3.5" /> : <FiEye className="w-3.5 h-3.5" />}
+									{revealed.has(parent.id) ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
 								</button>
 								<button onClick={() => copy(parentKey, parent.id)} className="text-[var(--dashboard-text-muted)] hover:text-[var(--dashboard-text)] transition-colors p-0.5" aria-label="Copy">
-									<FiCopy className="w-3.5 h-3.5" />
+									<Copy className="w-3.5 h-3.5" />
 								</button>
 								{copiedId === parent.id && <span className="text-[10px] text-emerald-500 font-medium">Copied!</span>}
 							</div>
 							<div className="flex flex-wrap items-center gap-3 mt-3 text-[11px] text-[var(--dashboard-text-secondary)]">
-								<span className="flex items-center gap-1"><FiZap className="w-3 h-3 text-primary" /> {parent.plan_name}</span>
-								<span className="flex items-center gap-1"><FiActivity className="w-3 h-3 text-[var(--dashboard-text-muted)]" /> {parent.rate_limit} req/min</span>
-								<span className="flex items-center gap-1"><FiClock className={`w-3 h-3 ${expiryClass}`} /> {formatDate(parent.expiry_date)} ({dl < 30 ? dl.toFixed(0) + "d" : ""})</span>
+								<span className="flex items-center gap-1"><Zap className="w-3 h-3 text-primary" /> {parent.plan_name}</span>
+								<span className="flex items-center gap-1"><Activity className="w-3 h-3 text-[var(--dashboard-text-muted)]" /> {parent.rate_limit} req/min</span>
+								<span className="flex items-center gap-1"><Clock className={`w-3 h-3 ${expiryClass}`} /> {formatDate(parent.expiry_date)} ({dl < 30 ? dl.toFixed(0) + "d" : ""})</span>
 							</div>
 						</div>
 					</div>
 
 					<div className="flex items-center gap-1 shrink-0">
 						<button onClick={onToggleExpand} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-primary hover:bg-primary/10 transition-all">
-							{isExpanded ? <FiChevronDown className="w-3.5 h-3.5" /> : <FiChevronRight className="w-3.5 h-3.5" />}
+							{isExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
 							Children
 						</button>
 					</div>
@@ -422,7 +432,7 @@ function ParentKeyCard({
 								onClick={() => onSetCreatingFor(parent.id)}
 								className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium text-primary hover:bg-primary/10 transition-all border border-dashed border-primary/20 hover:border-primary/30"
 							>
-								<FiPlus className="w-3.5 h-3.5" /> Create Child Key
+								<Plus className="w-3.5 h-3.5" /> Create Child Key
 							</button>
 						)}
 
@@ -436,7 +446,7 @@ function ParentKeyCard({
 									return (
 										<div key={child.id} className="flex items-center justify-between gap-3 p-3 rounded-xl bg-[var(--dashboard-input-bg)]/50 border border-[var(--dashboard-border)]">
 											<div className="flex items-center gap-3 min-w-0 flex-1">
-												<FiLink className="w-3.5 h-3.5 text-primary shrink-0" />
+												<Link className="w-3.5 h-3.5 text-primary shrink-0" />
 												<div className="min-w-0 flex-1">
 													<div className="flex items-center gap-2 flex-wrap">
 														<span className="text-xs font-medium text-[var(--dashboard-text)] truncate">{child.name}</span>
@@ -452,10 +462,10 @@ function ParentKeyCard({
 															{isRevealed ? child.api_key : maskKey(child.api_key)}
 														</code>
 														<button onClick={() => { const n = new Set(revealed); isRevealed ? n.delete(child.id) : n.add(child.id); setRevealed(n); }} className="text-[var(--dashboard-text-muted)] hover:text-[var(--dashboard-text)] transition-colors p-0.5">
-															{isRevealed ? <FiEyeOff className="w-3 h-3" /> : <FiEye className="w-3 h-3" />}
+															{isRevealed ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
 														</button>
 														<button onClick={() => copy(child.api_key, child.id)} className="text-[var(--dashboard-text-muted)] hover:text-[var(--dashboard-text)] transition-colors p-0.5">
-															<FiCopy className="w-3 h-3" />
+															<Copy className="w-3 h-3" />
 														</button>
 														{copiedId === child.id && <span className="text-[9px] text-emerald-500 font-medium">Copied!</span>}
 													</div>
@@ -468,10 +478,10 @@ function ParentKeyCard({
 											</div>
 											<div className="flex items-center gap-0.5 shrink-0">
 												<button onClick={() => onRevoke(child.id)} className="p-1.5 rounded-lg text-[var(--dashboard-text-muted)] hover:text-amber-500 hover:bg-amber-500/5 transition-all" title="Revoke">
-													<FiShield className="w-3.5 h-3.5" />
+													<Shield className="w-3.5 h-3.5" />
 												</button>
 												<button onClick={() => onDelete(child.id)} className="p-1.5 rounded-lg text-[var(--dashboard-text-muted)] hover:text-red-500 hover:bg-red-500/5 transition-all" title="Delete">
-													<FiTrash2 className="w-3.5 h-3.5" />
+													<Trash2 className="w-3.5 h-3.5" />
 												</button>
 											</div>
 										</div>

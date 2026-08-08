@@ -1,32 +1,40 @@
 import { useState, useEffect, useCallback } from "react";
-import { type LoaderFunctionArgs, type MetaFunction, type ActionFunctionArgs, redirect, useLocation } from "react-router";
-import { useLoaderData } from "react-router";
+import {
+    type LoaderFunctionArgs,
+    type MetaFunction,
+    type ActionFunctionArgs,
+    redirect,
+    useLocation,
+    useLoaderData,
+    useFetcher,
+} from "react-router";
 import { verifyAdminSession } from "~/utils/admin-auth";
 import { requireAdmin } from "~/utils/admin-actions";
 import { supabaseServer } from "~/utils/supabase.server";
 import { supabase } from "~/utils/supabase";
 import { AdminSidebar } from "~/components/admin/admin-sidebar";
+import { Palette } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
-    FiPlus,
-    FiEdit2,
-    FiTrash2,
-    FiSearch,
-    FiRefreshCw,
-    FiCheck,
-    FiChevronLeft,
-    FiChevronRight,
-    FiToggleLeft,
-    FiToggleRight,
-    FiZap,
-    FiLoader,
-    FiCreditCard,
-    FiStar,
-    FiShield,
-    FiAward,
-    FiTrendingUp,
-    FiActivity,
-} from "react-icons/fi";
+    Plus,
+    Edit,
+    Trash2,
+    Search,
+    RefreshCw,
+    Check,
+    ChevronLeft,
+    ChevronRight,
+    ToggleLeft,
+    ToggleRight,
+    Zap,
+    Loader,
+    CreditCard,
+    Star,
+    Shield,
+    Award,
+    TrendingUp,
+    Activity,
+} from "lucide-react";
 import {
     Dialog,
     DialogContent,
@@ -95,7 +103,7 @@ interface PlanForm {
 }
 
 /* ------------------------------------------------------------------ */
-/* Loader */
+/* Loader & Action */
 /* ------------------------------------------------------------------ */
 
 export async function loader({ request }: LoaderFunctionArgs) {
@@ -117,7 +125,68 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
 export async function action({ request }: ActionFunctionArgs) {
     const admin = await requireAdmin(request);
-    return { success: true };
+
+    const formData = await request.formData();
+    const intent = formData.get("intent")?.toString();
+
+    try {
+        if (intent === "toggle-active") {
+            const id = formData.get("id")?.toString();
+            const isActive = formData.get("isActive") === "true";
+            if (!id) return { success: false, error: "Plan ID is required" };
+
+            const { data, error } = await (supabaseServer.from("plans") as any)
+                .update({ is_active: isActive, updated_at: new Date().toISOString() })
+                .eq("id", id)
+                .select()
+                .single();
+
+            if (error) throw new Error(error.message);
+            return { success: true, intent, plan: data };
+        }
+
+        if (intent === "save-plan") {
+            const planDataRaw = formData.get("planData")?.toString();
+            const planId = formData.get("planId")?.toString();
+
+            if (!planDataRaw) return { success: false, error: "Missing plan data" };
+            const payload = JSON.parse(planDataRaw);
+
+            let result: any;
+            if (planId) {
+                result = await (supabaseServer.from("plans") as any)
+                    .update({ ...payload, updated_at: new Date().toISOString() })
+                    .eq("id", planId)
+                    .select()
+                    .single();
+            } else {
+                result = await (supabaseServer.from("plans") as any)
+                    .insert({ ...payload, updated_at: new Date().toISOString() })
+                    .select()
+                    .single();
+            }
+
+            if (result.error) throw new Error(result.error.message);
+            return { success: true, intent, plan: result.data };
+        }
+
+        if (intent === "delete-plan") {
+            const id = formData.get("id")?.toString();
+            if (!id) return { success: false, error: "Plan ID is required" };
+
+            const { error } = await (supabaseServer.from("plans") as any)
+                .delete()
+                .eq("id", id);
+
+            if (error) throw new Error(error.message);
+            return { success: true, intent, id };
+        }
+
+        return { success: false, error: "Invalid intent" };
+    } catch (err: any) {
+        console.error("[admin-plans action error]", err);
+        return { success: false, error: err.message || "Operation failed" };
+    }
 }
 
 /* ------------------------------------------------------------------ */
@@ -148,11 +217,11 @@ function getDurationLabel(days: number): string {
 
 function getPlanIcon(index: number) {
     const icons = [
-        <FiStar className="w-5 h-5" />,
-        <FiZap className="w-5 h-5" />,
-        <FiShield className="w-5 h-5" />,
-        <FiAward className="w-5 h-5" />,
-        <FiTrendingUp className="w-5 h-5" />,
+        <Star className="w-5 h-5" />,
+        <Zap className="w-5 h-5" />,
+        <Shield className="w-5 h-5" />,
+        <Award className="w-5 h-5" />,
+        <TrendingUp className="w-5 h-5" />,
     ];
     return icons[index % icons.length];
 }
@@ -192,67 +261,80 @@ interface PlanSheetProps {
     saving: boolean;
 }
 
-function PlanSheet({ isOpen, plan, mode, onClose, onSave, saving }: PlanSheetProps) {
-    const empty: PlanForm = {
-        name: "",
-        description: "",
-        duration_days: "30",
-        price: "0",
-        currency: "INR",
-        features: "",
-        multiplier: "1",
-        sort_order: "0",
-        is_active: true,
-        price_per_1m_input_tokens: "0",
-        price_per_1m_output_tokens: "0",
-        min_credits: "0",
-        badge_text: "",
-        secondary_price_text: "",
-        button_text: "Get this plan →",
-        button_subtext: "Instant key delivery after payment",
-        is_dark_card: false,
-        price_usdt: "0",
-        is_popular: false,
+function getPlanFormData(plan: Plan | null): PlanForm {
+    if (!plan) {
+        return {
+            name: "",
+            description: "",
+            duration_days: "30",
+            price: "0",
+            currency: "INR",
+            features: "",
+            multiplier: "1",
+            sort_order: "0",
+            is_active: true,
+            price_per_1m_input_tokens: "0",
+            price_per_1m_output_tokens: "0",
+            min_credits: "0",
+            badge_text: "",
+            secondary_price_text: "",
+            button_text: "Get this plan →",
+            button_subtext: "Instant key delivery after payment",
+            is_dark_card: false,
+            price_usdt: "0",
+            is_popular: false,
+        };
+    }
+
+    const featuresStr = Array.isArray(plan.features)
+        ? plan.features.join("\n")
+        : (typeof plan.features === "string" ? plan.features : "");
+
+    return {
+        name: plan.name || "",
+        description: plan.description ?? "",
+        duration_days: String(plan.duration_days ?? 30),
+        price: String(plan.price ?? 0),
+        currency: plan.currency || "INR",
+        features: featuresStr,
+        multiplier: String(plan.multiplier ?? 1),
+        sort_order: String(plan.sort_order ?? 0),
+        is_active: plan.is_active ?? true,
+        price_per_1m_input_tokens: String(plan.price_per_1m_input_tokens ?? 0),
+        price_per_1m_output_tokens: String(plan.price_per_1m_output_tokens ?? 0),
+        min_credits: String(plan.min_credits ?? 0),
+        badge_text: plan.badge_text ?? "",
+        secondary_price_text: plan.secondary_price_text ?? "",
+        button_text: plan.button_text ?? "Get this plan →",
+        button_subtext: plan.button_subtext ?? "Instant key delivery after payment",
+        is_dark_card: plan.is_dark_card ?? false,
+        price_usdt: String(plan.price_usdt ?? 0),
+        is_popular: plan.is_popular ?? false,
     };
+}
 
-    const [form, setForm] = useState<PlanForm>(
-        plan
-            ? {
-                name: plan.name,
-                description: plan.description ?? "",
-                duration_days: String(plan.duration_days),
-                price: String(plan.price),
-                currency: plan.currency,
-                features: plan.features?.join("\n") ?? "",
-                multiplier: String(plan.multiplier),
-                sort_order: String(plan.sort_order),
-                is_active: plan.is_active,
-                price_per_1m_input_tokens: String(plan.price_per_1m_input_tokens ?? 0),
-                price_per_1m_output_tokens: String(plan.price_per_1m_output_tokens ?? 0),
-                min_credits: String(plan.min_credits ?? 0),
-                badge_text: plan.badge_text ?? "",
-                secondary_price_text: plan.secondary_price_text ?? "",
-                button_text: plan.button_text ?? "Get this plan →",
-                button_subtext: plan.button_subtext ?? "Instant key delivery after payment",
-                is_dark_card: plan.is_dark_card ?? false,
-                price_usdt: String(plan.price_usdt ?? 0),
-                is_popular: plan.is_popular ?? false,
-            }
-            : empty
-    );
-
+function PlanSheet({ isOpen, plan, mode, onClose, onSave, saving }: PlanSheetProps) {
+    const [form, setForm] = useState<PlanForm>(() => getPlanFormData(plan));
     const [errors, setErrors] = useState<Partial<Record<keyof PlanForm, string>>>({});
+
+    // Keep form data in sync whenever the selected plan or modal open status changes
+    useEffect(() => {
+        if (isOpen) {
+            setForm(getPlanFormData(plan));
+            setErrors({});
+        }
+    }, [plan, isOpen]);
 
     const validate = (): boolean => {
         const errs: Partial<Record<keyof PlanForm, string>> = {};
         if (!form.name.trim()) errs.name = "Plan name is required";
         const price = parseFloat(form.price);
         if (isNaN(price) || price < 0) errs.price = "Enter a valid price";
-        const days = parseInt(form.duration_days);
+        const days = parseInt(form.duration_days, 10);
         if (isNaN(days) || days < 0) errs.duration_days = "Enter a valid duration in days";
         const mult = parseFloat(form.multiplier);
         if (isNaN(mult) || mult <= 0) errs.multiplier = "Multiplier must be positive";
-        const sort = parseInt(form.sort_order);
+        const sort = parseInt(form.sort_order, 10);
         if (isNaN(sort) || sort < 0) errs.sort_order = "Sort order must be 0 or greater";
         setErrors(errs);
         return Object.keys(errs).length === 0;
@@ -263,15 +345,15 @@ function PlanSheet({ isOpen, plan, mode, onClose, onSave, saving }: PlanSheetPro
         onSave({
             name: form.name.trim(),
             description: form.description.trim() || null,
-            duration_days: parseInt(form.duration_days),
-            price: parseFloat(form.price),
-            currency: form.currency,
+            duration_days: parseInt(form.duration_days, 10) || 30,
+            price: parseFloat(form.price) || 0,
+            currency: form.currency || "INR",
             features: form.features
                 .split("\n")
                 .map((f) => f.trim())
                 .filter(Boolean),
-            multiplier: parseFloat(form.multiplier),
-            sort_order: parseInt(form.sort_order) || 0,
+            multiplier: parseFloat(form.multiplier) || 1,
+            sort_order: parseInt(form.sort_order, 10) || 0,
             is_active: form.is_active,
             price_per_1m_input_tokens: parseFloat(form.price_per_1m_input_tokens) || 0,
             price_per_1m_output_tokens: parseFloat(form.price_per_1m_output_tokens) || 0,
@@ -284,7 +366,6 @@ function PlanSheet({ isOpen, plan, mode, onClose, onSave, saving }: PlanSheetPro
             price_usdt: parseFloat(form.price_usdt) || 0,
             is_popular: form.is_popular,
         });
-        onClose();
     };
 
     const field = (key: keyof PlanForm) => ({
@@ -298,7 +379,7 @@ function PlanSheet({ isOpen, plan, mode, onClose, onSave, saving }: PlanSheetPro
             <DialogContent className="w-full max-w-2xl md:max-w-3xl max-h-[90vh] overflow-y-auto p-6 sm:p-7 rounded-2xl sm:rounded-3xl border border-border bg-background shadow-2xl">
                 <DialogHeader className="pb-3 border-b border-border/80">
                     <DialogTitle className="flex items-center gap-2 text-xl font-bold text-foreground">
-                        {mode === "create" ? <FiPlus className="w-5 h-5 text-orange-500" /> : <FiEdit2 className="w-5 h-5 text-orange-500" />}
+                        {mode === "create" ? <Plus className="w-5 h-5 text-orange-500" /> : <Edit className="w-5 h-5 text-orange-500" />}
                         {mode === "create" ? "Create New Plan" : `Edit — ${plan?.name}`}
                     </DialogTitle>
                     <DialogDescription className="text-xs text-muted-foreground mt-1">
@@ -500,7 +581,7 @@ function PlanSheet({ isOpen, plan, mode, onClose, onSave, saving }: PlanSheetPro
                     <div className="p-4 rounded-xl border border-orange-500/30 bg-orange-500/[0.04] space-y-3.5">
                         <div className="flex items-center justify-between">
                             <p className="text-xs font-bold text-orange-600 dark:text-orange-400 uppercase tracking-wider flex items-center gap-1.5">
-                                🎨 OpusLive Theme & Box Styling
+                                <Palette className="w-3.5 h-3.5" /> OpusLive Theme & Box Styling
                             </p>
                             <span className="text-[10px] px-2 py-0.5 rounded-full bg-orange-500/10 text-orange-600 font-medium">
                                 Card Box Controls
@@ -678,12 +759,12 @@ function PlanSheet({ isOpen, plan, mode, onClose, onSave, saving }: PlanSheetPro
                     >
                         {saving ? (
                             <>
-                                <FiLoader className="w-4 h-4 animate-spin" />
+                                <Loader className="w-4 h-4 animate-spin" />
                                 Saving…
                             </>
                         ) : (
                             <>
-                                <FiCheck className="w-4 h-4" />
+                                <Check className="w-4 h-4" />
                                 {mode === "create" ? "Create Plan" : "Save Changes"}
                             </>
                         )}
@@ -725,7 +806,40 @@ export default function AdminPlansRoute() {
     const [toggleId, setToggleId] = useState<string | null>(null);
     const [showActive, setShowActive] = useState<"all" | "active" | "inactive">("all");
 
+    const fetcher = useFetcher<any>();
+
     const closeSheet = () => { setEditPlan(null); setShowCreate(false); };
+
+    /* ── Sync fetcher responses ── */
+    useEffect(() => {
+        if (!fetcher.data) return;
+        setSaving(false);
+        if (fetcher.data.success) {
+            if (fetcher.data.intent === "save-plan" && fetcher.data.plan) {
+                const savedPlan = fetcher.data.plan as Plan;
+                setPlans((prev) => {
+                    const exists = prev.some((p) => p.id === savedPlan.id);
+                    if (exists) {
+                        return prev.map((p) => (p.id === savedPlan.id ? savedPlan : p));
+                    }
+                    return [...prev, savedPlan];
+                });
+                closeSheet();
+            } else if (fetcher.data.intent === "delete-plan" && fetcher.data.id) {
+                setPlans((prev) => prev.filter((p) => p.id !== fetcher.data.id));
+                setDeleteId(null);
+                setDeleting(false);
+            } else if (fetcher.data.intent === "toggle-active" && fetcher.data.plan) {
+                const updated = fetcher.data.plan as Plan;
+                setPlans((prev) =>
+                    prev.map((p) => (p.id === updated.id ? { ...p, is_active: updated.is_active } : p))
+                );
+            }
+        } else if (fetcher.data.error) {
+            alert("Action failed: " + fetcher.data.error);
+            refresh();
+        }
+    }, [fetcher.data]);
 
     /* ── Refresh ── */
     const refresh = useCallback(async () => {
@@ -750,7 +864,7 @@ export default function AdminPlansRoute() {
                 features: formData.features ?? [],
                 multiplier: formData.multiplier ?? 1,
                 sort_order: formData.sort_order ?? 0,
-                is_active: formData.is_active ?? true,
+                is_active: typeof formData.is_active === "boolean" ? formData.is_active : true,
                 price_per_1m_input_tokens: formData.price_per_1m_input_tokens ?? 0,
                 price_per_1m_output_tokens: formData.price_per_1m_output_tokens ?? 0,
                 min_credits: formData.min_credits ?? 0,
@@ -764,71 +878,75 @@ export default function AdminPlansRoute() {
                 updated_at: new Date().toISOString(),
             };
 
-            let result: { data: any; error: any } = { data: null, error: null };
-
+            // Optimistic update
             if (editPlan) {
-                result = await (supabase.from("plans") as any)
-                    .update(payload)
-                    .eq("id", editPlan.id);
-                if (!result.error) {
-                    setPlans((prev) =>
-                        prev.map((p) => (p.id === editPlan.id ? { ...p, ...payload } as Plan : p))
-                    );
-                }
-            } else {
-                result = await (supabase.from("plans") as any).insert(payload).select().single();
-                if (!result.error && result.data) {
-                    setPlans((prev) => [...prev, result.data as Plan]);
-                    setPage(1);
-                }
+                setPlans((prev) =>
+                    prev.map((p) => (p.id === editPlan.id ? ({ ...p, ...payload } as Plan) : p))
+                );
+                closeSheet();
             }
 
-            if (result.error) {
-                alert("Failed to save: " + (result.error.message ?? "Unknown error"));
-            }
-            setSaving(false);
-            closeSheet();
+            fetcher.submit(
+                {
+                    intent: "save-plan",
+                    planId: editPlan ? editPlan.id : "",
+                    planData: JSON.stringify(payload),
+                },
+                { method: "post" }
+            );
         },
-        [editPlan]
+        [editPlan, fetcher]
     );
 
     /* ── Delete ── */
     const handleDelete = useCallback(async () => {
         if (!deleteId) return;
         setDeleting(true);
-        const { error } = await (supabase.from("plans") as any).delete().eq("id", deleteId);
-        if (!error) {
-            setPlans((prev) => prev.filter((p) => p.id !== deleteId));
-            setPage((p) => Math.max(1, p));
-        } else {
-            alert("Failed to delete: " + (error.message ?? "Unknown error"));
-        }
+        // Optimistic delete
+        setPlans((prev) => prev.filter((p) => p.id !== deleteId));
+        setPage((p) => Math.max(1, p));
+
+        fetcher.submit(
+            {
+                intent: "delete-plan",
+                id: deleteId,
+            },
+            { method: "post" }
+        );
         setDeleting(false);
         setDeleteId(null);
-    }, [deleteId]);
+    }, [deleteId, fetcher]);
 
     /* ── Toggle Active ── */
     const handleToggle = useCallback(
         async (plan: Plan) => {
             setToggleId(plan.id);
-            const newActive = !plan.is_active;
-            const { error } = await (supabase.from("plans") as any)
-                .update({ is_active: newActive, updated_at: new Date().toISOString() })
-                .eq("id", plan.id);
-            if (!error) {
-                setPlans((prev) =>
-                    prev.map((p) => (p.id === plan.id ? { ...p, is_active: newActive } : p))
-                );
-            }
-            setToggleId(null);
+            const newActive = !Boolean(plan.is_active);
+
+            // Optimistic update
+            setPlans((prev) =>
+                prev.map((p) => (p.id === plan.id ? { ...p, is_active: newActive } : p))
+            );
+
+            fetcher.submit(
+                {
+                    intent: "toggle-active",
+                    id: plan.id,
+                    isActive: String(newActive),
+                },
+                { method: "post" }
+            );
+
+            setTimeout(() => setToggleId(null), 300);
         },
-        []
+        [fetcher]
     );
 
     /* ── Filter & Paginate ── */
     const filtered = plans.filter((p) => {
-        if (showActive === "active" && !p.is_active) return false;
-        if (showActive === "inactive" && p.is_active) return false;
+        const active = Boolean(p.is_active);
+        if (showActive === "active" && !active) return false;
+        if (showActive === "inactive" && active) return false;
         if (search) {
             const q = search.toLowerCase();
             if (
@@ -847,11 +965,12 @@ export default function AdminPlansRoute() {
     /* ── Stats ── */
     const stats = {
         total: plans.length,
-        active: plans.filter((p) => p.is_active).length,
+        active: plans.filter((p) => Boolean(p.is_active)).length,
+        inactive: plans.filter((p) => !Boolean(p.is_active)).length,
         avgPrice: plans.length
-            ? plans.reduce((s, p) => s + Number(p.price), 0) / plans.length
+            ? plans.reduce((s, p) => s + Number(p.price || 0), 0) / plans.length
             : 0,
-        totalRevenue: plans.reduce((s, p) => s + Number(p.price), 0),
+        totalRevenue: plans.reduce((s, p) => s + Number(p.price || 0), 0),
     };
 
     return (
@@ -885,11 +1004,11 @@ export default function AdminPlansRoute() {
 
                     <div className="flex items-center gap-2">
                         <Button variant="outline" size="sm" onClick={refresh} disabled={loading} className="gap-1.5">
-                            <FiRefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
+                            <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
                             Refresh
                         </Button>
                         <Button size="sm" onClick={() => setShowCreate(true)} className="gap-1.5">
-                            <FiPlus className="w-3.5 h-3.5" />
+                            <Plus className="w-3.5 h-3.5" />
                             Add Plan
                         </Button>
                     </div>
@@ -920,7 +1039,7 @@ export default function AdminPlansRoute() {
                 {/* ── Search & Filter Bar ── */}
                 <div className="flex flex-col sm:flex-row gap-3 mb-4">
                     <div className="relative flex-1">
-                        <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
                         <Input
                             placeholder="Search by name, description or price..."
                             value={search}
@@ -929,38 +1048,44 @@ export default function AdminPlansRoute() {
                         />
                     </div>
                     <div className="flex items-center gap-1 p-1 rounded-xl bg-muted/30 border border-border">
-                        {(["all", "active", "inactive"] as const).map((tab) => (
-                            <button
-                                key={tab}
-                                onClick={() => { setShowActive(tab); setPage(1); }}
-                                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${showActive === tab
-                                        ? "bg-background dark:bg-card shadow-sm text-foreground font-semibold"
-                                        : "text-muted-foreground hover:text-foreground"
-                                    }`}
-                            >
-                                {tab.charAt(0).toUpperCase() + tab.slice(1)}
-                                {tab === "all" && ` (${plans.length})`}
-                                {tab === "active" && ` (${plans.filter((p) => p.is_active).length})`}
-                                {tab === "inactive" && ` (${plans.filter((p) => !p.is_active).length})`}
-                            </button>
-                        ))}
+                        {(["all", "active", "inactive"] as const).map((tab) => {
+                            const count =
+                                tab === "all"
+                                    ? plans.length
+                                    : tab === "active"
+                                    ? plans.filter((p) => Boolean(p.is_active)).length
+                                    : plans.filter((p) => !Boolean(p.is_active)).length;
+                            return (
+                                <button
+                                    key={tab}
+                                    type="button"
+                                    onClick={() => { setShowActive(tab); setPage(1); }}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${showActive === tab
+                                            ? "bg-background dark:bg-card shadow-sm text-foreground font-semibold"
+                                            : "text-muted-foreground hover:text-foreground"
+                                        }`}
+                                >
+                                    {tab.charAt(0).toUpperCase() + tab.slice(1)} ({count})
+                                </button>
+                            );
+                        })}
                     </div>
                 </div>
 
                 {/* ── Plans Grid ── */}
                 {loading && plans.length === 0 ? (
                     <div className="flex items-center justify-center py-20">
-                        <FiLoader className="w-8 h-8 animate-spin text-muted-foreground" />
+                        <Loader className="w-8 h-8 animate-spin text-muted-foreground" />
                     </div>
                 ) : paginated.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-20 rounded-2xl border border-border bg-card dark:bg-card/60">
-                        <FiCreditCard className="w-12 h-12 text-muted-foreground/30 mb-3" />
+                        <CreditCard className="w-12 h-12 text-muted-foreground/30 mb-3" />
                         <p className="text-sm font-medium text-muted-foreground">
                             {search || showActive !== "all" ? "No plans match your filters" : "No plans yet"}
                         </p>
                         {!search && showActive === "all" && (
                             <Button size="sm" onClick={() => setShowCreate(true)} className="mt-4 gap-1.5">
-                                <FiPlus className="w-3.5 h-3.5" />
+                                <Plus className="w-3.5 h-3.5" />
                                 Create your first plan
                             </Button>
                         )}
@@ -1010,11 +1135,11 @@ export default function AdminPlansRoute() {
                                                         className="w-7 h-7 rounded-lg bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors cursor-pointer disabled:opacity-50"
                                                     >
                                                         {toggleId === plan.id ? (
-                                                            <FiLoader className="w-3 h-3 text-white animate-spin" />
+                                                            <Loader className="w-3 h-3 text-white animate-spin" />
                                                         ) : plan.is_active ? (
-                                                            <FiToggleRight className="w-4 h-4 text-white" />
+                                                            <ToggleRight className="w-4 h-4 text-white" />
                                                         ) : (
-                                                            <FiToggleLeft className="w-4 h-4 text-white/70" />
+                                                            <ToggleLeft className="w-4 h-4 text-white/70" />
                                                         )}
                                                     </button>
                                                 </div>
@@ -1058,7 +1183,7 @@ export default function AdminPlansRoute() {
                                                 <ul className="space-y-1.5">
                                                     {plan.features.slice(0, 4).map((feature, i) => (
                                                         <li key={i} className="flex items-start gap-2 text-xs text-muted-foreground">
-                                                            <FiCheck className="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" />
+                                                            <Check className="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" />
                                                             <span className="line-clamp-1">{feature}</span>
                                                         </li>
                                                     ))}
@@ -1105,14 +1230,14 @@ export default function AdminPlansRoute() {
                                                         Order: {plan.sort_order}
                                                     </span>
                                                 </div>
-                                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <div className="flex items-center gap-1 sm:opacity-0 sm:group-hover:opacity-100 opacity-100 transition-opacity">
                                                     <button
                                                         onClick={() => setEditPlan(plan)}
                                                         className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
                                                         title="Edit plan"
                                                         type="button"
                                                     >
-                                                        <FiEdit2 className="w-3.5 h-3.5" />
+                                                        <Edit className="w-3.5 h-3.5" />
                                                     </button>
                                                     <button
                                                         onClick={() => setDeleteId(plan.id)}
@@ -1120,7 +1245,7 @@ export default function AdminPlansRoute() {
                                                         title="Delete plan"
                                                         type="button"
                                                     >
-                                                        <FiTrash2 className="w-3.5 h-3.5" />
+                                                        <Trash2 className="w-3.5 h-3.5" />
                                                     </button>
                                                 </div>
                                             </div>
@@ -1145,7 +1270,7 @@ export default function AdminPlansRoute() {
                                         onClick={() => setPage((p) => Math.max(1, p - 1))}
                                         disabled={page === 1}
                                     >
-                                        <FiChevronLeft className="w-4 h-4" />
+                                        <ChevronLeft className="w-4 h-4" />
                                     </Button>
                                     {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
                                         const p = i + 1;
@@ -1169,7 +1294,7 @@ export default function AdminPlansRoute() {
                                         onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                                         disabled={page === totalPages}
                                     >
-                                        <FiChevronRight className="w-4 h-4" />
+                                        <ChevronRight className="w-4 h-4" />
                                     </Button>
                                 </div>
                             </div>
@@ -1182,7 +1307,7 @@ export default function AdminPlansRoute() {
                     <DialogContent className="w-full max-w-md p-6 rounded-2xl border border-red-500/20 bg-background shadow-2xl">
                         <DialogHeader>
                             <DialogTitle className="flex items-center gap-2 text-red-500 font-bold">
-                                <FiTrash2 className="w-5 h-5" />
+                                <Trash2 className="w-5 h-5" />
                                 Delete Plan
                             </DialogTitle>
                             <DialogDescription className="text-xs text-muted-foreground mt-1">
@@ -1204,7 +1329,7 @@ export default function AdminPlansRoute() {
                                 onClick={handleDelete}
                                 disabled={deleting}
                             >
-                                {deleting ? <FiLoader className="w-4 h-4 animate-spin" /> : <FiTrash2 className="w-4 h-4" />}
+                                {deleting ? <Loader className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
                                 {deleting ? "Deleting…" : "Yes, Delete"}
                             </Button>
                         </DialogFooter>
@@ -1213,6 +1338,7 @@ export default function AdminPlansRoute() {
 
                 {/* ── Create / Edit Sheet ── */}
                 <PlanSheet
+                    key={editPlan ? `edit-${editPlan.id}` : (showCreate ? "create-new" : "closed")}
                     isOpen={!!editPlan || showCreate}
                     plan={editPlan}
                     mode={editPlan ? "edit" : "create"}

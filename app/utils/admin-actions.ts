@@ -4,35 +4,18 @@ import { verifyAdminSession } from "./admin-auth";
 /**
  * Wraps a server action with admin session verification.
  * Throws 401 if the admin session is invalid.
- * Returns { isAdmin: true, email, adminEmail } on success.
+ *
+ * IMPORTANT: Admin status is determined exclusively from the server-side
+ * HMAC-signed admin_session cookie. The previous Supabase auth fallback
+ * (checking app_metadata.role) has been removed because it bypassed
+ * server-side authorization and allowed privilege escalation.
  */
 export async function requireAdmin(request: Request): Promise<{ isAdmin: true; email: string | null; adminEmail?: string }> {
- const adminCheck = await verifyAdminSession(request);
- if (!adminCheck.isAdmin) {
- const cookieHeader = request.headers.get("Cookie") || request.headers.get("cookie") || "";
- const accessTokenMatch = cookieHeader.match(/sb-access-token=([^;]+)/);
- if (accessTokenMatch) {
- try {
- const { createClient } = await import("@supabase/supabase-js");
- const url = import.meta.env.VITE_SUPABASE_URL;
- const pubKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
- if (url && pubKey) {
- const supa = createClient(url, pubKey);
- const { data, error } = await supa.auth.getUser(accessTokenMatch[1]);
- if (!error && data.user) {
- const role = (data.user as any).app_metadata?.role;
- if (role === "admin") {
- return { isAdmin: true, email: data.user.email ?? null, adminEmail: data.user.email ?? undefined };
- }
- }
- }
- } catch {
- // fall through to 401
- }
- }
- throw data({ error: "Authentication required" }, { status: 401 });
- }
- return { isAdmin: true, email: adminCheck.email, adminEmail: adminCheck.adminEmail };
+	const adminCheck = await verifyAdminSession(request);
+	if (!adminCheck.isAdmin) {
+		throw data({ error: "Authentication required" }, { status: 401 });
+	}
+	return { isAdmin: true, email: adminCheck.email, adminEmail: adminCheck.adminEmail };
 }
 
 /**

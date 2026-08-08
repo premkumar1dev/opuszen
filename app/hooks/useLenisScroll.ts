@@ -1,50 +1,92 @@
 import { useEffect } from "react";
+import { useLocation } from "react-router";
 
 export function useLenisScroll() {
- useEffect(() => {
- if (typeof window === "undefined") return;
+	let pathname = "";
+	try {
+		const loc = useLocation();
+		pathname = loc?.pathname || "";
+	} catch {
+		// Fallback if accessed outside Router context
+	}
 
- let lenis: any;
- let rafId: number;
+	useEffect(() => {
+		if (typeof window === "undefined") return;
 
- const init = async () => {
- try {
- const LenisModule = await import("lenis");
- const Lenis = (LenisModule as any).default || LenisModule;
+		// Disable Lenis for reduced-motion or touch devices to prevent wheel/touch drag
+		const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+		const isTouchOnly = window.matchMedia("(pointer: coarse)").matches && !window.matchMedia("(pointer: fine)").matches;
+		const isDashboardRoute = pathname.startsWith("/user") || pathname.startsWith("/auth/admin") || pathname.startsWith("/dashboard");
 
- lenis = new Lenis({
- duration: 1.2,
- easing: (t: number) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
- smoothWheel: true,
- smoothTouch: false,
- touchMultiplier: 2,
- });
+		if (prefersReducedMotion || isTouchOnly || isDashboardRoute) {
+			return;
+		}
 
- const gsapModule = await import("gsap");
- const gsap = (gsapModule as any).gsap || (gsapModule as any).default || gsapModule;
+		let lenis: any = null;
+		let tickerCallback: ((time: number) => void) | null = null;
+		let gsapInstance: any = null;
+		let scrollTriggerInstance: any = null;
+		let destroyed = false;
 
- const { ScrollTrigger } = await import("gsap/ScrollTrigger");
- gsap.registerPlugin(ScrollTrigger);
+		const init = async () => {
+			try {
+				const LenisModule = await import("lenis");
+				if (destroyed) return;
+				const Lenis = (LenisModule as any).default || LenisModule;
 
- lenis.on("scroll", ScrollTrigger.update);
+				lenis = new Lenis({
+					duration: 0.9,
+					easing: (t: number) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+					smoothWheel: true,
+					wheelMultiplier: 1.0,
+					touchMultiplier: 1.0,
+					syncTouch: false,
+					autoRaf: false,
+				});
 
- gsap.ticker.add((time: number) => {
- lenis.raf(time * 1000);
- });
+				const gsapModule = await import("gsap");
+				if (destroyed) {
+					lenis?.destroy();
+					return;
+				}
+				gsapInstance = (gsapModule as any).gsap || (gsapModule as any).default || gsapModule;
 
- gsap.ticker.lagSmoothing(0);
+				try {
+					const { ScrollTrigger } = await import("gsap/ScrollTrigger");
+					if (!destroyed && ScrollTrigger) {
+						scrollTriggerInstance = ScrollTrigger;
+						gsapInstance.registerPlugin(ScrollTrigger);
+						lenis.on("scroll", ScrollTrigger.update);
+					}
+				} catch {
+					// ScrollTrigger optional
+				}
 
- rafId = requestAnimationFrame(() => {});
- } catch (err) {
- console.warn("Lenis initialization failed:", err);
- }
- };
+				tickerCallback = (time: number) => {
+					if (lenis && !destroyed) {
+						lenis.raf(time * 1000);
+					}
+				};
 
- init();
+				gsapInstance.ticker.add(tickerCallback);
+				// Enable lag smoothing so momentary frame hiccups don't cause stutter
+				gsapInstance.ticker.lagSmoothing(500, 33);
+			} catch (err) {
+				console.warn("Lenis initialization skipped:", err);
+			}
+		};
 
- return () => {
- if (rafId) cancelAnimationFrame(rafId);
- if (lenis) lenis.destroy();
- };
- }, []);
+		init();
+
+		return () => {
+			destroyed = true;
+			if (gsapInstance && tickerCallback) {
+				gsapInstance.ticker.remove(tickerCallback);
+			}
+			if (lenis) {
+				lenis.destroy();
+				lenis = null;
+			}
+		};
+	}, [pathname]);
 }

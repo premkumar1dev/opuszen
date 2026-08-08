@@ -3,19 +3,27 @@ import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "~/utils/supabase";
 import {
-	FiX,
-	FiCheck,
-	FiZap,
-	FiShield,
-	FiStar,
-	FiAward,
-	FiCreditCard,
-	FiLoader,
-	FiSmartphone,
-	FiLock,
-} from "react-icons/fi";
-import { SiGooglepay, SiPhonepe, SiPaytm } from "react-icons/si";
-import { FaRupeeSign } from "react-icons/fa6";
+	X,
+	Check,
+	Zap,
+	Shield,
+	Star,
+	Award,
+	CreditCard,
+	Loader,
+	Smartphone,
+	Lock,
+	Rocket,
+	IndianRupee,
+} from "lucide-react";
+import {
+	GooglePayIcon,
+	PhonePeIcon,
+	PaytmIcon,
+} from "~/components/ui/brand-icons";
+import { extractMobile } from "~/utils/payment-sdk";
+import { PhoneRequiredModal } from "./phone-required-modal";
+import { useFocusTrap } from "~/hooks/use-focus-trap";
 
 /* ------------------------------------------------------------------ */
 /* Types */
@@ -86,10 +94,10 @@ const PLAN_COLORS = [
 
 function getPlanIcon(index: number) {
 	const icons = [
-		<FiStar className="w-5 h-5" />,
-		<FiZap className="w-5 h-5" />,
-		<FiShield className="w-5 h-5" />,
-		<FiAward className="w-5 h-5" />,
+		<Star className="w-5 h-5" />,
+		<Zap className="w-5 h-5" />,
+		<Shield className="w-5 h-5" />,
+		<Award className="w-5 h-5" />,
 	];
 	return icons[index % icons.length];
 }
@@ -135,6 +143,24 @@ export function PlanPurchaseModal({
 	const [submitting, setSubmitting] = useState(false);
 	const [step, setStep] = useState<"select" | "pay">("select");
 	const [keyName, setKeyName] = useState("");
+	const [showPhoneModal, setShowPhoneModal] = useState(false);
+
+	/* ── Lock body scroll & Escape key when modal open ── */
+	useEffect(() => {
+		if (!open) return;
+		const prevOverflow = document.body.style.overflow;
+		document.body.style.overflow = 'hidden';
+
+		const handleEsc = (e: KeyboardEvent) => {
+			if (e.key === 'Escape') onClose();
+		};
+		document.addEventListener('keydown', handleEsc);
+
+		return () => {
+			document.body.style.overflow = prevOverflow;
+			document.removeEventListener('keydown', handleEsc);
+		};
+	}, [open, onClose]);
 
 	/* ── Fetch plans from API when modal opens ── */
 	useEffect(() => {
@@ -233,6 +259,15 @@ export function PlanPurchaseModal({
 	const handleBack = () => setStep("select");
 
 	const handleGoToPayment = async () => {
+		const { data: sessionData } = await supabase.auth.getSession();
+		const user = sessionData.session?.user;
+		const customerMobile = extractMobile(user);
+
+		if (selectedPlan.price > 0 && !customerMobile) {
+			setShowPhoneModal(true);
+			return;
+		}
+
 		setSubmitting(true);
 		const checkoutWindow = selectedPlan.price > 0 ? window.open("", "_blank") : null;
 		if (checkoutWindow) {
@@ -256,13 +291,6 @@ export function PlanPurchaseModal({
 			if (!orderId) {
 				throw new Error("Failed to initialize order ID");
 			}
-
-			// 2. Extract user phone/mobile
-			console.log("[PlanPurchaseModal] Fetching supabase session...");
-			const { data: sessionData } = await supabase.auth.getSession();
-			console.log("[PlanPurchaseModal] Session retrieved.");
-			const user = sessionData.session?.user;
-			const customerMobile = user ? (user.phone || "0000000000").replace(/\D/g, "").slice(-10) : "0000000000";
 
 			// 3. Build ORD-xxx gateway order ID
 			const ts = Date.now().toString(36).toUpperCase();
@@ -359,132 +387,148 @@ export function PlanPurchaseModal({
 		}
 	};
 
-	return createPortal(
-		<AnimatePresence>
-			<div
-				className="dashboard dark fixed inset-0 z-[80] flex items-center justify-center p-3 sm:p-4"
-				role="dialog"
-				aria-modal="true"
-			>
-				{/* Overlay */}
-				<motion.div
-					initial={{ opacity: 0 }}
-					animate={{ opacity: 1 }}
-					exit={{ opacity: 0 }}
-					transition={{ duration: 0.2 }}
-					className="absolute inset-0 bg-black/70 backdrop-blur-sm"
-					onClick={onClose}
-				/>
-
-				{/* Card */}
-				<motion.div
-					initial={{ opacity: 0, scale: 0.96, y: 12 }}
-					animate={{ opacity: 1, scale: 1, y: 0 }}
-					exit={{ opacity: 0, scale: 0.96, y: 12 }}
-					transition={{ duration: 0.25, ease: "easeOut" }}
-					className="relative w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden rounded-2xl border border-[var(--dashboard-border)] shadow-2xl dashboard-modal-bg"
-				>
-					{/* Header */}
-					<div className="flex items-start justify-between gap-4 p-5 sm:p-6 border-b border-[var(--dashboard-border)] shrink-0">
-						<div className="min-w-0">
-							<div className="inline-flex items-center gap-1.5 mb-2 px-2.5 py-0.5 rounded-full bg-primary/10 border border-primary/20 text-[10px] font-mono font-semibold text-primary dark:text-primary uppercase tracking-wider">
-								<FiZap className="w-3 h-3" />
-								Upgrade Plan
-							</div>
-							<h2 className="text-lg sm:text-xl font-bold text-[var(--dashboard-text)] truncate">
-								{step === "select" ? "Rent a Plan" : "Complete Payment"}
-							</h2>
-							<p className="text-xs text-[var(--dashboard-text-muted)] mt-0.5">
-								{step === "select"
-									? "Rent an API key plan — pick a rate and duration."
-									: `Pay ${formatCurrency(
-										selectedPlan.price,
-										selectedPlan.currency
-									)} via your preferred method.`}
-							</p>
-						</div>
-						<button
+	return (
+		<>
+			{createPortal(
+				<AnimatePresence>
+					<div
+						className="dashboard dark fixed inset-0 z-modal flex items-center justify-center p-3 sm:p-4"
+						role="dialog"
+						aria-modal="true"
+						aria-label="Purchase a subscription plan"
+					>
+						{/* Overlay */}
+						<motion.div
+							initial={{ opacity: 0 }}
+							animate={{ opacity: 1 }}
+							exit={{ opacity: 0 }}
+							transition={{ duration: 0.2 }}
+							className="absolute inset-0 bg-black/70 backdrop-blur-sm"
 							onClick={onClose}
-							className="p-2 rounded-lg text-[var(--dashboard-text-muted)] hover:text-[var(--dashboard-text)] hover:bg-[var(--dashboard-nav-hover)] transition-all cursor-pointer shrink-0"
-							aria-label="Close"
-							type="button"
-						>
-							<FiX className="w-4 h-4" />
-						</button>
-					</div>
+						/>
 
-					{/* Body */}
-					<div className="overflow-y-auto flex-1 p-5 sm:p-6 custom-scrollbar">
-						{plansLoading && plans.length === 0 ? (
-							<div className="flex items-center justify-center py-16">
-								<FiLoader className="w-7 h-7 animate-spin text-[var(--dashboard-text-muted)]" />
+						{/* Main Dialog */}
+						<motion.div
+							initial={{ opacity: 0, scale: 0.95, y: 10 }}
+							animate={{ opacity: 1, scale: 1, y: 0 }}
+							exit={{ opacity: 0, scale: 0.95, y: 10 }}
+							transition={{ type: "spring", duration: 0.3 }}
+							className="relative w-full max-w-lg overflow-hidden rounded-2xl border border-[var(--dashboard-border)] bg-[var(--dashboard-card)] p-5 sm:p-6 shadow-2xl"
+						>
+							{/* Header */}
+							<div className="flex items-center justify-between mb-4 pb-3 border-b border-[var(--dashboard-border)]">
+								<div className="flex items-center gap-3">
+									<div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary border border-primary/20">
+										<Zap className="w-5 h-5" />
+									</div>
+									<div>
+										<h2 className="text-base font-bold text-[var(--dashboard-text)]">
+											{step === "select" ? "Select a Subscription Plan" : `Subscribe: ${selectedPlan.name}`}
+										</h2>
+										<p className="text-xs text-[var(--dashboard-text-secondary)]">
+											{step === "select"
+												? "Choose the rate limit & capacity that fits your application"
+												: `${selectedPlan.multiplier}x rate limit • ${formatCurrency(selectedPlan.price, selectedPlan.currency)}`}
+										</p>
+									</div>
+								</div>
+								<button
+									onClick={onClose}
+									className="rounded-lg p-1.5 text-[var(--dashboard-text-muted)] hover:bg-[var(--dashboard-hover)] hover:text-[var(--dashboard-text)] transition-colors"
+								>
+									<X className="w-5 h-5" />
+								</button>
 							</div>
-						) : step === "select" ? (
-							<PlanGrid
-								plans={plans}
-								selectedId={selectedPlanId}
-								onSelect={setSelectedPlanId}
-							/>
-						) : (
-							<PaymentForm
-								plan={selectedPlan}
-								method={selectedMethod}
-								onMethodChange={setSelectedMethod}
-								txnRef={txnRef}
-								onTxnRefChange={setTxnRef}
-								keyName={keyName}
-								onKeyNameChange={setKeyName}
-								gatewayName={gatewayName}
-							/>
-						)}
-					</div>
 
-					{/* Footer */}
-					<div className="flex items-center justify-between gap-3 p-4 sm:p-5 border-t border-[var(--dashboard-border)] bg-[var(--dashboard-card)] shrink-0">
-						<button
-							onClick={step === "select" ? onClose : handleBack}
-							disabled={submitting}
-							type="button"
-							className="px-4 py-2.5 rounded-xl border border-[var(--dashboard-border)] text-sm font-medium text-[var(--dashboard-text-secondary)] hover:text-[var(--dashboard-text)] hover:bg-[var(--dashboard-nav-hover)] transition-all cursor-pointer touch-manipulation disabled:opacity-50"
-						>
-							{step === "select" ? "Cancel" : "← Back"}
-						</button>
+							{/* Step 1: Select Plan */}
+							{step === "select" && (
+								<div>
+									{plansLoading ? (
+										<div className="text-center py-12">
+											<Loader className="w-8 h-8 animate-spin text-primary mx-auto mb-2" />
+											<p className="text-xs text-[var(--dashboard-text-secondary)]">Loading plans...</p>
+										</div>
+									) : plansError ? (
+										<div className="text-center py-8 text-red-400 text-xs">{plansError}</div>
+									) : (
+										<PlanGrid plans={plans} selectedId={selectedPlanId} onSelect={setSelectedPlanId} />
+									)}
+								</div>
+							)}
 
-						{step === "select" ? (
-							<button
-								onClick={handleProceedToPay}
-								disabled={!selectedPlan || plansLoading}
-								type="button"
-								className="px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-all cursor-pointer touch-manipulation disabled:opacity-50 inline-flex items-center gap-2"
-							>
-								Continue with Pay
-								<span className="hidden sm:inline">→</span>
-							</button>
-						) : (
-							<button
-								onClick={handleGoToPayment}
-								disabled={!keyName.trim() || (selectedMethod !== "PAY0" && !txnRef.trim()) || submitting}
-								type="button"
-								className="px-5 py-2.5 rounded-xl bg-emerald-500 text-white text-sm font-semibold hover:bg-emerald-600 transition-all cursor-pointer touch-manipulation disabled:opacity-40 inline-flex items-center gap-2"
-							>
-								{submitting ? (
-									<>
-										<FiLoader className="w-4 h-4 animate-spin" />
-										Opening Payment…
-									</>
+							{/* Step 2: Payment Details */}
+							{step === "pay" && (
+								<PaymentForm
+									plan={selectedPlan}
+									method={selectedMethod}
+									onMethodChange={setSelectedMethod}
+									txnRef={txnRef}
+									onTxnRefChange={setTxnRef}
+									keyName={keyName}
+									onKeyNameChange={setKeyName}
+									gatewayName={gatewayName}
+								/>
+							)}
+
+							{/* Actions Footer */}
+							<div className="mt-6 flex items-center justify-between pt-4 border-t border-[var(--dashboard-border)]">
+								{step === "pay" ? (
+									<button
+										type="button"
+										onClick={handleBack}
+										disabled={submitting}
+										className="px-4 py-2 rounded-xl text-xs font-semibold text-[var(--dashboard-text-secondary)] hover:text-[var(--dashboard-text)] hover:bg-[var(--dashboard-hover)] transition-colors cursor-pointer"
+									>
+										Back
+									</button>
 								) : (
-									<>
-										<FiCheck className="w-4 h-4" />
-										Pay via {gatewayName || "Pay"}
-									</>
+									<div />
 								)}
-							</button>
-						)}
+
+								{step === "select" ? (
+									<button
+										type="button"
+										onClick={handleProceedToPay}
+										disabled={!selectedPlanId || plansLoading}
+										className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-all disabled:opacity-40 cursor-pointer shadow-md shadow-primary/20"
+									>
+										Continue to Payment
+									</button>
+								) : (
+									<button
+										type="button"
+										onClick={handleGoToPayment}
+										disabled={submitting || !keyName.trim()}
+										className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-all disabled:opacity-40 cursor-pointer shadow-md shadow-primary/20"
+									>
+										{submitting ? (
+											<>
+												<Loader className="w-4 h-4 animate-spin" />
+												Processing...
+											</>
+										) : (
+											<>
+												<Check className="w-4 h-4" />
+												Pay via {gatewayName || "Pay"}
+											</>
+										)}
+									</button>
+								)}
+							</div>
+						</motion.div>
 					</div>
-				</motion.div>
-			</div>
-		</AnimatePresence>,
-		document.body
+				</AnimatePresence>,
+				document.body
+			)}
+			<PhoneRequiredModal
+				open={showPhoneModal}
+				onClose={() => setShowPhoneModal(false)}
+				onSuccess={() => {
+					setShowPhoneModal(false);
+					handleGoToPayment();
+				}}
+			/>
+		</>
 	);
 }
 
@@ -504,7 +548,7 @@ function PlanGrid({
 	if (plans.length === 0) {
 		return (
 			<div className="text-center py-12">
-				<FiZap className="w-10 h-10 text-[var(--dashboard-text-muted)]/40 mx-auto mb-2" />
+				<Zap className="w-10 h-10 text-[var(--dashboard-text-muted)]/40 mx-auto mb-2" />
 				<p className="text-sm text-[var(--dashboard-text-secondary)]">
 					No plans available right now.
 				</p>
@@ -596,7 +640,7 @@ function PlanGrid({
 											: "border-[var(--dashboard-border)]"
 									}`}
 								>
-									{isSelected && <FiCheck className="w-3 h-3 text-white" />}
+									{isSelected && <Check className="w-3 h-3 text-white" />}
 								</div>
 							</div>
 						</button>
@@ -646,7 +690,7 @@ function PlanGrid({
 													key={i}
 													className="flex items-center gap-1.5 text-[11px] text-[var(--dashboard-text-secondary)]"
 												>
-													<FiCheck className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+													<Check className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
 													<span className="truncate">{f}</span>
 												</div>
 											))}
@@ -690,7 +734,7 @@ function PaymentForm({
 			id: "PAY0" as const,
 			label: gatewayName || "PAY0",
 			description: "All methods — UPI, GPay, PhonePe, Paytm, Cards",
-			icon: <FiZap className="w-5 h-5" />,
+			icon: <Zap className="w-5 h-5" />,
 			color: "from-primary to-amber-500",
 			recommended: true,
 		},
@@ -720,7 +764,7 @@ function PaymentForm({
 					</div>
 					<div className="text-right">
 						<p className="text-xl font-bold text-[var(--dashboard-text)] flex items-center gap-1">
-							<FaRupeeSign className="w-3.5 h-3.5" />
+							<IndianRupee className="w-3.5 h-3.5" />
 							{plan.price.toLocaleString("en-IN")}
 						</p>
 						<p className="text-[10px] text-[var(--dashboard-text-muted)]">
@@ -754,7 +798,7 @@ function PaymentForm({
 				{/* Integrated gateway banner */}
 				<div className="mb-3 p-3 rounded-xl bg-gradient-to-r from-primary/10 via-amber-500/10 to-primary/10 border border-primary/20">
 					<div className="flex items-center gap-2">
-						<FiZap className="w-4 h-4 text-primary shrink-0" />
+						<Zap className="w-4 h-4 text-primary shrink-0" />
 						<p className="text-[11px] text-[var(--dashboard-text-secondary)] leading-relaxed">
 							<strong className="text-[var(--dashboard-text)]">
 								{gatewayName || "PAY0"}
@@ -819,7 +863,7 @@ function PaymentForm({
 			{/* Transaction reference or gateway redirect message */}
 			{method === "PAY0" ? (
 				<div className="p-4 rounded-xl border border-primary/20 bg-primary/5 flex items-start gap-2.5">
-					<FiLock className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+					<Lock className="w-4 h-4 text-primary shrink-0 mt-0.5" />
 					<div>
 						<p className="text-xs font-semibold text-[var(--dashboard-text)]">
 							Automatic Verification
@@ -855,7 +899,7 @@ function PaymentForm({
 					/>
 
 					<div className="mt-2 flex items-start gap-1.5 p-2.5 rounded-lg bg-amber-500/5 border border-amber-500/20">
-						<FiLock className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
+						<Lock className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
 						<p className="text-[10px] text-[var(--dashboard-text-secondary)] leading-relaxed">
 							Complete the payment of{" "}
 							<strong className="text-[var(--dashboard-text)]">

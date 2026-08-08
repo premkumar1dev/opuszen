@@ -1,7 +1,7 @@
 import { type ActionFunctionArgs, type MetaFunction, Link } from "react-router";
 import { useFetcher } from "react-router";
 import { useState } from "react";
-import { FiArrowLeft, FiCheckCircle, FiAlertCircle } from "react-icons/fi";
+import { ArrowLeft, CheckCircle, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "~/utils/supabase";
@@ -82,13 +82,13 @@ export default function ForgotPasswordRoute() {
           <fetcher.Form method="post" className="flex w-full flex-col gap-6">
             {data?.error && (
               <div className="p-3 text-sm text-red-500 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/50 rounded-md flex items-start gap-2">
-                <FiAlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
                 <span>{data.error}</span>
               </div>
             )}
             {data?.success && (
               <div className="p-3 text-sm text-green-500 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-900/50 rounded-md flex items-start gap-2">
-                <FiCheckCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                <CheckCircle className="w-4 h-4 mt-0.5 shrink-0" />
                 <span>If that email exists, a password reset link has been sent.</span>
               </div>
             )}
@@ -118,7 +118,7 @@ export default function ForgotPasswordRoute() {
               to="/auth/login"
               className="text-muted-foreground hover:text-foreground font-medium flex items-center gap-1.5 transition-colors"
             >
-              <FiArrowLeft className="w-4 h-4" />
+              <ArrowLeft className="w-4 h-4" />
               Back to login
             </Link>
           </div>

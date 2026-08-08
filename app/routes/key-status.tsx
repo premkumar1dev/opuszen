@@ -3,6 +3,7 @@ import { useLoaderData, useActionData, useNavigation } from "react-router";
 import { useState, useEffect } from "react";
 import { Layout } from "../components/Layout";
 import { getKeyStatus } from "~/utils/gateway-service";
+import { getPlanInfoForApiKey } from "~/utils/plan-service";
 
 export const meta: MetaFunction = () => {
 	return [
@@ -30,7 +31,25 @@ async function fetchKeyStatus(key: string) {
 				key: cleanKey,
 			};
 		}
-		return { keyData: data, error: null, key: cleanKey };
+
+		// SECURITY: Replace any OpusLive plan names with OpusZen plan data
+		const sanitized = { ...data };
+		if (sanitized.planName) {
+			try {
+				const opusZenPlan = await getPlanInfoForApiKey(cleanKey);
+				if (opusZenPlan) {
+					sanitized.planName = opusZenPlan.displayName;
+					(sanitized as any).opusZenPlan = opusZenPlan;
+				} else {
+					// No OpusZen plan assigned — sanitize any OpusLive naming patterns
+					sanitized.planName = sanitizeOpusLivePlanName(sanitized.planName as string);
+				}
+			} catch {
+				sanitized.planName = sanitizeOpusLivePlanName(sanitized.planName as string);
+			}
+		}
+
+		return { keyData: sanitized, error: null, key: cleanKey };
 	} catch (err: unknown) {
 		return {
 			keyData: null,
@@ -38,6 +57,15 @@ async function fetchKeyStatus(key: string) {
 			key: cleanKey,
 		};
 	}
+}
+
+function sanitizeOpusLivePlanName(name: string): string {
+	// Strip OpusLive internal naming patterns (5X, 20X, etc.)
+	const opusLivePatterns = [/\b\d+X\b/i, /\b\d+times\b/i, /opuslive/i];
+	for (const pattern of opusLivePatterns) {
+		if (pattern.test(name)) return "Custom Plan";
+	}
+	return name;
 }
 
 export async function loader({ request }: LoaderFunctionArgs) {
@@ -71,6 +99,17 @@ export default function KeyStatusRoute() {
 	const { keyData, error, key } = data as any;
 	const [timeLeft, setTimeLeft] = useState<string>("");
 	const [showKeyInput, setShowKeyInput] = useState<boolean>(false);
+	const [autoRefresh, setAutoRefresh] = useState<boolean>(false);
+
+	// Auto-refresh every 30s when enabled
+	useEffect(() => {
+		if (!autoRefresh || !key) return;
+		const interval = setInterval(() => {
+			const form = document.querySelector<HTMLFormElement>('form[action="/key-status"]');
+			if (form) form.requestSubmit();
+		}, 30000);
+		return () => clearInterval(interval);
+	}, [autoRefresh, key]);
 
 	useEffect(() => {
 		if (!keyData || !keyData.windowResetAt) {
@@ -215,7 +254,7 @@ export default function KeyStatusRoute() {
 					</p>
 				</div>
 
-				<div className="mb-8 p-6 rounded-2xl border border-border bg-card dark:bg-card/60 shadow-md">
+				<div className="mb-8 p-6 rounded-2xl border border-border bg-card dark:bg-card/60 shadow-md" role="status" aria-live="polite" aria-atomic="true">
 					<Form method="post" action="/key-status" className="flex flex-col sm:flex-row gap-3">
 						<div className="relative flex-1">
 							<svg
@@ -401,6 +440,18 @@ export default function KeyStatusRoute() {
 										<code className="text-sm font-mono font-bold text-primary dark:text-primary bg-muted/50 dark:bg-muted/10 px-2.5 py-1 rounded-md border border-primary/20 break-all">
 											{displayKey}
 										</code>
+										<button
+											type="button"
+											onClick={async () => {
+												try { await navigator.clipboard.writeText(displayKey); } catch {}
+											}}
+											className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+											title="Copy API key to clipboard"
+											aria-label="Copy API key to clipboard"
+										>
+											<svg xmlns="http://www.w3.org/2000/svg" width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+											Copy
+										</button>
 									</div>
 								</div>
 								<div className="flex items-center gap-2">
@@ -432,6 +483,16 @@ export default function KeyStatusRoute() {
 											{isLoading ? "Syncing..." : "Refresh Live Data"}
 										</button>
 									</Form>
+									<button
+										type="button"
+										onClick={() => setAutoRefresh(!autoRefresh)}
+										className={`inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border transition-colors cursor-pointer ${autoRefresh ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "border-border bg-background hover:bg-muted text-foreground"}`}
+										title={autoRefresh ? "Auto-refresh on (every 30s)" : "Auto-refresh off"}
+										aria-label={autoRefresh ? "Disable auto-refresh" : "Enable auto-refresh"}
+									>
+										<span className={`w-1.5 h-1.5 rounded-full ${autoRefresh ? "bg-emerald-500 dark:bg-emerald-400 animate-pulse" : "bg-muted-foreground"}`} />
+										{autoRefresh ? "Live" : "Auto"}
+									</button>
 									<span
 										className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-semibold ${isActive
 												? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"

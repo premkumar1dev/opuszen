@@ -75,25 +75,30 @@ export function useCursorLight(enabled: boolean = true) {
  * useParallax — parallax offset based on scroll position.
  */
 export function useParallax(speed: number = 0.5) {
- const [offset, setOffset] = useState(0);
- const tickingRef = useRef(false);
+	const [offset, setOffset] = useState(0);
+	const tickingRef = useRef(false);
+	const lastOffsetRef = useRef(0);
 
- useEffect(() => {
- const handleScroll = () => {
- if (tickingRef.current) return;
- tickingRef.current = true;
- requestAnimationFrame(() => {
- setOffset(window.scrollY * speed);
- tickingRef.current = false;
- });
- };
+	useEffect(() => {
+		const handleScroll = () => {
+			if (tickingRef.current) return;
+			tickingRef.current = true;
+			requestAnimationFrame(() => {
+				const nextOffset = Math.round(window.scrollY * speed);
+				if (nextOffset !== lastOffsetRef.current) {
+					lastOffsetRef.current = nextOffset;
+					setOffset(nextOffset);
+				}
+				tickingRef.current = false;
+			});
+		};
 
- window.addEventListener("scroll", handleScroll, { passive: true });
- handleScroll();
- return () => window.removeEventListener("scroll", handleScroll);
- }, [speed]);
+		window.addEventListener("scroll", handleScroll, { passive: true });
+		handleScroll();
+		return () => window.removeEventListener("scroll", handleScroll);
+	}, [speed]);
 
- return offset;
+	return offset;
 }
 
 /**

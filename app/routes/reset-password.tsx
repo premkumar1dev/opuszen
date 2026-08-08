@@ -1,6 +1,6 @@
 import { type MetaFunction, useNavigate, Link } from "react-router";
 import { useState, useEffect } from "react";
-import { FiLock, FiCheckCircle, FiAlertCircle } from "react-icons/fi";
+import { Lock, CheckCircle, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "~/utils/supabase";
@@ -109,7 +109,7 @@ export default function ResetPasswordRoute() {
  ) : !session ? (
  <div className="flex flex-col gap-6 w-full">
  <div className="p-3.5 text-sm text-red-500 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/50 rounded-md flex items-start gap-2">
- <FiAlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+ <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
  <div>
  <h4 className="font-semibold">Invalid or Expired Link</h4>
  <p className="text-xs mt-0.5 opacity-90">
@@ -125,13 +125,13 @@ export default function ResetPasswordRoute() {
  <form className="flex w-full flex-col gap-6" onSubmit={handleSubmit}>
  {error && (
  <div className="p-3 text-sm text-red-500 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/50 rounded-md flex items-start gap-2">
- <FiAlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+ <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
  <span>{error}</span>
  </div>
  )}
  {success && (
  <div className="p-3 text-sm text-green-500 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-900/50 rounded-md flex items-start gap-2">
- <FiCheckCircle className="w-4 h-4 mt-0.5 shrink-0" />
+ <CheckCircle className="w-4 h-4 mt-0.5 shrink-0" />
  <span>Password updated successfully! Redirecting to login...</span>
  </div>
  )}

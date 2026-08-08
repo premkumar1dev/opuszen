@@ -12,33 +12,33 @@ import { verifyAdminSession } from "~/utils/admin-auth";
 import { requireAdmin } from "~/utils/admin-actions";
 import { supabaseServer } from "~/utils/supabase.server";
 import {
-	FiGlobe,
-	FiSave,
-	FiCheck,
-	FiAlertCircle,
-	FiRefreshCw,
-	FiImage,
-	FiTrash2,
-	FiType,
-	FiMonitor,
-	FiInfo,
-	FiEye,
-	FiUser,
-	FiShield,
-	FiBell,
-	FiDatabase,
-	FiMail,
-	FiCreditCard,
-} from "react-icons/fi";
+	Globe,
+	Save,
+	Check,
+	AlertCircle,
+	RefreshCw,
+	Image,
+	Trash2,
+	Type,
+	Monitor,
+	Info,
+	Eye,
+	User,
+	Shield,
+	Bell,
+	Database,
+	Mail,
+	CreditCard,
+} from "lucide-react";
 
 const TABS = [
-	{ id: "profile", label: "Profile", icon: <FiUser className="w-4 h-4" />, href: "/auth/admin/settings?tab=profile" },
-	{ id: "security", label: "Security", icon: <FiShield className="w-4 h-4" />, href: "/auth/admin/settings?tab=security" },
-	{ id: "notifications", label: "Notifications", icon: <FiBell className="w-4 h-4" />, href: "/auth/admin/settings?tab=notifications" },
-	{ id: "appearance", label: "Appearance", icon: <FiMonitor className="w-4 h-4" />, href: "/auth/admin/settings?tab=appearance" },
-	{ id: "data", label: "Data & Storage", icon: <FiDatabase className="w-4 h-4" />, href: "/auth/admin/settings?tab=data" },
-	{ id: "site", label: "Site Config", icon: <FiGlobe className="w-4 h-4" />, href: "/auth/admin/settings/site" },
-	{ id: "payments", label: "Payment Gateway", icon: <FiCreditCard className="w-4 h-4" />, href: "/auth/admin/settings/payments" },
+	{ id: "profile", label: "Profile", icon: <User className="w-4 h-4" />, href: "/auth/admin/settings?tab=profile" },
+	{ id: "security", label: "Security", icon: <Shield className="w-4 h-4" />, href: "/auth/admin/settings?tab=security" },
+	{ id: "notifications", label: "Notifications", icon: <Bell className="w-4 h-4" />, href: "/auth/admin/settings?tab=notifications" },
+	{ id: "appearance", label: "Appearance", icon: <Monitor className="w-4 h-4" />, href: "/auth/admin/settings?tab=appearance" },
+	{ id: "data", label: "Data & Storage", icon: <Database className="w-4 h-4" />, href: "/auth/admin/settings?tab=data" },
+	{ id: "site", label: "Site Config", icon: <Globe className="w-4 h-4" />, href: "/auth/admin/settings/site" },
+	{ id: "payments", label: "Payment Gateway", icon: <CreditCard className="w-4 h-4" />, href: "/auth/admin/settings/payments" },
 ];
 
 export const meta: MetaFunction = () => [
@@ -173,7 +173,7 @@ function ImageField({
 
 	const previewSize = previewShape === "favicon" ? "w-12 h-12" : "w-24 h-24";
 	const imgSize = previewShape === "favicon" ? "w-7 h-7" : "w-20 h-20";
-	const Icon = previewShape === "favicon" ? FiMonitor : FiImage;
+	const Icon = previewShape === "favicon" ? Monitor : Image;
 
 	return (
 		<div className="space-y-3">
@@ -207,7 +207,7 @@ function ImageField({
 				<div className="flex-1 space-y-2">
 					<div className="flex gap-2">
 						<div className="relative flex-1">
-							<FiGlobe className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+							<Globe className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
 							<input
 								type="url"
 								value={draft}
@@ -225,7 +225,7 @@ function ImageField({
 								className="h-10 w-10 flex items-center justify-center rounded-xl border border-border text-muted-foreground hover:text-red-400 hover:border-red-500/30 hover:bg-red-500/10 transition-all cursor-pointer shrink-0"
 								title="Clear"
 							>
-								<FiTrash2 className="w-4 h-4" />
+								<Trash2 className="w-4 h-4" />
 							</button>
 						)}
 					</div>
@@ -233,13 +233,13 @@ function ImageField({
 					<input type="hidden" name={name} value={draft} />
 
 					<p className="text-[11px] text-muted-foreground flex items-center gap-1.5">
-						<FiInfo className="w-3 h-3 shrink-0" />
+						<Info className="w-3 h-3 shrink-0" />
 						{hint}
 					</p>
 
 					{imgError && draft && (
 						<p className="text-[11px] text-red-400 flex items-center gap-1.5">
-							<FiAlertCircle className="w-3 h-3 shrink-0" />
+							<AlertCircle className="w-3 h-3 shrink-0" />
 							Cannot load image from this URL — check the address and try again.
 						</p>
 					)}
@@ -319,7 +319,7 @@ export default function AdminSettingsSiteRoute() {
 							</div>
 							<h1 className="text-3xl font-bold text-foreground flex items-center gap-3">
 								<div className="w-9 h-9 rounded-xl bg-gradient-to-br from-sky-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-sky-500/20">
-									<FiGlobe className="w-5 h-5 text-white" />
+									<Globe className="w-5 h-5 text-white" />
 								</div>
 								Site Configuration
 							</h1>
@@ -333,7 +333,7 @@ export default function AdminSettingsSiteRoute() {
 							rel="noopener noreferrer"
 							className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-border/60 text-sm font-medium text-muted-foreground hover:text-foreground hover:border-border transition-all"
 						>
-							<FiEye className="w-4 h-4" />
+							<Eye className="w-4 h-4" />
 							Preview Site
 						</a>
 					</div>
@@ -370,19 +370,19 @@ export default function AdminSettingsSiteRoute() {
 							{/* Toast alerts */}
 							{saveFlash === "success" && (
 								<div className="flex items-center gap-3 p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 text-sm font-medium animate-in fade-in slide-in-from-top-2 duration-300">
-									<FiCheck className="w-4 h-4 shrink-0" />
+									<Check className="w-4 h-4 shrink-0" />
 									Site configuration saved successfully!
 								</div>
 							)}
 							{saveFlash === "error" && (
 								<div className="flex items-center gap-3 p-3.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-500 text-sm font-medium animate-in fade-in slide-in-from-top-2 duration-300">
-									<FiAlertCircle className="w-4 h-4 shrink-0" />
+									<AlertCircle className="w-4 h-4 shrink-0" />
 									{actionData?.error || "Failed to save. Please try again."}
 								</div>
 							)}
 							{loaderError && (
 								<div className="flex items-center gap-3 p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-500 text-sm font-medium">
-									<FiAlertCircle className="w-4 h-4 shrink-0" />
+									<AlertCircle className="w-4 h-4 shrink-0" />
 									Could not load saved config: {loaderError}. Using defaults.
 								</div>
 							)}
@@ -394,7 +394,7 @@ export default function AdminSettingsSiteRoute() {
 						<div className="rounded-2xl border border-border bg-card/60 p-6 space-y-5">
 							<div className="flex items-center gap-3">
 								<div className="w-8 h-8 rounded-lg bg-sky-500/10 flex items-center justify-center text-sky-500">
-									<FiType className="w-4 h-4" />
+									<Type className="w-4 h-4" />
 								</div>
 								<div>
 									<h3 className="text-base font-bold text-foreground">Site Name</h3>
@@ -409,7 +409,7 @@ export default function AdminSettingsSiteRoute() {
 									Site Name
 								</label>
 								<div className="relative">
-									<FiType className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+									<Type className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
 									<input
 										type="text"
 										name="site_name"
@@ -433,7 +433,7 @@ export default function AdminSettingsSiteRoute() {
 						<div className="rounded-2xl border border-border bg-card/60 p-6 space-y-5">
 							<div className="flex items-center gap-3">
 								<div className="w-8 h-8 rounded-lg bg-violet-500/10 flex items-center justify-center text-violet-500">
-									<FiImage className="w-4 h-4" />
+									<Image className="w-4 h-4" />
 								</div>
 								<div>
 									<h3 className="text-base font-bold text-foreground">Logo</h3>
@@ -458,7 +458,7 @@ export default function AdminSettingsSiteRoute() {
 							{form.logo_url && (
 								<div className="rounded-xl border border-border/50 bg-background/40 p-4">
 									<p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-1.5">
-										<FiEye className="w-3.5 h-3.5" />
+										<Eye className="w-3.5 h-3.5" />
 										Header Preview
 									</p>
 									<div className="flex items-center gap-3 px-4 py-2.5 rounded-lg border border-border/40 bg-card/60 w-fit">
@@ -480,7 +480,7 @@ export default function AdminSettingsSiteRoute() {
 						<div className="rounded-2xl border border-border bg-card/60 p-6 space-y-5">
 							<div className="flex items-center gap-3">
 								<div className="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-500">
-									<FiMonitor className="w-4 h-4" />
+									<Monitor className="w-4 h-4" />
 								</div>
 								<div>
 									<h3 className="text-base font-bold text-foreground">Favicon</h3>
@@ -505,7 +505,7 @@ export default function AdminSettingsSiteRoute() {
 							{form.favicon_url && (
 								<div className="rounded-xl border border-border/50 bg-background/40 p-4">
 									<p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-1.5">
-										<FiEye className="w-3.5 h-3.5" />
+										<Eye className="w-3.5 h-3.5" />
 										Browser Tab Preview
 									</p>
 									<div className="inline-block">
@@ -529,7 +529,7 @@ export default function AdminSettingsSiteRoute() {
 						{/* ── Reference ────────────────────────────────────── */}
 						<div className="rounded-2xl border border-border/50 bg-muted/20 p-5 space-y-3">
 							<p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
-								<FiInfo className="w-3.5 h-3.5" />
+								<Info className="w-3.5 h-3.5" />
 								Where these settings are used
 							</p>
 							<div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -583,9 +583,9 @@ export default function AdminSettingsSiteRoute() {
 								className="ml-auto flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-all cursor-pointer shadow-md shadow-primary/20 disabled:opacity-60 disabled:cursor-not-allowed"
 							>
 								{isSubmitting ? (
-									<><FiRefreshCw className="w-4 h-4 animate-spin" />Saving…</>
+									<><RefreshCw className="w-4 h-4 animate-spin" />Saving…</>
 								) : (
-									<><FiSave className="w-4 h-4" />Save Configuration</>
+									<><Save className="w-4 h-4" />Save Configuration</>
 								)}
 							</button>
 						</div>

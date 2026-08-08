@@ -1,49 +1,78 @@
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useRef } from "react";
 
 /**
  * CursorLight — a radial gradient that follows the cursor position.
- * Place once at the Layout level.
+ * Uses direct DOM manipulation & hardware accelerated transform to prevent
+ * React re-renders and eliminate scrolling/pointer lag.
  */
 export function CursorLight() {
- const [visible, setVisible] = useState(false);
- const [pos, setPos] = useState({ x: -500, y: -500 });
- const rafRef = useRef<number>(0);
+	const lightRef = useRef<HTMLDivElement>(null);
+	const rafRef = useRef<number>(0);
+	const mousePos = useRef<{ x: number; y: number }>({ x: -1000, y: -1000 });
+	const isVisible = useRef(false);
 
- const handleMouseMove = useCallback((e: MouseEvent) => {
- cancelAnimationFrame(rafRef.current);
- rafRef.current = requestAnimationFrame(() => {
- setPos({ x: e.clientX, y: e.clientY });
- });
- }, []);
+	useEffect(() => {
+		if (typeof window === "undefined") return;
 
- useEffect(() => {
- const onEnter = () => setVisible(true);
- const onLeave = () => setVisible(false);
- const onMove = (e: MouseEvent) => handleMouseMove(e);
+		// Disable on touch devices or reduced motion
+		const isTouch = window.matchMedia("(pointer: coarse)").matches && !window.matchMedia("(pointer: fine)").matches;
+		const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+		if (isTouch || prefersReducedMotion) return;
 
- document.addEventListener("mouseenter", onEnter);
- document.addEventListener("mouseleave", onLeave);
- window.addEventListener("mousemove", onMove, { passive: true });
+		const el = lightRef.current;
+		if (!el) return;
 
- return () => {
- document.removeEventListener("mouseenter", onEnter);
- document.removeEventListener("mouseleave", onLeave);
- window.removeEventListener("mousemove", onMove);
- cancelAnimationFrame(rafRef.current);
- };
- }, [handleMouseMove]);
+		const updatePosition = () => {
+			if (el && isVisible.current) {
+				el.style.transform = `translate3d(${mousePos.current.x}px, ${mousePos.current.y}px, 0) translate(-50%, -50%)`;
+			}
+			rafRef.current = 0;
+		};
 
- if (!visible) return null;
+		const onMove = (e: MouseEvent) => {
+			mousePos.current.x = e.clientX;
+			mousePos.current.y = e.clientY;
+			if (!isVisible.current) {
+				isVisible.current = true;
+				if (el) el.style.opacity = "1";
+			}
+			if (!rafRef.current) {
+				rafRef.current = requestAnimationFrame(updatePosition);
+			}
+		};
 
- return (
- <div
- className="cursor-light"
- style={{
- left: `${pos.x}px`,
- top: `${pos.y}px`,
- opacity: visible ? 1 : 0,
- }}
- aria-hidden="true"
- />
- );
+		const onLeave = () => {
+			isVisible.current = false;
+			if (el) el.style.opacity = "0";
+		};
+
+		const onEnter = () => {
+			isVisible.current = true;
+			if (el) el.style.opacity = "1";
+		};
+
+		document.addEventListener("mouseenter", onEnter, { passive: true });
+		document.addEventListener("mouseleave", onLeave, { passive: true });
+		window.addEventListener("mousemove", onMove, { passive: true });
+
+		return () => {
+			document.removeEventListener("mouseenter", onEnter);
+			document.removeEventListener("mouseleave", onLeave);
+			window.removeEventListener("mousemove", onMove);
+			if (rafRef.current) cancelAnimationFrame(rafRef.current);
+		};
+	}, []);
+
+	return (
+		<div
+			ref={lightRef}
+			className="cursor-light"
+			style={{
+				opacity: 0,
+				transform: "translate3d(-1000px, -1000px, 0) translate(-50%, -50%)",
+				pointerEvents: "none",
+			}}
+			aria-hidden="true"
+		/>
+	);
 }

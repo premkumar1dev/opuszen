@@ -7,7 +7,7 @@
  */
 import { supabaseServer as supabase } from "~/utils/supabase.server";
 import type { MasterApiKeyRow, ProviderHealthRow } from "~/types/gateway";
-import { getMasterKeyById } from "~/utils/master-key-service";
+import { getMasterKeyById, getHealthRecord } from "~/utils/master-key-service";
 
 export async function runHealthCheck(keyId: string): Promise<ProviderHealthRow> {
  const record = await getHealthRecord(keyId);
@@ -105,16 +105,7 @@ export async function recordHealthFailure(
  }).eq('id', keyId);
 }
 
-export async function getHealthRecord(keyId: string): Promise<ProviderHealthRow | null> {
- const { data, error } = await supabase
- .from('provider_health')
- .select('*')
- .eq('master_api_key_id', keyId)
- .maybeSingle();
-
- if (error || !data) return null;
- return data as ProviderHealthRow;
-}
+// getHealthRecord is re-exported from master-key-service (single source of truth)
 
 export async function getAllHealthRecords(): Promise<Array<ProviderHealthRow & { master_api_keys?: any }>> {
  const { data, error } = await supabase

@@ -2,17 +2,17 @@ import { useState, useEffect } from "react";
 import { type MetaFunction, data, type ActionFunctionArgs, useNavigate } from "react-router";
 import { DashboardSidebar } from "../components/dashboard/dashboard-sidebar";
 import {
-	FiUser,
-	FiLock,
-	FiBell,
-	FiShield,
-	FiEye,
-	FiEyeOff,
-	FiTrash2,
-	FiSave,
-	FiAlertTriangle,
-	FiSmartphone,
-} from "react-icons/fi";
+	User,
+	Lock,
+	Bell,
+	Shield,
+	Eye,
+	EyeOff,
+	Trash2,
+	Save,
+	AlertTriangle,
+	Smartphone,
+} from "lucide-react";
 import { supabase } from "~/utils/supabase";
 import { supabaseServer } from "~/utils/supabase.server";
 import { useDashboardTheme } from "~/utils/theme";
@@ -179,8 +179,8 @@ export default function UserAccountRoute() {
 
 	return (
 		<div className="dashboard flex min-h-screen">
-			{sidebarOpen && <div className="fixed inset-0 z-[55] dashboard-overlay backdrop-blur-sm md:hidden" onClick={() => setSidebarOpen(false)} />}
-			<div className={`fixed top-0 left-0 z-[60] h-full md:hidden transform transition-transform duration-300 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
+			{sidebarOpen && <div className="fixed inset-0 z-dropdown dashboard-overlay backdrop-blur-sm md:hidden" onClick={() => setSidebarOpen(false)} />}
+			<div className={`fixed top-0 left-0 z-dropdown h-full md:hidden transform transition-transform duration-300 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
 				<DashboardSidebar collapsed={false} onToggle={() => setSidebarOpen(false)} userEmail={user?.email} theme={theme} onThemeToggle={toggleTheme} onLogout={handleLogout} />
 			</div>
 			<div className="hidden md:block">
@@ -206,13 +206,13 @@ export default function UserAccountRoute() {
 					{/* Flash messages */}
 					{errorMsg && (
 						<div className="mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs flex items-center gap-2">
-							<FiAlertTriangle className="w-4 h-4 shrink-0" />
+							<AlertTriangle className="w-4 h-4 shrink-0" />
 							{errorMsg}
 						</div>
 					)}
 					{successMsg && (
 						<div className="mb-4 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs flex items-center gap-2">
-							<FiShield className="w-4 h-4 shrink-0" />
+							<Shield className="w-4 h-4 shrink-0" />
 							{successMsg}
 						</div>
 					)}
@@ -220,7 +220,7 @@ export default function UserAccountRoute() {
 					{/* Profile */}
 					<div className="dashboard-card p-5 sm:p-6 rounded-2xl mb-4 sm:mb-6">
 						<div className="flex items-center gap-3 mb-6">
-							<div className="p-2 rounded-lg bg-primary/10 border border-primary/20"><FiUser className="w-4 h-4 text-primary" /></div>
+							<div className="p-2 rounded-lg bg-primary/10 border border-primary/20"><User className="w-4 h-4 text-primary" /></div>
 							<div>
 								<h2 className="text-sm font-bold text-[var(--dashboard-text)]">Profile Information</h2>
 								<p className="text-[11px] text-[var(--dashboard-text-muted)]">Your personal details</p>
@@ -237,7 +237,7 @@ export default function UserAccountRoute() {
 										className="dashboard-input w-full pl-9 pr-3 py-2.5 rounded-xl text-sm focus:outline-none focus:border-primary/50 transition-all"
 										placeholder="Username"
 									/>
-									<FiUser className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--dashboard-text-muted)]" />
+									<User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--dashboard-text-muted)]" />
 								</div>
 							</div>
 							<div>
@@ -247,11 +247,14 @@ export default function UserAccountRoute() {
 										type="text"
 										value={profile.phone}
 										onChange={(e) => setProfile((p) => ({ ...p, phone: e.target.value }))}
-										className="dashboard-input w-full pl-9 pr-3 py-2.5 rounded-xl text-sm focus:outline-none focus:border-primary/50 transition-all"
-										placeholder="Mobile Number"
+										className="dashboard-input w-full pl-9 pr-3 py-2.5 rounded-xl text-sm focus:outline-none focus:border-primary/50 transition-all font-mono"
+										placeholder="e.g. 9876543210"
 									/>
-									<FiSmartphone className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--dashboard-text-muted)]" />
+									<Smartphone className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--dashboard-text-muted)]" />
 								</div>
+								<span className="text-[11px] text-amber-500/90 dark:text-amber-400/90 mt-1 block font-medium">
+									Required for API key purchasing & online payment verification
+								</span>
 							</div>
 							<div>
 								<label className="block text-xs font-semibold text-[var(--dashboard-text-secondary)] mb-1.5">Full Name</label>
@@ -268,7 +271,7 @@ export default function UserAccountRoute() {
 						</div>
 						<div className="mt-6 flex justify-end">
 							<button onClick={saveProfile} disabled={saving} className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-all disabled:opacity-40 cursor-pointer">
-								<FiSave className="w-3.5 h-3.5" />{saving ? "Saving..." : "Save Profile"}
+								<Save className="w-3.5 h-3.5" />{saving ? "Saving..." : "Save Profile"}
 							</button>
 						</div>
 					</div>
@@ -276,7 +279,7 @@ export default function UserAccountRoute() {
 					{/* Password */}
 					<div className="dashboard-card p-5 sm:p-6 rounded-2xl mb-4 sm:mb-6">
 						<div className="flex items-center gap-3 mb-6">
-							<div className="p-2 rounded-lg bg-primary/10 border border-primary/20"><FiLock className="w-4 h-4 text-primary" /></div>
+							<div className="p-2 rounded-lg bg-primary/10 border border-primary/20"><Lock className="w-4 h-4 text-primary" /></div>
 							<div>
 								<h2 className="text-sm font-bold text-[var(--dashboard-text)]">Change Password</h2>
 								<p className="text-[11px] text-[var(--dashboard-text-muted)]">Update your account password</p>
@@ -287,18 +290,18 @@ export default function UserAccountRoute() {
 								<label className="block text-xs font-semibold text-[var(--dashboard-text-secondary)] mb-1.5">Current Password</label>
 								<div className="relative">
 									<input type={showCurrentPw ? "text" : "password"} value={currentPw} onChange={(e) => setCurrentPw(e.target.value)} className="dashboard-input w-full px-3 py-2.5 pr-10 rounded-xl text-sm focus:outline-none focus:border-primary/50 transition-all" />
-									<button onClick={() => setShowCurrentPw(!showCurrentPw)} className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--dashboard-text-muted)] hover:text-[var(--dashboard-text)] p-1 touch-manipulation" aria-label={showCurrentPw ? "Hide" : "Show"}><FiEye className="w-4 h-4" /></button>
+									<button onClick={() => setShowCurrentPw(!showCurrentPw)} className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--dashboard-text-muted)] hover:text-[var(--dashboard-text)] p-1 touch-manipulation" aria-label={showCurrentPw ? "Hide" : "Show"}><Eye className="w-4 h-4" /></button>
 								</div>
 							</div>
 							<div>
 								<label className="block text-xs font-semibold text-[var(--dashboard-text-secondary)] mb-1.5">New Password</label>
 								<div className="relative">
 									<input type={showNewPw ? "text" : "password"} value={newPw} onChange={(e) => setNewPw(e.target.value)} className="dashboard-input w-full px-3 py-2.5 pr-10 rounded-xl text-sm focus:outline-none focus:border-primary/50 transition-all" />
-									<button onClick={() => setShowNewPw(!showNewPw)} className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--dashboard-text-muted)] hover:text-[var(--dashboard-text)] p-1 touch-manipulation" aria-label={showNewPw ? "Hide" : "Show"}><FiEye className="w-4 h-4" /></button>
+									<button onClick={() => setShowNewPw(!showNewPw)} className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--dashboard-text-muted)] hover:text-[var(--dashboard-text)] p-1 touch-manipulation" aria-label={showNewPw ? "Hide" : "Show"}><Eye className="w-4 h-4" /></button>
 								</div>
 							</div>
 							<button onClick={changePassword} disabled={!currentPw || !newPw} className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-all disabled:opacity-40 cursor-pointer">
-								<FiShield className="w-3.5 h-3.5" /> Update Password
+								<Shield className="w-3.5 h-3.5" /> Update Password
 							</button>
 						</div>
 					</div>
@@ -306,7 +309,7 @@ export default function UserAccountRoute() {
 					{/* Notifications */}
 					<div className="dashboard-card p-5 sm:p-6 rounded-2xl mb-4 sm:mb-6">
 						<div className="flex items-center gap-3 mb-6">
-							<div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20"><FiBell className="w-4 h-4 text-emerald-500" /></div>
+							<div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20"><Bell className="w-4 h-4 text-emerald-500" /></div>
 							<div>
 								<h2 className="text-sm font-bold text-[var(--dashboard-text)]">Notifications</h2>
 								<p className="text-[11px] text-[var(--dashboard-text-muted)]">Manage your notification preferences</p>
@@ -335,7 +338,7 @@ export default function UserAccountRoute() {
 					{/* Danger zone */}
 					<div className="dashboard-card p-5 sm:p-6 rounded-2xl border-red-500/20">
 						<div className="flex items-center gap-3 mb-4">
-							<div className="p-2 rounded-lg bg-red-500/10 border border-red-500/20"><FiTrash2 className="w-4 h-4 text-red-500" /></div>
+							<div className="p-2 rounded-lg bg-red-500/10 border border-red-500/20"><Trash2 className="w-4 h-4 text-red-500" /></div>
 							<div>
 								<h2 className="text-sm font-bold text-red-500">Danger Zone</h2>
 								<p className="text-[11px] text-[var(--dashboard-text-muted)]">Irreversible actions</p>

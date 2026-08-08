@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
-import { FiMail, FiLock, FiShield, FiEye, FiEyeOff, FiTerminal, FiDatabase, FiAlertTriangle, FiCheckCircle } from "react-icons/fi";
+import { Mail, Lock, Shield, Eye, EyeOff, Terminal, Database, AlertTriangle, CheckCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "~/utils/supabase";
@@ -163,7 +163,7 @@ export function AdminLoginForm({
  <span className="text-2xl font-bold tracking-tight text-foreground">{logo.title}</span>
  </a>
  <div className="inline-flex items-center gap-1.5 mt-3 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-xs font-mono font-semibold text-primary uppercase tracking-wider">
- <FiShield className="size-3.5 animate-pulse" />
+ <Shield className="size-3.5 animate-pulse" />
  Secure Admin Console
  </div>
  <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground mt-2">
@@ -178,7 +178,7 @@ export function AdminLoginForm({
  <div className="bg-[#0f0f13] border border-border/80 rounded-lg p-3.5 font-mono text-[11px] leading-relaxed text-zinc-400 select-none shadow-inner">
  <div className="flex items-center justify-between border-b border-border/40 pb-2 mb-2">
  <div className="flex items-center gap-1.5">
- <FiTerminal className="text-primary size-3.5" />
+ <Terminal className="text-primary size-3.5" />
  <span className="font-semibold text-zinc-300 text-xs">console_session_log</span>
  </div>
  <div className="flex gap-1">
@@ -207,14 +207,14 @@ export function AdminLoginForm({
  <form className="flex flex-col gap-5" onSubmit={handleSubmit}>
  {error && (
  <div className="p-3 text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-lg flex items-start gap-2.5">
- <FiAlertTriangle className="size-4 mt-0.5 shrink-0" />
+ <AlertTriangle className="size-4 mt-0.5 shrink-0" />
  <span className="font-medium">{error}</span>
  </div>
  )}
 
  {success && (
  <div className="p-3 text-sm text-emerald-500 bg-emerald-500/10 border border-emerald-500/20 rounded-lg flex items-start gap-2.5">
- <FiCheckCircle className="size-4 mt-0.5 shrink-0" />
+ <CheckCircle className="size-4 mt-0.5 shrink-0" />
  <span className="font-medium">Authentication successful! Opening shell...</span>
  </div>
  )}
@@ -224,7 +224,7 @@ export function AdminLoginForm({
  <div className="flex flex-col gap-1.5">
  <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Admin Email</label>
  <div className="relative">
- <FiMail className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground size-4" />
+ <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground size-4" />
  <Input
  type="email"
  placeholder="admin@example.com"
@@ -243,7 +243,7 @@ export function AdminLoginForm({
  <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Password</label>
  </div>
  <div className="relative">
- <FiLock className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground size-4" />
+ <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground size-4" />
  <Input
  type={showPassword ? "text" : "password"}
  placeholder="••••••••"
@@ -258,7 +258,7 @@ export function AdminLoginForm({
  onClick={() => setShowPassword(!showPassword)}
  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
  >
- {showPassword ? <FiEyeOff className="size-4" /> : <FiEye className="size-4" />}
+ {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
  </button>
  </div>
  </div>
@@ -273,12 +273,12 @@ export function AdminLoginForm({
  >
  {loading ? (
  <>
- <FiDatabase className="size-4 animate-spin" />
+ <Database className="size-4 animate-spin" />
  Checking Privileges...
  </>
  ) : (
  <>
- <FiShield className="size-4" />
+ <Shield className="size-4" />
  Authenticate Operator
  </>
  )}

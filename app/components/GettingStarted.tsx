@@ -102,10 +102,10 @@ export default function GettingStarted() {
                         <p className="text-muted-foreground mb-6">No waitlist. No approval needed.</p>
                         <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
                             <Link
-                                to="/auth/signup"
+                                to="/pricing"
                                 className="btn-ripple inline-flex items-center justify-center px-8 py-3 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground font-semibold transition-all shadow-lg shadow-primary/25 hover:shadow-xl hover:-translate-y-0.5 cursor-pointer"
                             >
-                                Create your account
+                                View Pricing & Plans
                             </Link>
                             <div className="inline-flex items-center gap-2 px-4 py-3 rounded-lg bg-card border border-border font-mono text-sm shadow-sm">
                                 <span className="text-muted-foreground">$ </span>

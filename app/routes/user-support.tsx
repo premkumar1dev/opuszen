@@ -2,18 +2,18 @@ import { useState, useEffect } from "react";
 import { type MetaFunction, data, type ActionFunctionArgs, useNavigate } from "react-router";
 import { DashboardSidebar } from "../components/dashboard/dashboard-sidebar";
 import {
-	FiHelpCircle,
-	FiMessageCircle,
-	FiMail,
-	FiBookOpen,
-	FiSearch,
-	FiSend,
-	FiClock,
-	FiCheckCircle,
-	FiLoader,
-	FiX,
-} from "react-icons/fi";
-import { FaWhatsapp } from "react-icons/fa";
+	HelpCircle,
+	MessageSquare,
+	MessageCircle,
+	Mail,
+	BookOpen,
+	Search,
+	Send,
+	Clock,
+	CheckCircle,
+	Loader,
+	X,
+} from "lucide-react";
 import { supabase } from "~/utils/supabase";
 import { supabaseServer } from "~/utils/supabase.server";
 import { useDashboardTheme } from "~/utils/theme";
@@ -150,8 +150,8 @@ export default function UserSupportRoute() {
 
 	return (
 		<div className="dashboard flex min-h-screen">
-			{sidebarOpen && <div className="fixed inset-0 z-[55] dashboard-overlay backdrop-blur-sm md:hidden" onClick={() => setSidebarOpen(false)} />}
-			<div className={`fixed top-0 left-0 z-[60] h-full md:hidden transform transition-transform duration-300 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
+			{sidebarOpen && <div className="fixed inset-0 z-dropdown dashboard-overlay backdrop-blur-sm md:hidden" onClick={() => setSidebarOpen(false)} />}
+			<div className={`fixed top-0 left-0 z-dropdown h-full md:hidden transform transition-transform duration-300 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
 				<DashboardSidebar collapsed={false} onToggle={() => setSidebarOpen(false)} userEmail={user?.email} theme={theme} onThemeToggle={toggleTheme} onLogout={handleLogout} />
 			</div>
 			<div className="hidden md:block">
@@ -170,7 +170,7 @@ export default function UserSupportRoute() {
 								<p className="text-[11px] text-[var(--dashboard-text-muted)] hidden sm:block">{openCount} open ticket{openCount !== 1 ? "s" : ""}</p>
 							</div>
 						</div>
-						<button onClick={() => setShowNew(true)} className="flex items-center gap-2 px-3 sm:px-4 py-1.5 rounded-lg text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-all touch-manipulation shrink-0"><FiSend className="w-3.5 h-3.5" /><span className="hidden sm:inline">New Ticket</span></button>
+						<button onClick={() => setShowNew(true)} className="flex items-center gap-2 px-3 sm:px-4 py-1.5 rounded-lg text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-all touch-manipulation shrink-0"><Send className="w-3.5 h-3.5" /><span className="hidden sm:inline">New Ticket</span></button>
 					</div>
 				</header>
 
@@ -178,9 +178,9 @@ export default function UserSupportRoute() {
 					{/* Quick help */}
 					<div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-6 sm:mb-8">
 						{[
-							{ icon: FiBookOpen, title: "Documentation", desc: "Browse guides and API docs", to: "/docs" },
-							{ icon: FaWhatsapp, title: "Live Chat", desc: "Chat with us on WhatsApp", action: () => window.open(WHATSAPP_LINK, "_blank") },
-							{ icon: FiMail, title: "Email Support", desc: "support@opuszen.com", action: () => window.location.href = "mailto:support@opuszen.com" },
+							{ icon: BookOpen, title: "Documentation", desc: "Browse guides and API docs", to: "/docs" },
+							 { icon: MessageCircle, title: "Live Chat", desc: "Chat with us on WhatsApp", action: () => window.open(WHATSAPP_LINK, "_blank") },
+							{ icon: Mail, title: "Email Support", desc: "support@opuszen.com", action: () => window.location.href = "mailto:support@opuszen.com" },
 						].map((item, i) => (
 							<div key={i} onClick={item.action} className="dashboard-card p-4 sm:p-5 rounded-2xl dashboard-card-hover transition-all cursor-pointer touch-manipulation active:scale-[0.98]">
 								<div className="p-2 rounded-lg bg-primary/10 border border-primary/20 w-fit mb-3"><item.icon className="w-4 h-4 text-primary" /></div>
@@ -198,16 +198,16 @@ export default function UserSupportRoute() {
 								<p className="text-[11px] text-[var(--dashboard-text-muted)] mt-0.5">{tickets.length} ticket{tickets.length !== 1 ? "s" : ""}</p>
 							</div>
 							<div className="relative w-full sm:w-auto">
-								<FiSearch className="w-3.5 h-3.5 text-[var(--dashboard-text-muted)] absolute left-3 top-1/2 -translate-y-1/2" />
+								<Search className="w-3.5 h-3.5 text-[var(--dashboard-text-muted)] absolute left-3 top-1/2 -translate-y-1/2" />
 								<input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search..." className="dashboard-input pl-8 pr-3 py-2 rounded-lg text-xs focus:outline-none focus:border-primary/50 transition-all w-full sm:w-40" />
 							</div>
 						</div>
 
 						{loading ? (
-							<div className="flex items-center justify-center py-12"><FiLoader className="w-6 h-6 animate-spin text-[var(--dashboard-text-muted)]" /></div>
+							<div className="flex items-center justify-center py-12"><Loader className="w-6 h-6 animate-spin text-[var(--dashboard-text-muted)]" /></div>
 						) : filtered.length === 0 ? (
 							<div className="text-center py-12 sm:py-16 px-4">
-								<FiHelpCircle className="w-10 h-10 text-[var(--dashboard-text-muted)] mx-auto mb-3" />
+								<HelpCircle className="w-10 h-10 text-[var(--dashboard-text-muted)] mx-auto mb-3" />
 								<p className="text-sm text-[var(--dashboard-text-secondary)] font-medium">{search ? "No matching tickets" : "No tickets yet"}</p>
 								<p className="text-xs text-[var(--dashboard-text-muted)] mt-1">{search ? "Try a different search term" : "Create a ticket and we'll help you out"}</p>
 							</div>
@@ -220,7 +220,7 @@ export default function UserSupportRoute() {
 										<div key={t.id} onClick={() => setSelected(t)} className="flex flex-wrap sm:flex-nowrap items-start sm:items-center justify-between gap-2 sm:gap-3 px-4 sm:px-5 py-4 hover:bg-[var(--dashboard-nav-hover)] transition-all cursor-pointer touch-manipulation active:bg-[var(--dashboard-nav-hover)]">
 											<div className="flex items-start gap-3 min-w-0 flex-1">
 												<div className={`p-1.5 rounded-lg shrink-0 ${cfg.bg}`}>
-													{t.status === "resolved" || t.status === "closed" ? <FiCheckCircle className="w-4 h-4 text-emerald-500" /> : t.status === "in_progress" ? <FiClock className="w-4 h-4 text-amber-500" /> : <FiHelpCircle className="w-4 h-4 text-primary" />}
+													{t.status === "resolved" || t.status === "closed" ? <CheckCircle className="w-4 h-4 text-emerald-500" /> : t.status === "in_progress" ? <Clock className="w-4 h-4 text-amber-500" /> : <HelpCircle className="w-4 h-4 text-primary" />}
 												</div>
 												<div className="min-w-0 flex-1">
 													<p className="text-sm font-medium text-[var(--dashboard-text)] truncate">{t.subject}</p>
@@ -239,12 +239,12 @@ export default function UserSupportRoute() {
 
 				{/* New ticket modal */}
 				{showNew && (
-					<div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4" role="dialog" aria-modal="true">
+					<div className="fixed inset-0 z-modal flex items-center justify-center p-3 sm:p-4" role="dialog" aria-modal="true">
 						<div className="absolute inset-0 dashboard-overlay backdrop-blur-sm" onClick={() => setShowNew(false)} />
 						<div className="dashboard-modal-bg dashboard-card relative w-full max-w-lg rounded-2xl p-5 sm:p-6 shadow-2xl border border-[var(--dashboard-border)] max-h-[90vh] sm:max-h-[85vh] overflow-y-auto custom-scrollbar">
 							<div className="flex items-center justify-between mb-5 sm:mb-6">
 								<h2 className="text-base sm:text-lg font-bold text-[var(--dashboard-text)]">New Support Ticket</h2>
-								<button onClick={() => setShowNew(false)} className="p-1.5 rounded-lg text-[var(--dashboard-text-muted)] hover:text-[var(--dashboard-text)] hover:bg-[var(--dashboard-nav-hover)] transition-all" aria-label="Close"><FiX className="w-4 h-4" /></button>
+								<button onClick={() => setShowNew(false)} className="p-1.5 rounded-lg text-[var(--dashboard-text-muted)] hover:text-[var(--dashboard-text)] hover:bg-[var(--dashboard-nav-hover)] transition-all" aria-label="Close"><X className="w-4 h-4" /></button>
 							</div>
 							<div className="space-y-4">
 								<div>
@@ -266,7 +266,7 @@ export default function UserSupportRoute() {
 								<div className="flex gap-2 pt-2">
 									<button onClick={() => setShowNew(false)} className="flex-1 py-2.5 rounded-xl border border-[var(--dashboard-border)] text-sm font-medium text-[var(--dashboard-text-secondary)] hover:text-[var(--dashboard-text)] hover:bg-[var(--dashboard-nav-hover)] transition-all cursor-pointer touch-manipulation">Cancel</button>
 									<button onClick={submit} disabled={!subject.trim() || !message.trim() || submitting} className="flex-1 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-all disabled:opacity-40 cursor-pointer flex items-center justify-center gap-2 touch-manipulation">
-										{submitting ? <FiLoader className="w-3.5 h-3.5 animate-spin" /> : <FiSend className="w-3.5 h-3.5" />}
+										{submitting ? <Loader className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
 										{submitting ? "Submitting..." : "Submit"}
 									</button>
 								</div>
@@ -277,12 +277,12 @@ export default function UserSupportRoute() {
 
 				{/* Detail modal */}
 				{selected && (
-					<div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4" role="dialog" aria-modal="true">
+					<div className="fixed inset-0 z-modal flex items-center justify-center p-3 sm:p-4" role="dialog" aria-modal="true">
 						<div className="absolute inset-0 dashboard-overlay backdrop-blur-sm" onClick={() => setSelected(null)} />
 						<div className="dashboard-modal-bg dashboard-card relative w-full max-w-md rounded-2xl p-5 sm:p-6 shadow-2xl border border-[var(--dashboard-border)] max-h-[85vh] overflow-y-auto custom-scrollbar">
 							<div className="flex items-center justify-between mb-4">
 								<h2 className="text-base sm:text-lg font-bold text-[var(--dashboard-text)]">Ticket Details</h2>
-								<button onClick={() => setSelected(null)} className="p-1.5 rounded-lg text-[var(--dashboard-text-muted)] hover:text-[var(--dashboard-text)] hover:bg-[var(--dashboard-nav-hover)] transition-all" aria-label="Close"><FiX className="w-4 h-4" /></button>
+								<button onClick={() => setSelected(null)} className="p-1.5 rounded-lg text-[var(--dashboard-text-muted)] hover:text-[var(--dashboard-text)] hover:bg-[var(--dashboard-nav-hover)] transition-all" aria-label="Close"><X className="w-4 h-4" /></button>
 							</div>
 							<div className="space-y-4">
 								<div>

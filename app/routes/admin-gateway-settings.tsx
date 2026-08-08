@@ -10,18 +10,18 @@ import { requireAdmin } from "~/utils/admin-actions";
 import { AdminSidebar } from "~/components/admin/admin-sidebar";
 import { cn } from "~/lib/utils";
 import {
- FiSave,
- FiRotateCcw,
- FiLoader,
- FiCheck,
- FiZap,
- FiRefreshCw,
- FiClock,
- FiToggleLeft,
- FiToggleRight,
- FiServer,
- FiShield,
-} from "react-icons/fi";
+ Save,
+ RotateCcw,
+ Loader,
+ Check,
+ Zap,
+ RefreshCw,
+ Clock,
+ ToggleLeft,
+ ToggleRight,
+ Server,
+ Shield,
+} from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 
@@ -140,13 +140,13 @@ export default function AdminGatewaySettingsRoute() {
  ];
 
  const getIcon = (key: string) => {
- if (key.includes('timeout') || key.includes('delay')) return FiClock;
- if (key.includes('retry')) return FiRefreshCw;
- if (key.includes('failover')) return FiZap;
- if (key.includes('rate')) return FiServer;
- if (key.includes('disable') || key.includes('recover')) return FiShield;
- if (key.includes('key')) return FiZap;
- return FiServer;
+ if (key.includes('timeout') || key.includes('delay')) return Clock;
+ if (key.includes('retry')) return RefreshCw;
+ if (key.includes('failover')) return Zap;
+ if (key.includes('rate')) return Server;
+ if (key.includes('disable') || key.includes('recover')) return Shield;
+ if (key.includes('key')) return Zap;
+ return Server;
  };
 
  return (
@@ -172,16 +172,16 @@ export default function AdminGatewaySettingsRoute() {
  <div className="flex items-center gap-2">
  {saved && (
  <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 text-xs font-medium">
- <FiCheck className="w-3.5 h-3.5" />
+ <Check className="w-3.5 h-3.5" />
  Saved
  </div>
  )}
  <Button variant="outline" size="sm" onClick={() => window.location.reload()} className="gap-1.5">
- <FiRotateCcw className="w-3.5 h-3.5" />
+ <RotateCcw className="w-3.5 h-3.5" />
  Reset
  </Button>
  <Button size="sm" onClick={handleSave} disabled={saving} className="gap-1.5">
- {saving ? <><FiLoader className="w-3.5 h-3.5 animate-spin" /> Saving...</> : <><FiSave className="w-3.5 h-3.5" /> Save Changes</>}
+ {saving ? <><Loader className="w-3.5 h-3.5 animate-spin" /> Saving...</> : <><Save className="w-3.5 h-3.5" /> Save Changes</>}
  </Button>
  </div>
  </div>
@@ -190,7 +190,7 @@ export default function AdminGatewaySettingsRoute() {
  <div className="rounded-2xl border border-border bg-card/60 p-6 space-y-5">
  <div className="flex items-center gap-3">
  <div className="w-10 h-10 rounded-xl bg-violet-500/10 flex items-center justify-center text-violet-500">
- <FiZap className="w-5 h-5" />
+ <Zap className="w-5 h-5" />
  </div>
  <div>
  <h3 className="text-base font-bold text-foreground">Failover & Retry</h3>
@@ -234,7 +234,7 @@ export default function AdminGatewaySettingsRoute() {
  className="w-24 h-8 text-xs text-right"
  />
  <button onClick={() => handleReset(setting.key)} className="text-muted-foreground hover:text-foreground cursor-pointer p-1" title="Reset to default">
- <FiRotateCcw className="w-3 h-3" />
+ <RotateCcw className="w-3 h-3" />
  </button>
  </div>
  )}
@@ -249,7 +249,7 @@ export default function AdminGatewaySettingsRoute() {
  <div className="rounded-2xl border border-border bg-card/60 p-6 space-y-5">
  <div className="flex items-center gap-3">
  <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-500">
- <FiClock className="w-5 h-5" />
+ <Clock className="w-5 h-5" />
  </div>
  <div>
  <h3 className="text-base font-bold text-foreground">Timeout & Rate Limits</h3>
@@ -281,7 +281,7 @@ export default function AdminGatewaySettingsRoute() {
  className="w-24 h-8 text-xs text-right"
  />
  <button onClick={() => handleReset(setting.key)} className="text-muted-foreground hover:text-foreground cursor-pointer p-1" title="Reset to default">
- <FiRotateCcw className="w-3 h-3" />
+ <RotateCcw className="w-3 h-3" />
  </button>
  </div>
  </div>

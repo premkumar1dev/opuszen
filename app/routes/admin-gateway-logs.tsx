@@ -10,17 +10,17 @@ import { AdminSidebar } from "~/components/admin/admin-sidebar";
 import { cn } from "~/lib/utils";
 import type { ApiRequestLogRow } from "~/types/gateway";
 import {
- FiSearch,
- FiDownload,
- FiRefreshCw,
- FiFilter,
- FiLoader,
- FiClock,
- FiZap,
- FiCheckCircle,
- FiXCircle,
- FiServer,
-} from "react-icons/fi";
+ Search,
+ Download,
+ RefreshCw,
+ Filter,
+ Loader,
+ Clock,
+ Zap,
+ CheckCircle,
+ XCircle,
+ Server,
+} from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { motion, AnimatePresence } from "framer-motion";
@@ -141,11 +141,11 @@ export default function AdminRequestLogsRoute() {
  </div>
  <div className="flex items-center gap-2">
  <Button variant="outline" size="sm" onClick={handleExport} disabled={logs.length === 0} className="gap-1.5">
- <FiDownload className="w-3.5 h-3.5" />
+ <Download className="w-3.5 h-3.5" />
  Export CSV
  </Button>
  <Button variant="outline" size="sm" onClick={refresh} disabled={loading} className="gap-1.5">
- <FiRefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+ <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
  Refresh
  </Button>
  </div>
@@ -163,7 +163,7 @@ export default function AdminRequestLogsRoute() {
  </div>
  <Button type="submit" size="sm" className="h-9">Apply Filters</Button>
  <Button type="button" variant="ghost" size="sm" onClick={handleClear} className="h-9">
- <FiRefreshCw className="w-3.5 h-3.5 mr-1" /> Clear
+ <RefreshCw className="w-3.5 h-3.5 mr-1" /> Clear
  </Button>
  </Form>
 
@@ -187,7 +187,7 @@ export default function AdminRequestLogsRoute() {
  {logs.length === 0 ? (
  <tr>
  <td colSpan={8} className="px-4 py-12 text-center text-muted-foreground">
- <FiClock className="w-8 h-8 mx-auto mb-2 opacity-30" />
+ <Clock className="w-8 h-8 mx-auto mb-2 opacity-30" />
  <p className="text-sm font-medium">No logs found</p>
  </td>
  </tr>
@@ -218,7 +218,7 @@ export default function AdminRequestLogsRoute() {
  </td>
  <td className="px-4 py-3 text-center">
  <span className={cn("inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold", log.is_success ? "bg-emerald-500/10 text-emerald-500" : "bg-red-500/10 text-red-500")}>
- {log.is_success ? <FiCheckCircle className="w-3 h-3" /> : <FiXCircle className="w-3 h-3" />}
+ {log.is_success ? <CheckCircle className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
  {log.http_status}
  </span>
  </td>

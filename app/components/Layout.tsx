@@ -20,6 +20,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
  const mobileNavRef = useRef<HTMLElement>(null)
  const location = useLocation()
 
+ // Scroll to top on navigation
+ useEffect(() => {
+ window.scrollTo({ top: 0, behavior: "instant" })
+ }, [location.pathname])
+
  // Apply dark mode class to html element
  useEffect(() => {
  if (darkMode) {
@@ -30,31 +35,38 @@ export function Layout({ children }: { children: React.ReactNode }) {
  localStorage.setItem('dark-mode', JSON.stringify(darkMode))
  }, [darkMode])
 
- // Navbar scroll effect
- useEffect(() => {
- const onScroll = () => {
- if (tickingRef.current) { return }
- tickingRef.current = true
- requestAnimationFrame(() => {
- setScrolled(window.scrollY > 20)
- tickingRef.current = false
- })
- }
- window.addEventListener('scroll', onScroll, { passive: true })
- onScroll()
- return () => window.removeEventListener('scroll', onScroll)
- }, [])
+ 	// Navbar scroll effect
+	useEffect(() => {
+		let isScrolled = false;
+		const onScroll = () => {
+			if (tickingRef.current) return;
+			tickingRef.current = true;
+			requestAnimationFrame(() => {
+				const nowScrolled = window.scrollY > 20;
+				if (nowScrolled !== isScrolled) {
+					isScrolled = nowScrolled;
+					setScrolled(nowScrolled);
+				}
+				tickingRef.current = false;
+			});
+		};
+		window.addEventListener('scroll', onScroll, { passive: true });
+		onScroll();
+		return () => window.removeEventListener('scroll', onScroll);
+	}, []);
 
  // Close mobile nav on route change
  useEffect(() => {
- setMobileOpen(false)
+ window.scrollTo({ top: 0, behavior: "instant" })
+		setMobileOpen(false)
  }, [location])
 
  // Close on Escape key
  useEffect(() => {
  function handleKeyDown(e: KeyboardEvent) {
  if (e.key === 'Escape') {
- setMobileOpen(false)
+ window.scrollTo({ top: 0, behavior: "instant" })
+		setMobileOpen(false)
  }
  }
  if (mobileOpen) {
@@ -94,7 +106,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
  </a>
 
  <header
- className={`fixed top-0 z-50 w-full backdrop-blur-xl bg-background/80 dark:bg-background/80 border-b transition-all duration-500 ease-out ${
+ className={`fixed top-0 z-50 w-full backdrop-blur-xl bg-background/80 dark:bg-background/80 border-b transition-colors duration-200 ${
  scrolled ? 'navbar-scrolled border-border/50 bg-background/95' : 'border-transparent'
  }`}
  >
@@ -120,34 +132,34 @@ export function Layout({ children }: { children: React.ReactNode }) {
  <div className="flex-1" />
 
  {/* Center - Desktop Nav */}
- <div className="hidden md:flex items-center gap-8">
+ <div className="hidden md:flex items-center gap-1">
  <NavLink
  to="/docs"
- className="text-sm font-medium transition-colors text-muted-foreground hover:text-foreground cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded px-2 py-1"
+ className="nav-link-indicator text-sm font-medium transition-colors text-muted-foreground hover:text-foreground cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-lg px-3 py-2"
  >
  Documentation
  </NavLink>
  <NavLink
  to="/pricing"
- className="text-sm font-medium transition-colors text-muted-foreground hover:text-foreground cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded px-2 py-1"
+ className="nav-link-indicator text-sm font-medium transition-colors text-muted-foreground hover:text-foreground cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-lg px-3 py-2"
  >
  Pricing
  </NavLink>
  <NavLink
  to="/status"
- className="text-sm font-medium transition-colors text-muted-foreground hover:text-foreground cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded px-2 py-1"
+ className="nav-link-indicator text-sm font-medium transition-colors text-muted-foreground hover:text-foreground cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-lg px-3 py-2"
  >
  Status
  </NavLink>
  <NavLink
  to="/key-status"
- className="text-sm font-semibold bg-primary text-primary-foreground px-5 py-1.5 rounded-full hover:bg-primary/90 transition-all cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+ className="nav-link-indicator text-sm font-medium transition-colors text-primary font-semibold cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-lg px-3 py-2"
  >
  Key Status
  </NavLink>
  <NavLink
  to="/orders"
- className="text-sm font-medium transition-colors text-muted-foreground hover:text-foreground cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded px-2 py-1"
+ className="nav-link-indicator text-sm font-medium transition-colors text-muted-foreground hover:text-foreground cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-lg px-3 py-2"
  >
  Orders
  </NavLink>
@@ -158,7 +170,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
  {/* Theme toggle */}
  <button
  onClick={toggleTheme}
- className="relative p-2 rounded-full bg-muted dark:bg-muted/50 hover:bg-muted/80 dark:hover:bg-muted transition-all duration-300 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background group"
+ className="relative p-2 rounded-full bg-muted dark:bg-muted/50 hover:bg-muted/80 dark:hover:bg-muted transition-all duration-300 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background group min-h-11 min-w-11 flex items-center justify-center"
  aria-label="Toggle theme"
  >
  <div className="relative w-5 h-5">
@@ -219,7 +231,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
  {/* Mobile hamburger */}
  <button
- className="md:hidden p-2 rounded-full hover:bg-muted dark:hover:bg-muted/50 transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+ className="md:hidden p-2 min-w-11 min-h-11 rounded-full hover:bg-muted dark:hover:bg-muted/50 transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 flex items-center justify-center"
  onClick={toggleMobile}
  aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
  aria-expanded={mobileOpen}
@@ -256,10 +268,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
  {/* Mobile overlay */}
  <div
- className={`fixed inset-0 z-[60] bg-black/50 dark:bg-black/70 backdrop-blur-sm transition-opacity duration-300 md:hidden ${
+ className={`fixed inset-0 z-overlay bg-black/50 dark:bg-black/70 backdrop-blur-sm transition-opacity duration-300 md:hidden ${
  mobileOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
  }`}
- onClick={() => setMobileOpen(false)}
+ onClick={() => { window.scrollTo({ top: 0, behavior: "instant" }); setMobileOpen(false); }}
  aria-hidden="true"
  />
 
@@ -267,7 +279,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
  <aside
  id="mobile-nav"
  ref={mobileNavRef}
- className={`fixed top-0 right-0 z-[70] h-full w-[280px] bg-background dark:bg-background/98 border-l border-border shadow-2xl transform transition-transform duration-300 ease-out md:hidden ${
+ className={`fixed top-0 right-0 z-overlay h-full w-[280px] bg-background dark:bg-background/98 border-l border-border shadow-2xl transform transition-transform duration-300 ease-out md:hidden ${
  mobileOpen ? 'translate-x-0' : 'translate-x-full'
  }`}
  role="dialog"
@@ -282,7 +294,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
  {/* Close button */}
  <div className="flex justify-end px-4">
  <button
- onClick={() => setMobileOpen(false)}
+ onClick={() => { window.scrollTo({ top: 0, behavior: "instant" }); setMobileOpen(false) }}
  className="p-2 cursor-pointer rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
  aria-label="Close navigation menu"
  >

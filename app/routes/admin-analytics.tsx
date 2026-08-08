@@ -18,7 +18,13 @@ import {
 	Pie,
 	Cell,
 } from "recharts";
-import { FiZap, FiActivity, FiCpu, FiClock, FiAlertTriangle } from "react-icons/fi";
+import {
+	Zap,
+	Activity,
+	Cpu,
+	Clock,
+	AlertTriangle,
+} from "lucide-react";
 
 export const meta: MetaFunction = () => [{ title: "Analytics | Admin | OpusZen" }];
 
@@ -219,11 +225,11 @@ export default function AdminAnalyticsRoute() {
 
 						{/* Top Stats */}
 						<div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-							<StatCard title="Total Requests" value={(stats.totalRequests / 1000).toFixed(1) + "K"} icon={<FiActivity className="w-4 h-4" />} iconBg="bg-indigo-500/10" iconColor="text-indigo-500" />
-							<StatCard title="Avg Latency" value={stats.avgLatency + "ms"} icon={<FiClock className="w-4 h-4" />} iconBg="bg-amber-500/10" iconColor="text-amber-500" />
-							<StatCard title="Error Rate" value={stats.errorRate + "%"} icon={<FiAlertTriangle className="w-4 h-4" />} iconBg={stats.errorRate > 5 ? "bg-red-500/10" : "bg-emerald-500/10"} iconColor={stats.errorRate > 5 ? "text-red-500" : "text-emerald-500"} />
-							<StatCard title="Total Tokens" value={(stats.totalTokens / 1e6).toFixed(1) + "M"} icon={<FiCpu className="w-4 h-4" />} iconBg="bg-emerald-500/10" iconColor="text-emerald-500" />
-							<StatCard title="Peak RPM" value={stats.peakRPM.toString()} icon={<FiZap className="w-4 h-4" />} iconBg="bg-violet-500/10" iconColor="text-violet-500" />
+							<StatCard title="Total Requests" value={(stats.totalRequests / 1000).toFixed(1) + "K"} icon={<Activity className="w-4 h-4" />} iconBg="bg-indigo-500/10" iconColor="text-indigo-500" />
+							<StatCard title="Avg Latency" value={stats.avgLatency + "ms"} icon={<Clock className="w-4 h-4" />} iconBg="bg-amber-500/10" iconColor="text-amber-500" />
+							<StatCard title="Error Rate" value={stats.errorRate + "%"} icon={<AlertTriangle className="w-4 h-4" />} iconBg={stats.errorRate > 5 ? "bg-red-500/10" : "bg-emerald-500/10"} iconColor={stats.errorRate > 5 ? "text-red-500" : "text-emerald-500"} />
+							<StatCard title="Total Tokens" value={(stats.totalTokens / 1e6).toFixed(1) + "M"} icon={<Cpu className="w-4 h-4" />} iconBg="bg-emerald-500/10" iconColor="text-emerald-500" />
+							<StatCard title="Peak RPM" value={stats.peakRPM.toString()} icon={<Zap className="w-4 h-4" />} iconBg="bg-violet-500/10" iconColor="text-violet-500" />
 						</div>
 
 						{/* 30-Day Trend Chart */}

@@ -7,7 +7,10 @@ function generateSecureKey(prefix: string, length: number): string {
 }
 
 function jsonResponse(body: any, error?: string, status = 200): Response {
-	const payload = typeof body === "boolean" ? { success: body, error } : body;
+	const payload =
+		typeof body === "boolean"
+			? { success: body, ...(error ? { error } : {}) }
+			: body;
 	return new Response(JSON.stringify(payload), {
 		status,
 		headers: { "Content-Type": "application/json" },
@@ -33,6 +36,9 @@ async function getAuthenticatedUserId(request: Request): Promise<string | null> 
  *
  * Server-side endpoint that creates an API key for a paid order.
  * Requires authenticated user session.
+ *
+ * SECURITY: All key parameters (duration, multiplier, credits, pricing)
+ * are derived from the confirmed order in the database — NOT from client input.
  */
 export async function action({ request }: ActionFunctionArgs) {
 	if (request.method !== "POST") {
@@ -40,73 +46,94 @@ export async function action({ request }: ActionFunctionArgs) {
 	}
 
 	try {
-		const userId = getAuthenticatedUserId(request);
+		const userId = await getAuthenticatedUserId(request);
 		if (!userId) {
 			return jsonResponse(false, "Authentication required", 401);
 		}
 
 		const formData = await request.formData();
-		const orderId = formData.get("orderId") as string;
-		const planId = formData.get("planId") as string;
-		const planName = formData.get("planName") as string;
-		const durationDays = parseInt(formData.get("duration") as string || "30", 10);
-		const multiplier = parseFloat(formData.get("multiplier") as string || "1");
-		const keyName = (formData.get("keyName") as string) || "Purchased Key";
-		const tokenPricing = formData.get("tokenPricing") === "1";
-		const pricePer1mInput = parseFloat(formData.get("pricePer1mInput") as string || "0");
-		const pricePer1mOutput = parseFloat(formData.get("pricePer1mOutput") as string || "0");
-		const minCredits = parseFloat(formData.get("minCredits") as string || "0");
-		const paymentMethod = formData.get("method") as string || "PAY0";
-		const txnRef = (formData.get("txnRef") as string) || "";
-		const utr = (formData.get("utr") as string) || "";
-		const _amount = (formData.get("amount") as string) || "0";
+		const orderId = (formData.get("orderId") as string) || "";
 
-		if (!orderId || !userId) {
-			return jsonResponse(false, "Missing order ID or user ID", 400);
+		if (!orderId) {
+			return jsonResponse(false, "Missing order ID", 400);
 		}
 
-		// Check idempotency: if already completed, return success
+		// Look up the order from the database — this is the source of truth
 		const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(orderId);
-		let existingOrder: { id: string; status: string } | null = null;
+
+		let order: {
+			id: string;
+			user_id: string;
+			plan_name: string;
+			status: string;
+			duration_days: number;
+			multiplier: number;
+			min_credits: number;
+			price_per_1m_input: number;
+			price_per_1m_output: number;
+			pricing_type: string;
+			payment_method: string;
+		} | null = null;
 
 		if (isUuid) {
 			const { data } = await supabaseServer
 				.from("orders")
-				.select("id, status")
+				.select("id, user_id, plan_name, status, duration_days, multiplier, min_credits, price_per_1m_input, price_per_1m_output, pricing_type, payment_method")
 				.eq("id", orderId)
 				.maybeSingle();
-			existingOrder = data;
+			order = data;
 		} else {
 			const { data } = await supabaseServer
 				.from("orders")
-				.select("id, status")
+				.select("id, user_id, plan_name, status, duration_days, multiplier, min_credits, price_per_1m_input, price_per_1m_output, pricing_type, payment_method")
 				.or(`display_id.eq.${orderId},payment_ref.eq.${orderId}`)
 				.maybeSingle();
-			existingOrder = data;
+			order = data;
 		}
 
-		if (existingOrder?.status === "completed") {
+		if (!order) {
+			return jsonResponse(false, "Order not found", 404);
+		}
+
+		// Verify the order belongs to the authenticated user
+		if (order.user_id !== userId) {
+			return jsonResponse(false, "Access denied — order does not belong to you", 403);
+		}
+
+		// Verify the order is paid (not pending or cancelled)
+		if (order.status === "cancelled" || order.status === "refunded") {
+			return jsonResponse(false, `Order is ${order.status} — cannot finalize`, 400);
+		}
+
+		// Check idempotency: if already completed, return success
+		if (order.status === "completed") {
 			return jsonResponse({ success: true, alreadyFinalized: true });
 		}
 
-		const dbOrderId = existingOrder?.id || (isUuid ? orderId : null);
+		// Derive key parameters from the DB order — ignore client-provided values
+		const planName = order.plan_name || "Purchased Key";
+		const durationDays = order.duration_days || 30;
+		const multiplier = order.multiplier || 1;
+		const tokenPricing = order.pricing_type === "per_token";
+		const minCredits = order.min_credits || 0;
+		const pricePer1mInput = order.price_per_1m_input || 0;
+		const pricePer1mOutput = order.price_per_1m_output || 0;
+		const utr = (formData.get("utr") as string) || "";
 
-		if (dbOrderId) {
-			// Mark order as completed
-			const { error: orderError } = await supabaseServer
-				.from("orders")
-				.update({
-					status: "completed",
-					payment_ref: utr || txnRef || orderId || null,
-					notes: `Order ${orderId} — ${paymentMethod} confirmed${utr ? ` (UTR ${utr})` : ""}`,
-				})
-				.eq("id", dbOrderId)
-				.eq("status", "pending");
+		// Mark order as completed
+		const { error: orderError } = await supabaseServer
+			.from("orders")
+			.update({
+				status: "completed",
+				payment_ref: utr || orderId || null,
+				notes: `Order ${orderId} — ${order.payment_method || "payment"} confirmed${utr ? ` (UTR ${utr})` : ""}`,
+			})
+			.eq("id", order.id)
+			.eq("status", "pending");
 
-			if (orderError) {
-				console.error("[api/finalize-key] Failed to update order:", orderError);
-				return jsonResponse(false, "Failed to update order status", 500);
-			}
+		if (orderError) {
+			console.error("[api/finalize-key] Failed to update order:", orderError);
+			return jsonResponse(false, "Failed to update order status", 500);
 		}
 
 		// Generate API key (CSPRNG)
@@ -118,7 +145,7 @@ export async function action({ request }: ActionFunctionArgs) {
 			.insert({
 				user_id: userId,
 				api_key: fullKey,
-				name: keyName || "Purchased Key",
+				name: planName,
 				status: "active",
 				allocated_credits: tokenPricing ? (minCredits || 0) : 0,
 				used_credits: 0,
@@ -143,7 +170,7 @@ export async function action({ request }: ActionFunctionArgs) {
 		if (keyError || !keyRow?.id) {
 			console.error("[api/finalize-key] Failed to insert API key:", keyError);
 			// Roll back order status
-			await supabaseServer.from("orders").update({ status: "pending" }).eq("id", dbOrderId);
+			await supabaseServer.from("orders").update({ status: "pending" }).eq("id", order.id);
 			return jsonResponse(false, "Failed to create API key", 500);
 		}
 

@@ -54,7 +54,6 @@ export function BlurReveal({
  viewport={{ once, margin: "-60px" }}
  transition={{ duration, delay, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] }}
  className={className}
- style={{ willChange: "transform, opacity, filter" }}
  >
  {children}
  </MotionDiv>
@@ -86,7 +85,6 @@ export function ScaleReveal({
  viewport={{ once, margin: "-60px" }}
  transition={{ duration, delay, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] }}
  className={className}
- style={{ willChange: "transform, opacity" }}
  >
  {children}
  </MotionDiv>

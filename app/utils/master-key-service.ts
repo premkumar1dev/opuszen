@@ -11,19 +11,26 @@ import { encrypt, decrypt } from "~/utils/crypto.server";
 
 /** Decrypt the api_key field from a raw DB row */
 function decryptKey(row: any): any {
- if (!row?.api_key || typeof row.api_key !== "string") return row;
- // Skip decryption for legacy plaintext keys (legacy data migration path)
- if (!row.api_key.includes(":") || row.api_key.split(":").length < 3) {
- return row; // plaintext - will be encrypted on next update
- }
- // Encrypted format (iv:tag:ciphertext)
- const decrypted = decrypt(row.api_key);
- if (decrypted) {
- return { ...row, api_key: decrypted };
- }
- // Decryption failed - this means the encryption key changed or data is corrupted
- console.error("[master-key-service] Failed to decrypt API key for row", row.id, "- key may be unrecoverable");
- throw new Error(`Failed to decrypt API key for row ${row.id}`);
+	if (!row?.api_key || typeof row.api_key !== "string") return row;
+	// Skip decryption for legacy plaintext keys (legacy data migration path)
+	if (!row.api_key.includes(":") || row.api_key.split(":").length < 3) {
+		return row; // plaintext - will be encrypted on next update
+	}
+	// Encrypted format (iv:tag:ciphertext)
+	try {
+		const decrypted = decrypt(row.api_key);
+		if (decrypted) {
+			return { ...row, api_key: decrypted };
+		}
+		// Decryption failed — log and return row with placeholder so the key
+		// is NOT leaked but the rest of the data is still usable. The caller
+		// should skip this key in the request path.
+		console.error(`[master-key-service] Failed to decrypt API key for row ${row.id} — key may be unrecoverable`);
+		return { ...row, api_key: '[encrypted — decryption failed]' };
+	} catch (err) {
+		console.error(`[master-key-service] Exception decrypting key for row ${row.id}:`, err);
+		return { ...row, api_key: '[encrypted — decryption failed]' };
+	}
 }
 
 function decryptKeys(rows: any[]): any[] {

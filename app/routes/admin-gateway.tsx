@@ -4,7 +4,27 @@ import { useState, useEffect } from "react";
 import { verifyAdminSession } from "~/utils/admin-auth";
 import { AdminSidebar } from "~/components/admin/admin-sidebar";
 import { cn } from "@/lib/utils";
-import { FiServer, FiCpu, FiHardDrive, FiZap, FiGlobe, FiShield, FiRefreshCw, FiPlay, FiSquare, FiAlertTriangle, FiCheckCircle, FiXCircle, FiClock, FiCopy, FiChevronDown, FiKey, FiActivity, FiUsers, FiSettings } from "react-icons/fi";
+import {
+ Server,
+ Cpu,
+ HardDrive,
+ Zap,
+ Globe,
+ Shield,
+ RefreshCw,
+ Play,
+ Square,
+ AlertTriangle,
+ CheckCircle,
+ XCircle,
+ Clock,
+ Copy,
+ ChevronDown,
+ Key,
+ Activity,
+ Users,
+ Settings,
+} from "lucide-react";
 
 export const meta: MetaFunction = () => [{ title: "API Gateway | Admin | OpusZen" }];
 
@@ -101,11 +121,11 @@ export default function AdminGatewayRoute() {
 						</div>
 						<div className="flex gap-2">
 							<button className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium border border-border hover:bg-muted/50 transition-colors cursor-pointer text-muted-foreground">
-								<FiRefreshCw className="w-3.5 h-3.5" />
+								<RefreshCw className="w-3.5 h-3.5" />
 								Restart All
 							</button>
 							<button className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors cursor-pointer shadow-sm">
-								<FiPlay className="w-3.5 h-3.5" />
+								<Play className="w-3.5 h-3.5" />
 								Deploy
 							</button>
 						</div>
@@ -114,12 +134,12 @@ export default function AdminGatewayRoute() {
 					{/* Sub-navigation */}
 					<div className="flex flex-wrap gap-2">
 						{[
-							{ to: "/auth/admin/gateway/keys", label: "Master Keys", icon: FiKey },
-							{ to: "/auth/admin/gateway/user-keys", label: "User Keys", icon: FiUsers },
-							{ to: "/auth/admin/gateway/logs", label: "Request Logs", icon: FiClock },
-							{ to: "/auth/admin/gateway/failover-logs", label: "Failover Logs", icon: FiActivity },
-							{ to: "/auth/admin/gateway/health", label: "Health Monitor", icon: FiShield },
-							{ to: "/auth/admin/gateway/settings", label: "Settings", icon: FiSettings },
+							{ to: "/auth/admin/gateway/keys", label: "Master Keys", icon: Key },
+							{ to: "/auth/admin/gateway/user-keys", label: "User Keys", icon: Users },
+							{ to: "/auth/admin/gateway/logs", label: "Request Logs", icon: Clock },
+							{ to: "/auth/admin/gateway/failover-logs", label: "Failover Logs", icon: Activity },
+							{ to: "/auth/admin/gateway/health", label: "Health Monitor", icon: Shield },
+							{ to: "/auth/admin/gateway/settings", label: "Settings", icon: Settings },
 						].map((nav) => (
 							<Link
 								key={nav.to}
@@ -135,10 +155,10 @@ export default function AdminGatewayRoute() {
 					{/* Global Metrics */}
 					<div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
 						{[
-							{ label: "Requests/sec", value: totalRPS.toString(), icon: <FiZap className="w-4 h-4" />, color: "text-amber-500" },
-							{ label: "24h Requests", value: (totalRequests24h / 1000).toFixed(1) + "K", icon: <FiGlobe className="w-4 h-4" />, color: "text-indigo-500" },
-							{ label: "Avg Response", value: avgResponseTime + "ms", icon: <FiClock className="w-4 h-4" />, color: "text-emerald-500" },
-							{ label: "Active Nodes", value: services.filter(s => s.status === "running").length + "/" + services.length, icon: <FiServer className="w-4 h-4" />, color: "text-violet-500" },
+							{ label: "Requests/sec", value: totalRPS.toString(), icon: <Zap className="w-4 h-4" />, color: "text-amber-500" },
+							{ label: "24h Requests", value: (totalRequests24h / 1000).toFixed(1) + "K", icon: <Globe className="w-4 h-4" />, color: "text-indigo-500" },
+							{ label: "Avg Response", value: avgResponseTime + "ms", icon: <Clock className="w-4 h-4" />, color: "text-emerald-500" },
+							{ label: "Active Nodes", value: services.filter(s => s.status === "running").length + "/" + services.length, icon: <Server className="w-4 h-4" />, color: "text-violet-500" },
 						].map((m) => (
 							<div key={m.label} className="p-4 rounded-xl border border-border bg-card/60">
 								<div className="flex items-center gap-2 mb-2">
@@ -161,7 +181,7 @@ export default function AdminGatewayRoute() {
 									<div className="flex items-center justify-between mb-3">
 										<div className="flex items-center gap-3">
 											<div className={`w-8 h-8 rounded-lg flex items-center justify-center ${svc.status === "running" ? "bg-emerald-500/10 text-emerald-500" : svc.status === "degraded" ? "bg-amber-500/10 text-amber-500" : "bg-red-500/10 text-red-500"}`}>
-												<FiServer className="w-4 h-4" />
+												<Server className="w-4 h-4" />
 											</div>
 											<div>
 												<p className="text-sm font-semibold text-foreground">{svc.name}</p>
@@ -225,11 +245,11 @@ export default function AdminGatewayRoute() {
 									<div className="flex gap-2 pt-2">
 										{selectedService.status === "running" ? (
 											<button className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold bg-red-500/10 hover:bg-red-500/15 text-red-500 transition-colors cursor-pointer">
-												<FiSquare className="w-3.5 h-3.5" /> Stop Node
+												<Square className="w-3.5 h-3.5" /> Stop Node
 											</button>
 										) : (
 											<button className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold bg-emerald-500/10 hover:bg-emerald-500/15 text-emerald-500 transition-colors cursor-pointer">
-												<FiPlay className="w-3.5 h-3.5" /> Start Node
+												<Play className="w-3.5 h-3.5" /> Start Node
 											</button>
 										)}
 									</div>
@@ -243,12 +263,12 @@ export default function AdminGatewayRoute() {
 						<h3 className="font-bold text-foreground mb-4">Environment Configuration</h3>
 						<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
 							{[
-								{ label: "Gateway URL", value: "https://api.opuszen.shop/api", icon: <FiGlobe className="w-3.5 h-3.5" /> },
-								{ label: "Environment", value: "Production", icon: <FiServer className="w-3.5 h-3.5" /> },
-								{ label: "Node Version", value: "v20.11.0", icon: <FiCpu className="w-3.5 h-3.5" /> },
-								{ label: "Database", value: "PostgreSQL 16", icon: <FiHardDrive className="w-3.5 h-3.5" /> },
-								{ label: "Cache", value: "Redis 7.2", icon: <FiZap className="w-3.5 h-3.5" /> },
-								{ label: "Auth", value: "Supabase Auth", icon: <FiShield className="w-3.5 h-3.5" /> },
+								{ label: "Gateway URL", value: "https://api.opuszen.shop/api", icon: <Globe className="w-3.5 h-3.5" /> },
+								{ label: "Environment", value: "Production", icon: <Server className="w-3.5 h-3.5" /> },
+								{ label: "Node Version", value: "v20.11.0", icon: <Cpu className="w-3.5 h-3.5" /> },
+								{ label: "Database", value: "PostgreSQL 16", icon: <HardDrive className="w-3.5 h-3.5" /> },
+								{ label: "Cache", value: "Redis 7.2", icon: <Zap className="w-3.5 h-3.5" /> },
+								{ label: "Auth", value: "Supabase Auth", icon: <Shield className="w-3.5 h-3.5" /> },
 							].map((cfg) => (
 								<div key={cfg.label} className="flex items-center gap-3 p-3 rounded-xl bg-muted/30 border border-border/50">
 									<div className="text-muted-foreground shrink-0">{cfg.icon}</div>

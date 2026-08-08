@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { FiX, FiZap, FiShield, FiExternalLink, FiCheckCircle, FiClock } from "react-icons/fi";
-import { FaWhatsapp } from "react-icons/fa";
+import { X, Zap, Shield, ExternalLink, CheckCircle, Clock } from "lucide-react";
+import { MessageCircle } from "lucide-react";
 import type { PlanOption } from "./plan-purchase-modal";
 
 const ADMIN_WHATSAPP_NUMBER = "918098830937";
@@ -53,7 +53,7 @@ export function ContactAdminModal({
 	return (
 		<AnimatePresence>
 			<div
-				className="fixed inset-0 z-[99999] flex items-center justify-center p-4 sm:p-6"
+				className="fixed inset-0 z-modal flex items-center justify-center p-4 sm:p-6"
 				role="dialog"
 				aria-modal="true"
 			>
@@ -83,11 +83,11 @@ export function ContactAdminModal({
 					<div className="flex items-start justify-between gap-4 p-6 border-b border-[#262320]">
 						<div className="flex items-center gap-3">
 							<div className="w-10 h-10 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
-								<FaWhatsapp className="w-5 h-5" />
+								<MessageCircle className="w-5 h-5" />
 							</div>
 							<div>
 								<div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-orange-500/10 border border-orange-500/20 text-[10px] font-bold text-[#EA580C] uppercase tracking-wider mb-1">
-									<FiZap className="w-3 h-3" /> Gateway Payment
+									<Zap className="w-3 h-3" /> Gateway Payment
 								</div>
 								<h2 className="text-lg font-extrabold text-white">
 									Contact Admin for Key Delivery
@@ -100,7 +100,7 @@ export function ContactAdminModal({
 							className="p-2 rounded-xl text-[#A8A29E] hover:text-white hover:bg-[#1F1D1B] transition-colors cursor-pointer"
 							aria-label="Close modal"
 						>
-							<FiX className="w-4 h-4" />
+							<X className="w-4 h-4" />
 						</button>
 					</div>
 
@@ -109,7 +109,7 @@ export function ContactAdminModal({
 						{/* Notice card */}
 						<div className="p-4 rounded-2xl bg-[#1A1918] border border-[#2B2724] space-y-2">
 							<div className="flex items-center gap-2 text-xs font-semibold text-emerald-400">
-								<FiCheckCircle className="w-4 h-4 shrink-0" />
+								<CheckCircle className="w-4 h-4 shrink-0" />
 								<span>Gateway Payment Window Opened</span>
 							</div>
 							<p className="text-xs text-[#A8A29E] leading-relaxed">
@@ -157,14 +157,14 @@ export function ContactAdminModal({
 								rel="noopener noreferrer"
 								className="w-full py-4 px-5 rounded-2xl bg-[#25D366] hover:bg-[#20bd5a] text-white font-extrabold text-sm flex items-center justify-center gap-2.5 shadow-lg shadow-emerald-900/30 transition-all active:scale-[0.99] cursor-pointer"
 							>
-								<FaWhatsapp className="w-5 h-5" />
+								<MessageCircle className="w-5 h-5" />
 								<span>Contact Admin on WhatsApp</span>
-								<FiExternalLink className="w-4 h-4 ml-auto opacity-80" />
+								<ExternalLink className="w-4 h-4 ml-auto opacity-80" />
 							</a>
 
 							<div className="p-3 rounded-xl bg-[#181716] border border-[#242220] flex items-center justify-between text-xs text-[#A8A29E]">
 								<div className="flex items-center gap-2">
-									<FiShield className="w-4 h-4 text-[#EA580C]" />
+									<Shield className="w-4 h-4 text-[#EA580C]" />
 									<span>Admin WhatsApp:</span>
 								</div>
 								<a
@@ -180,7 +180,7 @@ export function ContactAdminModal({
 
 						{/* Instant delivery note */}
 						<div className="flex items-center justify-center gap-1.5 text-[11px] text-[#78716C]">
-							<FiClock className="w-3.5 h-3.5 text-orange-500" />
+							<Clock className="w-3.5 h-3.5 text-orange-500" />
 							<span>Instant response & key activation within minutes</span>
 						</div>
 					</div>

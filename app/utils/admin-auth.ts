@@ -79,13 +79,12 @@ function getSecret(): string | null {
 }
 
 function getAdminEmail(): string | null {
-	if (typeof process !== "undefined" && process.env?.VITE_ADMIN_EMAIL) {
-		return process.env.VITE_ADMIN_EMAIL;
-	}
-	if (import.meta.env?.VITE_ADMIN_EMAIL) {
-		return import.meta.env.VITE_ADMIN_EMAIL;
-	}
-	return null;
+	// Server-side: use process.env (not VITE_ which is public/bundled)
+	const serverEmail =
+		(typeof process !== "undefined" && process.env?.ADMIN_EMAIL) ||
+		(typeof process !== "undefined" && process.env?.VITE_ADMIN_EMAIL) ||
+		null;
+	return serverEmail;
 }
 
 export async function verifyAdminSession(request?: Request): Promise<AdminSessionPayload> {
