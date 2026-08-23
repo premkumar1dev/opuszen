@@ -3,14 +3,14 @@ import { useLoaderData, useActionData, useNavigation } from "react-router";
 import { useState, useEffect } from "react";
 import { Layout } from "../components/Layout";
 import { getKeyStatus } from "~/utils/gateway-service";
-import { getPlanInfoForApiKey } from "~/utils/plan-service";
+import { getPlanInfoForApiKey, inferTokenLimitFromPlan } from "~/utils/plan-service";
 
 export const meta: MetaFunction = () => {
 	return [
-		{ title: "API Key Status | OpusZen" },
+		{ title: "API Key Status & Real-time Usage | OpusZen" },
 		{
 			name: "description",
-			content: "Check your API key usage, limits, and real-time status.",
+			content: "Check real-time OpusZen API key token usage, rolling limits, request metrics, and live status.",
 		},
 	];
 };
@@ -32,24 +32,20 @@ async function fetchKeyStatus(key: string) {
 			};
 		}
 
-		// SECURITY: Replace any OpusLive plan names with OpusZen plan data
-		const sanitized = { ...data };
-		if (sanitized.planName) {
-			try {
-				const opusZenPlan = await getPlanInfoForApiKey(cleanKey);
-				if (opusZenPlan) {
-					sanitized.planName = opusZenPlan.displayName;
-					(sanitized as any).opusZenPlan = opusZenPlan;
-				} else {
-					// No OpusZen plan assigned — sanitize any OpusLive naming patterns
-					sanitized.planName = sanitizeOpusLivePlanName(sanitized.planName as string);
+		// Also query plan assignment metadata if available
+		try {
+			const planInfo = await getPlanInfoForApiKey(cleanKey);
+			if (planInfo) {
+				(data as any).planInfo = planInfo;
+				if (planInfo.monthlyTokenLimit && !data.windowTokensLimit) {
+					data.windowTokensLimit = planInfo.monthlyTokenLimit;
 				}
-			} catch {
-				sanitized.planName = sanitizeOpusLivePlanName(sanitized.planName as string);
 			}
+		} catch {
+			// ignore plan lookup error
 		}
 
-		return { keyData: sanitized, error: null, key: cleanKey };
+		return { keyData: data, error: null, key: cleanKey };
 	} catch (err: unknown) {
 		return {
 			keyData: null,
@@ -57,15 +53,6 @@ async function fetchKeyStatus(key: string) {
 			key: cleanKey,
 		};
 	}
-}
-
-function sanitizeOpusLivePlanName(name: string): string {
-	// Strip OpusLive internal naming patterns (5X, 20X, etc.)
-	const opusLivePatterns = [/\b\d+X\b/i, /\b\d+times\b/i, /opuslive/i];
-	for (const pattern of opusLivePatterns) {
-		if (pattern.test(name)) return "Custom Plan";
-	}
-	return name;
 }
 
 export async function loader({ request }: LoaderFunctionArgs) {
@@ -97,9 +84,11 @@ export default function KeyStatusRoute() {
 	const isLoading = navigation.state === "submitting" || navigation.state === "loading";
 	const data = actionData || loaderData || { keyData: null, error: null, key: "" };
 	const { keyData, error, key } = data as any;
+
 	const [timeLeft, setTimeLeft] = useState<string>("");
 	const [showKeyInput, setShowKeyInput] = useState<boolean>(false);
 	const [autoRefresh, setAutoRefresh] = useState<boolean>(false);
+	const [copied, setCopied] = useState<boolean>(false);
 
 	// Auto-refresh every 30s when enabled
 	useEffect(() => {
@@ -111,6 +100,7 @@ export default function KeyStatusRoute() {
 		return () => clearInterval(interval);
 	}, [autoRefresh, key]);
 
+	// Countdown timer for window reset
 	useEffect(() => {
 		if (!keyData || !keyData.windowResetAt) {
 			setTimeLeft("");
@@ -128,7 +118,7 @@ export default function KeyStatusRoute() {
 			const diff = targetTime - now;
 
 			if (diff <= 0) {
-				setTimeLeft("Resetting...");
+				setTimeLeft("Window Resetting...");
 				return;
 			}
 
@@ -152,10 +142,15 @@ export default function KeyStatusRoute() {
 		};
 	}, [keyData?.windowResetAt]);
 
-	const getStatusColor = (percentage: number) => {
-		if (percentage < 70) return "text-emerald-600 dark:text-emerald-400";
-		if (percentage < 90) return "text-amber-600 dark:text-amber-400";
-		return "text-red-600 dark:text-red-400";
+	const copyToClipboard = async (text: string) => {
+		if (!text) return;
+		try {
+			await navigator.clipboard.writeText(text);
+			setCopied(true);
+			setTimeout(() => setCopied(false), 2500);
+		} catch {
+			// fallback
+		}
 	};
 
 	const formatDateToDDMMYY = (date: Date) => {
@@ -194,7 +189,7 @@ export default function KeyStatusRoute() {
 			hour12: true,
 		});
 
-		return `${timeStr} ${dateStr}`;
+		return `${timeStr} (${dateStr})`;
 	};
 
 	const getDaysLeftText = (isoString?: string) => {
@@ -210,17 +205,188 @@ export default function KeyStatusRoute() {
 
 		const parts = [];
 		if (diffDays > 0) {
-			parts.push(`${diffDays} day${diffDays > 1 ? "s" : ""}`);
+			parts.push(`${diffDays}d`);
 		}
 		if (diffHours > 0 || diffDays === 0) {
-			parts.push(`${diffHours} hour${diffHours > 1 ? "s" : ""}`);
+			parts.push(`${diffHours}h`);
 		}
-		return parts.join(", ") + " left";
+		return parts.join(" ") + " left";
 	};
 
-	const usagePercentage = keyData ? Number(keyData.usagePercent ?? 0) : 0;
-	const isUnlimited = keyData ? Boolean(keyData.unlimited ?? false) : false;
-	const planName = keyData ? String(keyData.planName ?? keyData.name ?? "Standard Plan") : "";
+	// ------------------------------------------------------------------------
+	// ACCURATE TOKEN & USAGE METRICS PARSING (Supports all gateway schemas)
+	// ------------------------------------------------------------------------
+	const rawLimit = Number(
+		keyData?.windowTokensLimit ??
+		keyData?.window_tokens_limit ??
+		keyData?.windowTokenLimit ??
+		keyData?.window_token_limit ??
+		keyData?.tokensLimit ??
+		keyData?.tokens_limit ??
+		keyData?.tokenLimit ??
+		keyData?.token_limit ??
+		keyData?.totalTokenLimit ??
+		keyData?.total_token_limit ??
+		keyData?.allocatedTokens ??
+		keyData?.allocated_tokens ??
+		keyData?.max_tokens ??
+		keyData?.maxTokens ??
+		keyData?.quota ??
+		keyData?.total_tokens ??
+		keyData?.totalTokens ??
+		0
+	);
+
+	const rawAllocatedCredits = Number(
+		keyData?.allocatedCredits ??
+		keyData?.allocated_credits ??
+		keyData?.totalCredits ??
+		keyData?.total_credits ??
+		0
+	);
+
+	const planInferredLimit = inferTokenLimitFromPlan(
+		keyData?.planName ||
+		keyData?.originalPlanName ||
+		keyData?.planInfo?.planName ||
+		keyData?.planInfo?.displayName ||
+		keyData?.name ||
+		keyData?.label ||
+		""
+	);
+
+	const limit = rawLimit > 0
+		? rawLimit
+		: rawAllocatedCredits > 100_000
+			? rawAllocatedCredits
+			: rawAllocatedCredits > 0
+				? rawAllocatedCredits * 1000
+				: Number(keyData?.planInfo?.monthlyTokenLimit || 0) > 0
+					? Number(keyData.planInfo.monthlyTokenLimit)
+					: planInferredLimit > 0
+						? planInferredLimit
+						: 0;
+
+	const rawUsed = Number(
+		keyData?.windowTokensUsed ??
+		keyData?.window_tokens_used ??
+		keyData?.windowTokenUsed ??
+		keyData?.window_token_used ??
+		keyData?.tokensUsed ??
+		keyData?.tokens_used ??
+		keyData?.usedTokens ??
+		keyData?.used_tokens ??
+		keyData?.tokenUsage ??
+		keyData?.token_usage ??
+		keyData?.used_quota ??
+		keyData?.usedQuota ??
+		(keyData?.totalPromptTokens || keyData?.totalCompletionTokens
+			? Number(keyData?.totalPromptTokens || 0) + Number(keyData?.totalCompletionTokens || 0)
+			: undefined) ??
+		(keyData?.prompt_tokens || keyData?.completion_tokens
+			? Number(keyData?.prompt_tokens || 0) + Number(keyData?.completion_tokens || 0)
+			: undefined) ??
+		0
+	);
+
+	const rawUsedCredits = Number(
+		keyData?.usedCredits ??
+		keyData?.used_credits ??
+		keyData?.spentCredits ??
+		keyData?.spent_credits ??
+		0
+	);
+
+	const rawUsagePercent = Number(
+		keyData?.usagePercent ??
+		keyData?.usage_percent ??
+		keyData?.usagePercentage ??
+		keyData?.usage_percentage ??
+		keyData?.usage_pct ??
+		0
+	);
+
+	const rawRemaining = Number(
+		keyData?.remainingTokens ??
+		keyData?.remaining_tokens ??
+		keyData?.windowTokensRemaining ??
+		keyData?.window_tokens_remaining ??
+		keyData?.tokensRemaining ??
+		keyData?.tokens_remaining ??
+		keyData?.remaining_quota ??
+		keyData?.remainingQuota ??
+		0
+	);
+
+	const rawRemainingCredits = Number(
+		keyData?.remainingCredits ??
+		keyData?.remaining_credits ??
+		0
+	);
+
+	// Check if usage object exists
+	const usageObjTokens = typeof keyData?.usage === 'object' && keyData?.usage !== null
+		? Number(
+			keyData.usage.total_tokens ??
+			keyData.usage.totalTokens ??
+			keyData.usage.tokens ??
+			keyData.usage.used ??
+			(keyData.usage.prompt_tokens || keyData.usage.completion_tokens
+				? Number(keyData.usage.prompt_tokens || 0) + Number(keyData.usage.completion_tokens || 0)
+				: 0)
+		  )
+		: 0;
+
+	// Check if logs contain token usage
+	const logsTokens = (Array.isArray(keyData?.recentLogs) ? keyData.recentLogs : Array.isArray(keyData?.recent_logs) ? keyData.recent_logs : Array.isArray(keyData?.logs) ? keyData.logs : [])
+		.reduce((sum: number, l: any) => sum + Number(l?.tokens || l?.total_tokens || (Number(l?.prompt_tokens || 0) + Number(l?.completion_tokens || 0)) || 0), 0);
+
+	let used = rawUsed > 0
+		? rawUsed
+		: usageObjTokens > 0
+			? usageObjTokens
+			: logsTokens > 0
+				? logsTokens
+				: rawAllocatedCredits > 100_000
+					? Math.round(rawUsedCredits)
+					: rawUsedCredits > 0
+						? Math.round(rawUsedCredits * 1000)
+						: 0;
+
+	// If still 0, check if remaining tokens is less than limit (Used = Limit - Remaining)
+	if (used === 0 && rawRemaining > 0 && limit > rawRemaining) {
+		used = limit - rawRemaining;
+	} else if (used === 0 && rawAllocatedCredits > 0 && rawRemainingCredits > 0 && rawAllocatedCredits > rawRemainingCredits) {
+		const diff = rawAllocatedCredits - rawRemainingCredits;
+		used = rawAllocatedCredits > 100_000 ? Math.round(diff) : Math.round(diff * 1000);
+	} else if (used === 0 && rawUsagePercent > 0 && limit > 0) {
+		used = Math.round(limit * (rawUsagePercent / 100));
+	}
+
+	const isUnlimited = keyData ? Boolean(keyData.unlimited ?? (limit === 0)) : false;
+
+	const remaining = isUnlimited
+		? 0
+		: rawRemaining > 0
+			? rawRemaining
+			: rawAllocatedCredits > 100_000 && rawRemainingCredits > 0
+				? Math.round(rawRemainingCredits)
+				: rawRemainingCredits > 0
+					? Math.round(rawRemainingCredits * 1000)
+					: limit > 0
+						? Math.max(0, limit - used)
+						: 0;
+
+	const calculatedUsagePercent = isUnlimited
+		? 0
+		: rawUsagePercent > 0
+			? rawUsagePercent
+			: limit > 0
+				? Math.min(100, Math.round((used / limit) * 1000) / 10)
+				: 0;
+
+	const usagePercentage = Number(calculatedUsagePercent.toFixed(1));
+
 	const keyName = keyData ? String(keyData.name ?? "API Key") : "";
 	const expiresAt = keyData ? String(keyData.expiresAt ?? "") : "";
 	const createdAt = keyData ? String(keyData.createdAt ?? "") : "";
@@ -228,519 +394,677 @@ export default function KeyStatusRoute() {
 	const isActive = keyData ? keyData.isActive ?? keyData.windowActive ?? true : true;
 	const connectionStatus = keyData?.connectionStatus || (isActive ? "Online" : "Offline");
 
-	const limit = keyData ? Number(keyData.windowTokensLimit ?? 0) : 0;
-	const used = keyData ? Number(keyData.windowTokensUsed ?? 0) : 0;
-	const remaining = keyData ? Number(keyData.remainingTokens ?? Math.max(0, limit - used)) : 0;
-
-	const rateLimit = keyData?.rateLimit ?? 0;
+	const rateLimit = keyData?.rateLimit ?? 60;
 	const last24hRequests = keyData?.last24h?.requests ?? 0;
 	const totalRequests = keyData?.totalRequests ?? 0;
-
 	const allowedModels = (keyData?.allowedModels as string[]) || [];
-
 	const recentLogs = (keyData?.recentLogs as any[]) || [];
-
 	const displayKey = key || "";
+
+	// Format helper for large numbers (e.g. 1.2M, 500K, or locale string)
+	const formatNumberCompact = (num: number) => {
+		if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(num % 1_000_000 === 0 ? 0 : 2)}M`;
+		if (num >= 1_000) return `${(num / 1_000).toFixed(num % 1_000 === 0 ? 0 : 1)}K`;
+		return num.toLocaleString();
+	};
+
+	const getProgressColor = (percent: number) => {
+		if (percent >= 90) return "from-rose-500 via-red-500 to-rose-600 shadow-rose-500/20";
+		if (percent >= 75) return "from-amber-500 via-orange-500 to-amber-600 shadow-amber-500/20";
+		return "from-emerald-500 via-teal-500 to-cyan-500 shadow-emerald-500/20";
+	};
+
+	const getProgressBadgeColor = (percent: number) => {
+		if (percent >= 90) return "text-rose-600 dark:text-rose-400 bg-rose-500/10 border-rose-500/30";
+		if (percent >= 75) return "text-amber-600 dark:text-amber-400 bg-amber-500/10 border-amber-500/30";
+		return "text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border-emerald-500/30";
+	};
 
 	return (
 		<Layout>
-			<div className="max-w-4xl mx-auto px-4 sm:px-6 py-12">
-				<div className="mb-8">
-					<h1 className="text-4xl sm:text-5xl font-bold tracking-tight text-foreground mb-3 text-gradient">
-						Check Usage
-					</h1>
-					<p className="text-muted-foreground text-base">
-						Enter your API key to view real-time status, token usage, and active rate limit windows.
-					</p>
-				</div>
+			{/* Ambient Glowing Background Elements */}
+			<div className="relative min-h-screen overflow-hidden">
+				<div className="pointer-events-none absolute -top-40 left-1/2 -translate-x-1/2 w-[700px] h-[500px] bg-gradient-to-tr from-primary/15 via-emerald-500/10 to-transparent blur-3xl opacity-70 dark:opacity-40" />
+				<div className="pointer-events-none absolute top-96 -left-32 w-80 h-80 bg-teal-500/10 blur-3xl rounded-full" />
+				<div className="pointer-events-none absolute top-[600px] -right-32 w-80 h-80 bg-primary/10 blur-3xl rounded-full" />
 
-				<div className="mb-8 p-6 rounded-2xl border border-border bg-card dark:bg-card/60 shadow-md" role="status" aria-live="polite" aria-atomic="true">
-					<Form method="post" action="/key-status" className="flex flex-col sm:flex-row gap-3">
-						<div className="relative flex-1">
-							<svg
-								xmlns="http://www.w3.org/2000/svg"
-								width={24}
-								height={24}
-								viewBox="0 0 24 24"
-								fill="none"
-								stroke="currentColor"
-								strokeWidth={2}
-								strokeLinecap="round"
-								strokeLinejoin="round"
-								className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground"
-								aria-hidden="true"
-							>
-								<path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z" />
-								<circle cx="16.5" cy="7.5" r=".5" fill="currentColor" />
-							</svg>
-							<input
-								type={showKeyInput ? "text" : "password"}
-								name="key"
-								defaultValue={key}
-								disabled={isLoading}
-								className="w-full pl-10 pr-24 py-3 rounded-xl border border-input bg-background/50 text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all placeholder:text-muted-foreground font-mono disabled:opacity-60"
-								placeholder="sk_live_************************"
-								required
-							/>
-							<button
-								type="button"
-								onClick={() => setShowKeyInput(!showKeyInput)}
-								className="absolute right-2 top-1/2 -translate-y-1/2 text-xs px-2 py-1 rounded text-muted-foreground hover:text-foreground transition-colors font-sans"
-								aria-label="Toggle key visibility"
-							>
-								{showKeyInput ? "Hide" : "Show"}
-							</button>
+				<div className="relative max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
+					
+					{/* Header section */}
+					<div className="text-center max-w-2xl mx-auto mb-10">
+						<div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-primary/10 text-primary border border-primary/20 mb-4 backdrop-blur-md shadow-xs">
+							<span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+							Real-Time Usage & Limit Telemetry
 						</div>
-						<button
-							type="submit"
-							disabled={isLoading}
-							className="inline-flex items-center justify-center gap-2 rounded-xl text-sm font-semibold bg-primary text-primary-foreground hover:bg-primary/95 transition-all px-6 h-12 cursor-pointer shadow-md shadow-primary/20 hover:scale-[1.01] disabled:opacity-75 disabled:cursor-not-allowed"
-						>
-							{isLoading ? (
-								<>
-									<svg className="animate-spin h-4 w-4 text-primary-foreground" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-										<circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-										<path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-									</svg>
-									<span>Fetching Data...</span>
-								</>
-							) : (
-								<>
-									<svg
-										xmlns="http://www.w3.org/2000/svg"
-										width={24}
-										height={24}
-										viewBox="0 0 24 24"
-										fill="none"
-										stroke="currentColor"
-										strokeWidth={2}
-										strokeLinecap="round"
-										strokeLinejoin="round"
-										className="h-4 w-4"
-										aria-hidden="true"
-									>
-										<circle cx="11" cy="11" r="8" />
-										<path d="m21 21-4.3-4.3" />
-									</svg>
-									<span>Check Key</span>
-								</>
-							)}
-						</button>
-					</Form>
-				</div>
-
-				{/* Fetch Loading Overlay Card */}
-				{isLoading && (
-					<div className="p-6 rounded-2xl border border-primary/30 bg-card/80 dark:bg-card/70 backdrop-blur-md shadow-xl relative overflow-hidden mb-8">
-						<div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-primary via-emerald-400 to-primary animate-pulse" />
-						<div className="flex items-center gap-3">
-							<div className="w-7 h-7 rounded-full border-2 border-primary border-t-transparent animate-spin shrink-0" />
-							<div>
-								<h3 className="text-sm font-bold text-foreground">Fetching Real-time Key Status...</h3>
-								<p className="text-xs text-muted-foreground">Connecting to OpusZen API Gateway & live database</p>
-							</div>
-						</div>
-					</div>
-				)}
-
-				{keyData && (keyData as any).warning && (
-					<div className="mb-8 p-4 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400 text-sm font-medium flex items-center gap-3">
-						<svg
-							xmlns="http://www.w3.org/2000/svg"
-							width={20}
-							height={20}
-							viewBox="0 0 24 24"
-							fill="none"
-							stroke="currentColor"
-							strokeWidth={2}
-							strokeLinecap="round"
-							strokeLinejoin="round"
-							className="shrink-0"
-						>
-							<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
-							<line x1="12" y1="9" x2="12" y2="13" />
-							<line x1="12" y1="17" x2="12.01" y2="17" />
-						</svg>
-						<div>
-							<p className="font-semibold">Key Status Alert</p>
-							<p className="text-xs opacity-90">{(keyData as any).warning}</p>
-						</div>
-					</div>
-				)}
-
-				{error && (
-					<div className="mb-8 p-5 rounded-2xl border border-destructive/30 bg-destructive/10 text-destructive text-sm font-medium">
-						<div className="flex items-start gap-3.5">
-							<svg
-								xmlns="http://www.w3.org/2000/svg"
-								width={22}
-								height={22}
-								viewBox="0 0 24 24"
-								fill="none"
-								stroke="currentColor"
-								strokeWidth={2}
-								strokeLinecap="round"
-								strokeLinejoin="round"
-								className="shrink-0 mt-0.5"
-							>
-								<circle cx="12" cy="12" r="10" />
-								<line x1="12" y1="8" x2="12" y2="12" />
-								<line x1="12" y1="16" x2="12.01" y2="16" />
-							</svg>
-							<div className="space-y-1.5 flex-1">
-								<p className="font-bold text-base">Query Failed</p>
-								<p className="text-sm opacity-90">{error}</p>
-								<div className="pt-2 flex flex-wrap items-center gap-3 text-xs">
-									<a
-										href="/user/my-keys"
-										className="inline-flex items-center gap-1 font-semibold underline hover:opacity-80 transition-opacity"
-									>
-										View My API Keys &rarr;
-									</a>
-									<a
-										href="/pricing"
-										className="inline-flex items-center gap-1 font-semibold underline hover:opacity-80 transition-opacity"
-									>
-										Get New API Key &rarr;
-									</a>
-								</div>
-							</div>
-						</div>
-					</div>
-				)}
-
-				{!keyData && !error && !isLoading && (
-					<div className="p-12 text-center rounded-2xl border border-border/50 bg-card/20 dark:bg-card/10">
-						<svg
-							xmlns="http://www.w3.org/2000/svg"
-							width={48}
-							height={48}
-							viewBox="0 0 24 24"
-							fill="none"
-							stroke="currentColor"
-							strokeWidth={1.5}
-							strokeLinecap="round"
-							strokeLinejoin="round"
-							className="mx-auto mb-4 text-muted-foreground/45"
-						>
-							<rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
-							<path d="M7 11V7a5 5 0 0 1 10 0v4" />
-						</svg>
-						<h3 className="text-lg font-semibold text-foreground mb-1">
-							Ready to check
-						</h3>
-						<p className="text-sm text-muted-foreground max-w-sm mx-auto">
-							Submit your OpusZen API key above to load real-time status, token usage, and rate limits dashboard.
+						<h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight text-foreground mb-3 text-gradient">
+							API Key Status
+						</h1>
+						<p className="text-muted-foreground text-sm sm:text-base leading-relaxed">
+							Inspect real-time token usage, sliding quota limits, rate allowances, and request latency for your OpusZen Gateway keys.
 						</p>
 					</div>
-				)}
 
-				{keyData && (
-					<div className="space-y-8">
-						{/* 1. Header Card: Key Identifier & Details */}
-						<div className="p-6 rounded-2xl border border-border bg-card dark:bg-card/60 shadow-sm relative overflow-hidden">
-							<div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-primary via-primary/70 to-primary/80 opacity-60" />
-
-							<div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-								<div>
-									<div className="flex items-center gap-2">
-										<span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-											Key Identifier
-										</span>
-										<span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-											<span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
-											Live Realtime
-										</span>
+					{/* Key Input Search Box */}
+					<div className="max-w-3xl mx-auto mb-10">
+						<div className="relative p-2 rounded-2xl border border-border/80 bg-card/75 dark:bg-card/45 backdrop-blur-xl shadow-xl shadow-black/5 hover:border-primary/40 transition-all duration-300">
+							<Form method="post" action="/key-status" className="flex flex-col sm:flex-row gap-2">
+								<div className="relative flex-1 flex items-center">
+									<div className="absolute left-3.5 text-muted-foreground/70 pointer-events-none">
+										<svg xmlns="http://www.w3.org/2000/svg" width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+											<path d="M21 2l-2 2m-1.5 1.5L10 13l-4 4-2-2 4-4 7.5-7.5" />
+											<circle cx="7.5" cy="16.5" r="3.5" />
+											<path d="m15.5 4.5 4 4" />
+										</svg>
 									</div>
-									<div className="flex items-center gap-2 mt-1">
-										<code className="text-sm font-mono font-bold text-primary dark:text-primary bg-muted/50 dark:bg-muted/10 px-2.5 py-1 rounded-md border border-primary/20 break-all">
-											{displayKey}
-										</code>
-										<button
-											type="button"
-											onClick={async () => {
-												try { await navigator.clipboard.writeText(displayKey); } catch {}
-											}}
-											className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
-											title="Copy API key to clipboard"
-											aria-label="Copy API key to clipboard"
-										>
-											<svg xmlns="http://www.w3.org/2000/svg" width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
-											Copy
-										</button>
-									</div>
-								</div>
-								<div className="flex items-center gap-2">
-									<Form method="post" action="/key-status" className="inline">
-										<input type="hidden" name="key" value={key} />
-										<button
-											type="submit"
-											disabled={isLoading}
-											title="Refresh Real-time Data"
-											className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border border-border bg-background hover:bg-muted transition-colors text-foreground shadow-xs cursor-pointer disabled:opacity-60"
-										>
-											<svg
-												xmlns="http://www.w3.org/2000/svg"
-												width={14}
-												height={14}
-												viewBox="0 0 24 24"
-												fill="none"
-												stroke="currentColor"
-												strokeWidth={2}
-												strokeLinecap="round"
-												strokeLinejoin="round"
-												className={`shrink-0 ${isLoading ? "animate-spin text-primary" : ""}`}
-											>
-												<path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
-												<path d="M3 3v5h5" />
-												<path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" />
-												<path d="M16 16h5v5" />
-											</svg>
-											{isLoading ? "Syncing..." : "Refresh Live Data"}
-										</button>
-									</Form>
+									<input
+										type={showKeyInput ? "text" : "password"}
+										name="key"
+										defaultValue={key}
+										disabled={isLoading}
+										className="w-full pl-11 pr-20 py-3.5 rounded-xl bg-background/70 dark:bg-background/40 border border-input/60 text-foreground text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/60 transition-all placeholder:text-muted-foreground/60 placeholder:font-sans disabled:opacity-60"
+										placeholder="Paste your OpusZen API key (sk_live_...)"
+										required
+										autoComplete="off"
+										spellCheck="false"
+									/>
 									<button
 										type="button"
-										onClick={() => setAutoRefresh(!autoRefresh)}
-										className={`inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border transition-colors cursor-pointer ${autoRefresh ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "border-border bg-background hover:bg-muted text-foreground"}`}
-										title={autoRefresh ? "Auto-refresh on (every 30s)" : "Auto-refresh off"}
-										aria-label={autoRefresh ? "Disable auto-refresh" : "Enable auto-refresh"}
+										onClick={() => setShowKeyInput(!showKeyInput)}
+										className="absolute right-2.5 px-2.5 py-1 text-xs font-semibold rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors"
+										aria-label="Toggle key visibility"
 									>
-										<span className={`w-1.5 h-1.5 rounded-full ${autoRefresh ? "bg-emerald-500 dark:bg-emerald-400 animate-pulse" : "bg-muted-foreground"}`} />
-										{autoRefresh ? "Live" : "Auto"}
+										{showKeyInput ? "Hide" : "Show"}
 									</button>
-									<span
-										className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-semibold ${isActive
-												? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
-												: "bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20"
-											}`}
-									>
-										<div
-											className={`w-2 h-2 rounded-full ${isActive ? "bg-emerald-500 animate-pulse" : "bg-red-500"
-												}`}
-											aria-hidden="true"
-										/>
-										{isActive ? "Key Active" : "Key Inactive"}
-									</span>
 								</div>
-							</div>
+								<button
+									type="submit"
+									disabled={isLoading}
+									className="inline-flex items-center justify-center gap-2 rounded-xl text-sm font-semibold bg-gradient-to-r from-primary via-primary/90 to-primary/80 text-primary-foreground hover:opacity-95 active:scale-[0.99] transition-all px-6 py-3.5 shadow-md shadow-primary/25 cursor-pointer disabled:opacity-75 disabled:cursor-not-allowed"
+								>
+									{isLoading ? (
+										<>
+											<svg className="animate-spin h-4 w-4 text-primary-foreground" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+												<circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+												<path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+											</svg>
+											<span>Querying Gateway...</span>
+										</>
+									) : (
+										<>
+											<svg xmlns="http://www.w3.org/2000/svg" width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
+												<circle cx="11" cy="11" r="8" />
+												<path d="m21 21-4.3-4.3" />
+											</svg>
+											<span>Check Status</span>
+										</>
+									)}
+								</button>
+							</Form>
+						</div>
+					</div>
 
-							<div className="grid grid-cols-1 sm:grid-cols-2 gap-4 border-t border-border/50 pt-4 text-sm">
+					{/* Loading State Skeleton Overlay */}
+					{isLoading && (
+						<div className="mb-8 p-6 rounded-2xl border border-primary/30 bg-card/85 dark:bg-card/75 backdrop-blur-xl shadow-xl relative overflow-hidden animate-pulse">
+							<div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-primary via-emerald-400 to-primary animate-pulse" />
+							<div className="flex items-center gap-4">
+								<div className="w-10 h-10 rounded-full border-3 border-primary border-t-transparent animate-spin shrink-0" />
 								<div>
-									<span className="text-muted-foreground">Key Name:</span>
-									<span className="ml-2 font-semibold text-foreground">
-										{keyName}
-									</span>
-								</div>
-								<div>
-									<span className="text-muted-foreground">Plan:</span>
-									<span className="ml-2 font-semibold text-foreground">
-										{planName}
-									</span>
-								</div>
-								<div>
-									<span className="text-muted-foreground">Expires:</span>
-									<span className="ml-2 font-semibold text-foreground">
-										{expiresAt
-											? `${formatDateTimeFormatted(expiresAt)} (${getDaysLeftText(expiresAt)})`
-											: "Never"}
-									</span>
-								</div>
-								<div>
-									<span className="text-muted-foreground">Created:</span>
-									<span className="ml-2 font-semibold text-foreground">
-										{createdAt ? formatDateTimeFormatted(createdAt) : "N/A"}
-									</span>
+									<h3 className="text-base font-bold text-foreground">Querying OpusZen Gateway & Node Cluster...</h3>
+									<p className="text-xs text-muted-foreground mt-0.5">Fetching live token quotas, rolling usage telemetry, and recent execution logs</p>
 								</div>
 							</div>
 						</div>
+					)}
 
-						{/* 2. Token Rolling Quota (5h Window) */}
-						<div className="p-6 rounded-2xl border border-border bg-card dark:bg-card/60 shadow-sm">
-							<div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
-								<h2 className="text-lg font-bold text-foreground">
-									Token Rolling Quota (5h Window)
-								</h2>
-								<span className={`text-sm font-semibold ${getStatusColor(usagePercentage)}`}>
-									{isUnlimited ? "Unlimited" : `${usagePercentage}% used`}
-								</span>
+					{/* Warning Alert */}
+					{keyData && (keyData as any).warning && (
+						<div className="mb-8 p-4 rounded-2xl border border-amber-500/30 bg-amber-500/10 dark:bg-amber-500/5 text-amber-600 dark:text-amber-400 text-sm font-medium flex items-center gap-3.5 backdrop-blur-md">
+							<div className="p-2 rounded-xl bg-amber-500/20 shrink-0">
+								<svg xmlns="http://www.w3.org/2000/svg" width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+									<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
+									<line x1="12" y1="9" x2="12" y2="13" />
+									<line x1="12" y1="17" x2="12.01" y2="17" />
+								</svg>
 							</div>
+							<div>
+								<p className="font-bold text-foreground">Key Status Alert</p>
+								<p className="text-xs opacity-90 mt-0.5">{(keyData as any).warning}</p>
+							</div>
+						</div>
+					)}
 
-							<div className="mb-4">
-								<div className="flex justify-between text-sm mb-2">
-									<span className="text-muted-foreground">Usage</span>
-									<span className="font-semibold text-foreground">
-										{isUnlimited
-											? "Unlimited tokens available"
-											: `${used.toLocaleString()} / ${limit.toLocaleString()} tokens`}
-									</span>
+					{/* Error Alert */}
+					{error && (
+						<div className="mb-8 p-6 rounded-2xl border border-destructive/30 bg-destructive/10 dark:bg-destructive/5 backdrop-blur-md">
+							<div className="flex items-start gap-4">
+								<div className="p-2.5 rounded-xl bg-destructive/20 text-destructive shrink-0">
+									<svg xmlns="http://www.w3.org/2000/svg" width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+										<circle cx="12" cy="12" r="10" />
+										<line x1="12" y1="8" x2="12" y2="12" />
+										<line x1="12" y1="16" x2="12.01" y2="16" />
+									</svg>
 								</div>
-								<div className="w-full bg-muted rounded-full h-3.5 dark:bg-muted/20 overflow-hidden">
-									<div
-										className={`h-full rounded-full transition-all duration-500 ${usagePercentage < 70
-												? "bg-emerald-500 dark:bg-emerald-400"
-												: usagePercentage < 90
-													? "bg-amber-500 dark:bg-amber-400"
-													: "bg-red-500"
-											}`}
-										style={{
-											width: `${isUnlimited ? 0 : Math.min(100, usagePercentage)}%`,
-										}}
-									/>
-								</div>
-								<div className="flex flex-col sm:flex-row justify-between text-xs mt-2.5 gap-2 text-muted-foreground">
-									<span>
-										{isUnlimited
-											? "Unlimited tokens"
-											: `${remaining.toLocaleString()} tokens remaining`}
-									</span>
-									<div className="flex flex-col sm:items-end gap-1">
-										<span>Resets: {formatDateTimeFormatted(keyData.windowResetAt)}</span>
-										{timeLeft && (
-											<span className="text-primary dark:text-primary font-semibold">
-												{timeLeft}
-											</span>
-										)}
+								<div className="space-y-2 flex-1">
+									<h3 className="font-bold text-foreground text-base">Key Lookup Failed</h3>
+									<p className="text-sm text-destructive/90">{error}</p>
+									<div className="pt-2 flex flex-wrap items-center gap-4 text-xs">
+										<a
+											href="/user/my-keys"
+											className="inline-flex items-center gap-1.5 font-semibold text-primary hover:underline"
+										>
+											<span>Manage API Keys</span>
+											<svg xmlns="http://www.w3.org/2000/svg" width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+										</a>
+										<a
+											href="/pricing"
+											className="inline-flex items-center gap-1.5 font-semibold text-muted-foreground hover:text-foreground hover:underline"
+										>
+											<span>Get New Key</span>
+											<svg xmlns="http://www.w3.org/2000/svg" width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+										</a>
 									</div>
 								</div>
 							</div>
 						</div>
+					)}
 
-						{/* 3 & 4. Grid: Request Quota & Limits AND Last Activity */}
-						<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-							{/* Request Quota & Limits */}
-							<div className="p-6 rounded-2xl border border-border bg-card dark:bg-card/60 shadow-sm flex flex-col justify-between">
-								<h3 className="text-lg font-bold text-foreground mb-4">
-									Request Quota & limits
-								</h3>
-								<div className="space-y-3 text-sm">
-									<div className="flex justify-between items-center py-1.5 border-b border-border/40">
-										<span className="text-muted-foreground">Rate Limit:</span>
-										<span className="font-semibold text-foreground">
-											{rateLimit} requests/min
-										</span>
-									</div>
-									<div className="flex justify-between items-center py-1.5 border-b border-border/40">
-										<span className="text-muted-foreground">Last 24h requests:</span>
-										<span className="font-semibold text-foreground">
-											{last24hRequests.toLocaleString()}
-										</span>
-									</div>
-									<div className="flex justify-between items-center py-1.5">
-										<span className="text-muted-foreground">Total API Requests:</span>
-										<span className="font-semibold text-foreground">
-											{totalRequests.toLocaleString()}
-										</span>
-									</div>
+					{/* Empty State */}
+					{!keyData && !error && !isLoading && (
+						<div className="p-12 sm:p-16 text-center rounded-3xl border border-border/70 bg-card/40 dark:bg-card/20 backdrop-blur-xl shadow-lg">
+							<div className="w-16 h-16 rounded-2xl bg-primary/10 border border-primary/20 text-primary mx-auto mb-5 flex items-center justify-center shadow-inner">
+								<svg xmlns="http://www.w3.org/2000/svg" width={32} height={32} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+									<rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
+									<path d="M7 11V7a5 5 0 0 1 10 0v4" />
+								</svg>
+							</div>
+							<h3 className="text-xl font-bold text-foreground mb-2">
+								Real-Time Key Telemetry
+							</h3>
+							<p className="text-sm text-muted-foreground max-w-md mx-auto mb-6 leading-relaxed">
+								Enter your OpusZen API key above to inspect live token balance, window limits, latency metrics, and API request logs.
+							</p>
+							<div className="flex flex-wrap justify-center items-center gap-3 text-xs text-muted-foreground">
+								<div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-background/60 border border-border">
+									<span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+									5-Hour Rolling Limit Support
+								</div>
+								<div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-background/60 border border-border">
+									<span className="w-1.5 h-1.5 rounded-full bg-cyan-500" />
+									Token Accurate Usage
+								</div>
+								<div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-background/60 border border-border">
+									<span className="w-1.5 h-1.5 rounded-full bg-primary" />
+									Auto-Refresh Telemetry
 								</div>
 							</div>
+						</div>
+					)}
 
-							{/* Last Activity */}
-							<div className="p-6 rounded-2xl border border-border bg-card dark:bg-card/60 shadow-sm flex flex-col justify-between">
-								<h3 className="text-lg font-bold text-foreground mb-4">
-									Last Activity
-								</h3>
-								<div className="space-y-4 text-sm">
+					{/* -------------------------------------------------------- */}
+					{/* MAIN DASHBOARD (When keyData is loaded)                   */}
+					{/* -------------------------------------------------------- */}
+					{keyData && (
+						<div className="space-y-8 animate-in fade-in-50 duration-500">
+							
+							{/* Top Bar: Key Identity & Controls */}
+							<div className="p-6 rounded-3xl border border-border/80 bg-card/75 dark:bg-card/45 backdrop-blur-xl shadow-xl relative overflow-hidden">
+								<div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-primary via-teal-400 to-emerald-500" />
+								
+								<div className="flex flex-col md:flex-row md:items-center justify-between gap-5 mb-6">
 									<div>
-										<span className="text-muted-foreground block mb-1">
-											Last request processed:
-										</span>
-										<span className="font-semibold text-foreground text-base">
-											{lastUsedAt ? formatDateTimeFormatted(lastUsedAt) : "N/A"}
+										<div className="flex items-center gap-2 mb-1.5">
+											<span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+												Active API Key
+											</span>
+											<span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+												<span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
+												Live Realtime
+											</span>
+										</div>
+										<div className="flex items-center gap-2.5 flex-wrap">
+											<code className="text-sm sm:text-base font-mono font-bold text-foreground bg-muted/60 dark:bg-muted/20 px-3 py-1.5 rounded-xl border border-border/60 break-all select-all">
+												{displayKey}
+											</code>
+											<button
+												type="button"
+												onClick={() => copyToClipboard(displayKey)}
+												className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+													copied
+														? "bg-emerald-500 text-white shadow-md shadow-emerald-500/20"
+														: "bg-background/80 hover:bg-muted border border-border text-foreground shadow-2xs"
+												}`}
+												title="Copy API key"
+											>
+												{copied ? (
+													<>
+														<svg xmlns="http://www.w3.org/2000/svg" width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+														<span>Copied!</span>
+													</>
+												) : (
+													<>
+														<svg xmlns="http://www.w3.org/2000/svg" width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+														<span>Copy Key</span>
+													</>
+												)}
+											</button>
+										</div>
+									</div>
+
+									{/* Action buttons */}
+									<div className="flex items-center gap-2 flex-wrap">
+										<Form method="post" action="/key-status" className="inline">
+											<input type="hidden" name="key" value={key} />
+											<button
+												type="submit"
+												disabled={isLoading}
+												className="inline-flex items-center gap-1.5 text-xs font-semibold px-3.5 py-2 rounded-xl border border-border bg-background/80 hover:bg-muted transition-all text-foreground shadow-2xs cursor-pointer disabled:opacity-60"
+											>
+												<svg
+													xmlns="http://www.w3.org/2000/svg"
+													width={14}
+													height={14}
+													viewBox="0 0 24 24"
+													fill="none"
+													stroke="currentColor"
+													strokeWidth={2}
+													strokeLinecap="round"
+													strokeLinejoin="round"
+													className={`shrink-0 ${isLoading ? "animate-spin text-primary" : ""}`}
+												>
+													<path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+													<path d="M3 3v5h5" />
+													<path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" />
+													<path d="M16 16h5v5" />
+												</svg>
+												{isLoading ? "Syncing..." : "Sync Live Data"}
+											</button>
+										</Form>
+
+										<button
+											type="button"
+											onClick={() => setAutoRefresh(!autoRefresh)}
+											className={`inline-flex items-center gap-1.5 text-xs font-semibold px-3.5 py-2 rounded-xl border transition-all cursor-pointer ${
+												autoRefresh
+													? "border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 shadow-xs"
+													: "border-border bg-background/80 hover:bg-muted text-foreground"
+											}`}
+											title={autoRefresh ? "Auto-refresh active (30s)" : "Enable auto-refresh"}
+										>
+											<span className={`w-2 h-2 rounded-full ${autoRefresh ? "bg-emerald-500 animate-ping" : "bg-muted-foreground/60"}`} />
+											{autoRefresh ? "Auto (30s)" : "Auto-Refresh"}
+										</button>
+
+										<span
+											className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold ${
+												isActive
+													? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25"
+													: "bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/25"
+											}`}
+										>
+											<span className={`w-2 h-2 rounded-full ${isActive ? "bg-emerald-500" : "bg-rose-500"}`} />
+											{isActive ? "Key Active" : "Key Inactive"}
 										</span>
 									</div>
-									<div className="pt-3 border-t border-border/40 flex items-center justify-between">
-										<span className="text-muted-foreground">Connection Status:</span>
-										<span className="inline-flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-semibold">
-											<div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+								</div>
+
+								{/* Metadata Grid (Plan Name completely removed as requested) */}
+								<div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 pt-5 border-t border-border/60">
+									<div className="p-3 rounded-2xl bg-background/50 dark:bg-background/25 border border-border/50">
+										<span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">
+											Key Label
+										</span>
+										<span className="text-sm font-bold text-foreground block truncate">
+											{keyName}
+										</span>
+									</div>
+
+									<div className="p-3 rounded-2xl bg-background/50 dark:bg-background/25 border border-border/50">
+										<span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">
+											Created Date
+										</span>
+										<span className="text-sm font-bold text-foreground block truncate">
+											{createdAt ? formatDateTimeFormatted(createdAt) : "N/A"}
+										</span>
+									</div>
+
+									<div className="p-3 rounded-2xl bg-background/50 dark:bg-background/25 border border-border/50">
+										<span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">
+											Expiration
+										</span>
+										<span className="text-sm font-bold text-foreground block truncate">
+											{expiresAt ? (
+												<>
+													{formatDateTimeFormatted(expiresAt)}
+													<span className="text-xs font-normal text-muted-foreground ml-1">
+														({getDaysLeftText(expiresAt)})
+													</span>
+												</>
+											) : (
+												"Never (No Expiration)"
+											)}
+										</span>
+									</div>
+
+									<div className="p-3 rounded-2xl bg-background/50 dark:bg-background/25 border border-border/50">
+										<span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">
+											Gateway Status
+										</span>
+										<span className="inline-flex items-center gap-1.5 text-sm font-bold text-emerald-600 dark:text-emerald-400">
+											<span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
 											{connectionStatus}
 										</span>
 									</div>
 								</div>
 							</div>
-						</div>
 
-						{/* 5. Available Claude Models */}
-						<div className="p-6 rounded-2xl border border-border bg-card dark:bg-card/60 shadow-sm">
-							<h3 className="text-lg font-bold text-foreground mb-4">
-								Available Claude Models
-							</h3>
-							<div className="flex flex-wrap gap-2.5">
-								{allowedModels.map((modelName) => (
-									<div
-										key={modelName}
-										className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border border-border/60 bg-muted/30 dark:bg-muted/10 text-xs font-mono font-medium text-foreground hover:border-primary/40 transition-colors"
-									>
-										<svg
-											xmlns="http://www.w3.org/2000/svg"
-											width={14}
-											height={14}
-											viewBox="0 0 24 24"
-											fill="none"
-											stroke="currentColor"
-											strokeWidth={2.5}
-											strokeLinecap="round"
-											strokeLinejoin="round"
-											className="text-emerald-500 shrink-0"
-										>
-											<polyline points="20 6 9 17 4 12" />
-										</svg>
-										{modelName}
+							{/* Hero Card: Accurate Token Rolling Quota & Usage */}
+							<div className="p-6 sm:p-8 rounded-3xl border border-border/80 bg-card/75 dark:bg-card/45 backdrop-blur-xl shadow-xl relative overflow-hidden">
+								<div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+									<div>
+										<h2 className="text-xl sm:text-2xl font-bold text-foreground flex items-center gap-2.5">
+											<span className="p-2 rounded-xl bg-primary/10 text-primary">
+												<svg xmlns="http://www.w3.org/2000/svg" width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+													<path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+												</svg>
+											</span>
+											Token Quota & Usage
+										</h2>
+										<p className="text-xs text-muted-foreground mt-1">
+											Calculated accurately from real-time 5-hour rolling windows and lifetime prompt/completion tokens.
+										</p>
 									</div>
-								))}
-							</div>
-						</div>
 
-						{/* 6. Recent Usage Logs (Last 20 Requests) Table */}
-						<div className="p-6 rounded-2xl border border-border bg-card dark:bg-card/60 shadow-sm overflow-hidden">
-							<h3 className="text-lg font-bold text-foreground mb-4">
-								Recent Usage Logs (Last 20 Requests)
-							</h3>
-							{recentLogs.length > 0 ? (
-								<div className="overflow-x-auto -mx-6 px-6">
-									<table className="w-full text-left text-sm border-collapse">
-										<thead>
-											<tr className="border-b border-border text-muted-foreground text-xs uppercase tracking-wider">
-												<th className="py-3 px-3 font-semibold">Time</th>
-												<th className="py-3 px-3 font-semibold">Model</th>
-												<th className="py-3 px-3 font-semibold text-right">Status</th>
-											</tr>
-										</thead>
-										<tbody className="divide-y divide-border/40">
-											{recentLogs.map((log: any, idx: number) => (
-												<tr
-													key={idx}
-													className="hover:bg-muted/20 transition-colors font-mono text-xs"
-												>
-													<td className="py-2.5 px-3 text-foreground whitespace-nowrap">
-														{formatLogTime(log.time)}
-													</td>
-													<td className="py-2.5 px-3 font-semibold text-primary dark:text-primary whitespace-nowrap">
-														{log.model}
-													</td>
-													<td className="py-2.5 px-3 text-right whitespace-nowrap font-sans">
-														<span
-															className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${Number(log.status) >= 200 && Number(log.status) < 300
-																	? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
-																	: "bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20"
-																}`}
-														>
-															{log.status}
-														</span>
-													</td>
-												</tr>
-											))}
-										</tbody>
-									</table>
+									<div className="flex items-center gap-2">
+										<span className={`px-3 py-1 rounded-full text-xs font-bold border ${getProgressBadgeColor(usagePercentage)}`}>
+											{isUnlimited ? "Unlimited Allowance" : `${usagePercentage}% Token Capacity Used`}
+										</span>
+									</div>
 								</div>
-							) : (
-								<p className="text-sm text-muted-foreground py-4 text-center">
-									No recent request logs recorded yet.
-								</p>
-							)}
+
+								{/* Primary Metric Numbers */}
+								<div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+									<div className="p-5 rounded-2xl bg-background/70 dark:bg-background/40 border border-border/60 shadow-2xs">
+										<span className="text-xs font-bold uppercase tracking-wider text-muted-foreground block mb-1">
+											Used Tokens
+										</span>
+										<div className="flex items-baseline gap-2">
+											<span className="text-2xl sm:text-3xl font-extrabold text-foreground font-mono">
+												{used.toLocaleString()}
+											</span>
+											<span className="text-xs font-semibold text-muted-foreground font-mono">
+												({formatNumberCompact(used)})
+											</span>
+										</div>
+										<span className="text-[11px] text-muted-foreground mt-1 block">
+											Tokens consumed in active window
+										</span>
+									</div>
+
+									<div className="p-5 rounded-2xl bg-background/70 dark:bg-background/40 border border-border/60 shadow-2xs">
+										<span className="text-xs font-bold uppercase tracking-wider text-muted-foreground block mb-1">
+											Remaining Tokens
+										</span>
+										<div className="flex items-baseline gap-2">
+											<span className="text-2xl sm:text-3xl font-extrabold text-emerald-600 dark:text-emerald-400 font-mono">
+												{isUnlimited ? "Unlimited" : remaining.toLocaleString()}
+											</span>
+											{!isUnlimited && (
+												<span className="text-xs font-semibold text-emerald-600/80 dark:text-emerald-400/80 font-mono">
+													({formatNumberCompact(remaining)})
+												</span>
+											)}
+										</div>
+										<span className="text-[11px] text-muted-foreground mt-1 block">
+											{isUnlimited ? "No quota ceiling applied" : "Available for prompt & completion"}
+										</span>
+									</div>
+
+									<div className="p-5 rounded-2xl bg-background/70 dark:bg-background/40 border border-border/60 shadow-2xs">
+										<span className="text-xs font-bold uppercase tracking-wider text-muted-foreground block mb-1">
+											Total Token Limit
+										</span>
+										<div className="flex items-baseline gap-2">
+											<span className="text-2xl sm:text-3xl font-extrabold text-foreground font-mono">
+												{isUnlimited ? "Unlimited" : limit.toLocaleString()}
+											</span>
+											{!isUnlimited && (
+												<span className="text-xs font-semibold text-muted-foreground font-mono">
+													({formatNumberCompact(limit)})
+												</span>
+											)}
+										</div>
+										<span className="text-[11px] text-muted-foreground mt-1 block">
+											Maximum quota ceiling
+										</span>
+									</div>
+								</div>
+
+								{/* Visual Progress Bar */}
+								<div className="space-y-3">
+									<div className="flex justify-between text-xs font-semibold">
+										<span className="text-muted-foreground">Quota Utilization</span>
+										<span className="font-mono text-foreground">
+											{isUnlimited ? "Uncapped" : `${used.toLocaleString()} / ${limit.toLocaleString()} tokens`}
+										</span>
+									</div>
+									
+									<div className="w-full bg-muted/80 dark:bg-muted/30 rounded-full h-4 p-0.5 border border-border/40 overflow-hidden shadow-inner">
+										<div
+											className={`h-full rounded-full transition-all duration-700 bg-gradient-to-r ${getProgressColor(usagePercentage)} shadow-sm`}
+											style={{
+												width: `${isUnlimited ? (used > 0 ? 100 : 0) : Math.min(100, Math.max(1, usagePercentage))}%`,
+											}}
+										/>
+									</div>
+
+									<div className="flex flex-col sm:flex-row sm:items-center justify-between text-xs text-muted-foreground gap-2 pt-1">
+										<div className="flex items-center gap-1.5">
+											<svg xmlns="http://www.w3.org/2000/svg" width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+											<span>
+												Window Reset:{" "}
+												<strong className="text-foreground">
+													{keyData.windowResetAt ? formatDateTimeFormatted(keyData.windowResetAt) : "Continuous Rolling"}
+												</strong>
+											</span>
+										</div>
+
+										{timeLeft && (
+											<div className="inline-flex items-center gap-1.5 font-bold text-primary dark:text-primary bg-primary/10 px-2.5 py-0.5 rounded-md">
+												<span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+												<span>{timeLeft}</span>
+											</div>
+										)}
+									</div>
+								</div>
+							</div>
+
+							{/* Secondary Metrics Grid: Limits, Requests & Activity */}
+							<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+								{/* Request Quotas Card */}
+								<div className="p-6 rounded-3xl border border-border/80 bg-card/75 dark:bg-card/45 backdrop-blur-xl shadow-xl flex flex-col justify-between">
+									<div>
+										<h3 className="text-base font-bold text-foreground mb-4 flex items-center gap-2">
+											<span className="p-1.5 rounded-lg bg-teal-500/10 text-teal-600 dark:text-teal-400">
+												<svg xmlns="http://www.w3.org/2000/svg" width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+											</span>
+											Request Quotas & Speed
+										</h3>
+
+										<div className="space-y-3.5 text-sm">
+											<div className="flex justify-between items-center py-2 border-b border-border/40">
+												<span className="text-muted-foreground flex items-center gap-1.5">
+													Rate Limit
+												</span>
+												<span className="font-bold text-foreground font-mono bg-muted/50 px-2 py-0.5 rounded-md">
+													{rateLimit} req / min
+												</span>
+											</div>
+
+											<div className="flex justify-between items-center py-2 border-b border-border/40">
+												<span className="text-muted-foreground">Last 24h Requests</span>
+												<span className="font-bold text-foreground font-mono">
+													{last24hRequests.toLocaleString()}
+												</span>
+											</div>
+
+											<div className="flex justify-between items-center py-2">
+												<span className="text-muted-foreground">Total Lifetime Requests</span>
+												<span className="font-bold text-foreground font-mono">
+													{totalRequests.toLocaleString()}
+												</span>
+											</div>
+										</div>
+									</div>
+								</div>
+
+								{/* Activity & Health Card */}
+								<div className="p-6 rounded-3xl border border-border/80 bg-card/75 dark:bg-card/45 backdrop-blur-xl shadow-xl flex flex-col justify-between">
+									<div>
+										<h3 className="text-base font-bold text-foreground mb-4 flex items-center gap-2">
+											<span className="p-1.5 rounded-lg bg-cyan-500/10 text-cyan-600 dark:text-cyan-400">
+												<svg xmlns="http://www.w3.org/2000/svg" width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+											</span>
+											Gateway Activity
+										</h3>
+
+										<div className="space-y-3.5 text-sm">
+											<div className="flex justify-between items-center py-2 border-b border-border/40">
+												<span className="text-muted-foreground">Last Request Processed</span>
+												<span className="font-bold text-foreground">
+													{lastUsedAt ? formatDateTimeFormatted(lastUsedAt) : "No requests logged yet"}
+												</span>
+											</div>
+
+											<div className="flex justify-between items-center py-2 border-b border-border/40">
+												<span className="text-muted-foreground">Edge Routing</span>
+												<span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+													<span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+													Low-latency Active
+												</span>
+											</div>
+
+											<div className="flex justify-between items-center py-2">
+												<span className="text-muted-foreground">Health Status</span>
+												<span className="inline-flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-bold">
+													<div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+													{connectionStatus}
+												</span>
+											</div>
+										</div>
+									</div>
+								</div>
+							</div>
+
+							{/* Supported Models */}
+							<div className="p-6 rounded-3xl border border-border/80 bg-card/75 dark:bg-card/45 backdrop-blur-xl shadow-xl">
+								<h3 className="text-base font-bold text-foreground mb-3 flex items-center gap-2">
+									<span className="p-1.5 rounded-lg bg-primary/10 text-primary">
+										<svg xmlns="http://www.w3.org/2000/svg" width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z"/><path d="M12 6v6l4 2"/></svg>
+									</span>
+									Supported Models on this Key
+								</h3>
+								<div className="flex flex-wrap gap-2 pt-1">
+									{allowedModels.length > 0 ? (
+										allowedModels.map((modelName) => (
+											<div
+												key={modelName}
+												className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border border-border/80 bg-background/60 dark:bg-background/30 text-xs font-mono font-semibold text-foreground hover:border-primary/50 transition-colors shadow-2xs"
+											>
+												<svg xmlns="http://www.w3.org/2000/svg" width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" className="text-emerald-500 shrink-0">
+													<polyline points="20 6 9 17 4 12" />
+												</svg>
+												{modelName}
+											</div>
+										))
+									) : (
+										["claude-opus-4-8", "claude-opus-4-7", "claude-sonnet-4-6", "claude-haiku-4-5"].map((m) => (
+											<div
+												key={m}
+												className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border border-border/80 bg-background/60 dark:bg-background/30 text-xs font-mono font-semibold text-foreground"
+											>
+												<svg xmlns="http://www.w3.org/2000/svg" width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" className="text-emerald-500 shrink-0">
+													<polyline points="20 6 9 17 4 12" />
+												</svg>
+												{m}
+											</div>
+										))
+									)}
+								</div>
+							</div>
+
+							{/* Recent Usage Logs */}
+							<div className="p-6 rounded-3xl border border-border/80 bg-card/75 dark:bg-card/45 backdrop-blur-xl shadow-xl overflow-hidden">
+								<div className="flex items-center justify-between gap-2 mb-4">
+									<h3 className="text-base font-bold text-foreground flex items-center gap-2">
+										<span className="p-1.5 rounded-lg bg-primary/10 text-primary">
+											<svg xmlns="http://www.w3.org/2000/svg" width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+										</span>
+										Recent Requests (Last 20)
+									</h3>
+									{recentLogs.length > 0 && (
+										<span className="text-xs text-muted-foreground font-semibold">
+											{recentLogs.length} events logged
+										</span>
+									)}
+								</div>
+
+								{recentLogs.length > 0 ? (
+									<div className="overflow-x-auto -mx-6 px-6">
+										<table className="w-full text-left text-sm border-collapse">
+											<thead>
+												<tr className="border-b border-border text-muted-foreground text-xs uppercase tracking-wider">
+													<th className="py-3 px-3 font-bold">Timestamp</th>
+													<th className="py-3 px-3 font-bold">Model</th>
+													<th className="py-3 px-3 font-bold text-right">Tokens</th>
+													<th className="py-3 px-3 font-bold text-right">HTTP Status</th>
+												</tr>
+											</thead>
+											<tbody className="divide-y divide-border/40">
+												{recentLogs.map((log: any, idx: number) => {
+													const isSuccess = Number(log.status) >= 200 && Number(log.status) < 300;
+													return (
+														<tr
+															key={idx}
+															className="hover:bg-muted/30 transition-colors font-mono text-xs"
+														>
+															<td className="py-3 px-3 text-foreground whitespace-nowrap">
+																{formatLogTime(log.time)}
+															</td>
+															<td className="py-3 px-3 font-semibold text-primary dark:text-primary whitespace-nowrap">
+																{log.model}
+															</td>
+															<td className="py-3 px-3 text-right text-muted-foreground whitespace-nowrap">
+																{log.tokens ? Number(log.tokens).toLocaleString() : "—"}
+															</td>
+															<td className="py-3 px-3 text-right whitespace-nowrap font-sans">
+																<span
+																	className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold ${
+																		isSuccess
+																			? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25"
+																			: "bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/25"
+																	}`}
+																>
+																	{log.status} {isSuccess ? "OK" : "ERR"}
+																</span>
+															</td>
+														</tr>
+													);
+												})}
+											</tbody>
+										</table>
+									</div>
+								) : (
+									<div className="py-8 text-center text-muted-foreground text-sm">
+										<p>No recent request logs recorded yet for this key.</p>
+										<p className="text-xs opacity-75 mt-1">Logs will automatically populate here as requests are dispatched.</p>
+									</div>
+								)}
+							</div>
+
 						</div>
-					</div>
-				)}
+					)}
+				</div>
 			</div>
 		</Layout>
 	);

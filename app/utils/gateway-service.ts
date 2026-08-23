@@ -34,6 +34,7 @@ import { logApiRequest, logFailover } from "~/utils/logging-service";
 import { recordHealthSuccess, recordHealthFailure } from "~/utils/health-service.server";
 import { calculateCredits, recordUsage } from "~/utils/usage-service";
 import { getGatewayConfig } from "~/utils/gateway-config";
+import { inferTokenLimitFromPlan } from "~/utils/plan-service";
 
 // ---------------------------------------------------------------------------
 // Provider configurations & domain validation
@@ -825,23 +826,50 @@ export async function getKeyStatus(apiKey: string): Promise<{ status: string;[ke
 			}
 		}
 
-		const allocated = key.allocated_credits || 0;
-		const used = key.used_credits || 0;
-		const remaining = key.remaining_credits ?? Math.max(0, allocated - used);
-		const usagePercent = allocated > 0 ? Math.min(100, Math.round((used / allocated) * 100)) : 0;
-		const isActive = effectiveStatus === 'active';
+		// 1. Check user_api_keys table (including child keys)
+		const allocated = Number(key.allocated_credits || key.tokens_limit || 0);
+		let allocatedTokens = key.tokens_limit && Number(key.tokens_limit) > 0
+			? Number(key.tokens_limit)
+			: allocated > 100_000
+				? allocated
+				: allocated > 0
+					? allocated * 1000
+					: 0;
 
-		// Real-time queries for 24h count, last activity, and recent request logs
+		// Check if key is assigned to an admin plan for token limits
+		try {
+			const { data: planAssignment } = await supabase
+				.from('api_key_plan_assignments')
+				.select('custom_monthly_token_limit, custom_daily_token_limit, plan:admin_plans(monthly_token_limit, daily_token_limit)')
+				.eq('user_api_key_id', key.id)
+				.eq('is_active', true)
+				.maybeSingle();
+
+			if (planAssignment) {
+				const planLimit = Number(planAssignment.custom_monthly_token_limit || (planAssignment.plan as any)?.monthly_token_limit || 0);
+				if (planLimit > 0 && allocatedTokens === 0) {
+					allocatedTokens = planLimit;
+				}
+			}
+		} catch {
+			// ignore plan assignment error
+		}
+
+		// Real-time queries for 24h count, last activity, recent request logs, and actual tokens used
 		let recentLogs: any[] = [];
 		let last24hCount = key.total_requests || 0;
 		let lastUsedAt = key.last_used;
+		let totalTokensFromLogs = 0;
+		let windowTokensFromLogs = 0;
 
 		try {
 			const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-			const [logsRes, countRes] = await Promise.all([
+			const fiveHoursAgo = new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString();
+
+			const [logsRes, countRes, allLogsRes, windowRes] = await Promise.all([
 				supabase
 					.from('api_request_logs')
-					.select('created_at, model, http_status, is_success')
+					.select('created_at, model, http_status, is_success, total_tokens, prompt_tokens, completion_tokens')
 					.or(`user_api_key_id.eq.${key.id},user_id.eq.${key.user_id}`)
 					.order('created_at', { ascending: false })
 					.limit(20),
@@ -849,14 +877,24 @@ export async function getKeyStatus(apiKey: string): Promise<{ status: string;[ke
 					.from('api_request_logs')
 					.select('id', { count: 'exact', head: true })
 					.or(`user_api_key_id.eq.${key.id},user_id.eq.${key.user_id}`)
-					.gte('created_at', twentyFourHoursAgo)
+					.gte('created_at', twentyFourHoursAgo),
+				supabase
+					.from('api_request_logs')
+					.select('total_tokens, prompt_tokens, completion_tokens, created_at')
+					.or(`user_api_key_id.eq.${key.id},user_id.eq.${key.user_id}`),
+				supabase
+					.from('token_usage_windows')
+					.select('total_tokens')
+					.eq('user_api_key_id', key.id)
+					.gte('window_start', fiveHoursAgo)
 			]);
 
 			if (logsRes.data && logsRes.data.length > 0) {
 				recentLogs = logsRes.data.map(l => ({
 					time: l.created_at,
 					model: l.model || 'claude-3-5-sonnet-20241022',
-					status: l.http_status || (l.is_success ? 200 : 500)
+					status: l.http_status || (l.is_success ? 200 : 500),
+					tokens: l.total_tokens || (Number(l.prompt_tokens || 0) + Number(l.completion_tokens || 0)),
 				}));
 				if (!lastUsedAt) {
 					lastUsedAt = logsRes.data[0].created_at;
@@ -865,17 +903,52 @@ export async function getKeyStatus(apiKey: string): Promise<{ status: string;[ke
 			if (typeof countRes.count === 'number' && countRes.count > 0) {
 				last24hCount = countRes.count;
 			}
+
+			if (allLogsRes.data && allLogsRes.data.length > 0) {
+				for (const r of allLogsRes.data) {
+					const t = Number(r.total_tokens || 0) || (Number(r.prompt_tokens || 0) + Number(r.completion_tokens || 0));
+					totalTokensFromLogs += t;
+					if (r.created_at && new Date(r.created_at) >= new Date(fiveHoursAgo)) {
+						windowTokensFromLogs += t;
+					}
+				}
+			}
+
+			if (windowRes.data && windowRes.data.length > 0) {
+				const windowUsageFromTable = windowRes.data.reduce((sum, r) => sum + Number(r.total_tokens || 0), 0);
+				if (windowUsageFromTable > windowTokensFromLogs) {
+					windowTokensFromLogs = windowUsageFromTable;
+				}
+			}
 		} catch (e) {
 			// silence log fetch errors
 		}
+
+		const totalLoggedTokens = Math.max(
+			totalTokensFromLogs,
+			(Number(key.total_prompt_tokens || 0) + Number(key.total_completion_tokens || 0)),
+			Number(key.tokens_used || 0)
+		);
+		const usedCredits = Number(key.used_credits || 0);
+		const usedTokens = totalLoggedTokens > 0
+			? totalLoggedTokens
+			: allocated > 100_000
+				? Math.round(usedCredits)
+				: Math.round(usedCredits * 1000);
+
+		// If allocated tokens is still 0 but key has credit history or default allowance
+		const finalLimit = allocatedTokens > 0 ? allocatedTokens : (allocated === 0 ? 0 : 10_000_000);
+		const remainingTokens = finalLimit > 0 ? Math.max(0, finalLimit - usedTokens) : 0;
+		const usagePercent = finalLimit > 0 ? Math.min(100, Math.round((usedTokens / finalLimit) * 1000) / 10) : 0;
+		const isActive = effectiveStatus === 'active';
 
 		return {
 			status: 'ok',
 			isRealtime: true,
 			keyStatus: effectiveStatus,
 			name: key.name || 'User API Key',
-			planName: key.plan_name || 'Custom Plan',
-			unlimited: allocated === 0,
+			planName: key.plan_name || 'Standard Plan',
+			unlimited: finalLimit === 0,
 			usagePercent,
 			totalRequests: key.total_requests || 0,
 			successRequests: key.success_requests || 0,
@@ -888,15 +961,17 @@ export async function getKeyStatus(apiKey: string): Promise<{ status: string;[ke
 			connectionStatus: isActive ? "Online" : "Offline",
 			isActive,
 			windowActive: isActive,
-			windowTokensLimit: allocated > 0 ? allocated * 1000 : 10000000,
-			windowTokensUsed: Math.round(used * 1000),
-			remainingTokens: Math.max(0, (allocated * 1000) - Math.round(used * 1000)),
-			windowResetAt: key.expiry_date,
+			windowTokensLimit: finalLimit > 0 ? finalLimit : 10000000,
+			windowTokensUsed: windowTokensFromLogs > 0 ? windowTokensFromLogs : usedTokens,
+			remainingTokens,
+			windowResetAt: key.expiry_date || new Date(Date.now() + 5 * 60 * 60 * 1000).toISOString(),
 			allowedModels: key.allowed_models?.length ? key.allowed_models : ["claude-opus-4-8", "claude-opus-4-7", "claude-sonnet-4-6", "claude-haiku-4-5-20251001"],
 			allowedProviders: key.allowed_providers || [],
 			allocatedCredits: allocated,
-			usedCredits: used,
-			remainingCredits: remaining,
+			usedCredits,
+			remainingCredits: key.remaining_credits ?? Math.max(0, allocated - usedCredits),
+			totalPromptTokens: key.total_prompt_tokens || 0,
+			totalCompletionTokens: key.total_completion_tokens || 0,
 			recentLogs,
 			...(effectiveStatus !== 'active' ? { warning: `Key status: ${effectiveStatus}.` } : {}),
 		};
@@ -915,10 +990,12 @@ export async function getKeyStatus(apiKey: string): Promise<{ status: string;[ke
 
 	if (masterKeyData) {
 		const m = masterKeyData as any;
-		const allocated = m.allocated_credits || 0;
-		const used = m.used_credits || 0;
-		const remaining = m.remaining_credits ?? Math.max(0, allocated - used);
-		const usagePercent = allocated > 0 ? Math.min(100, Math.round((used / allocated) * 100)) : 0;
+		const allocated = Number(m.allocated_credits || 0);
+		const allocatedTokens = allocated > 100_000 ? allocated : allocated > 0 ? allocated * 1000 : 0;
+		const used = Number(m.used_credits || 0);
+		const usedTokens = allocated > 100_000 ? Math.round(used) : Math.round(used * 1000);
+		const remainingTokens = allocatedTokens > 0 ? Math.max(0, allocatedTokens - usedTokens) : 0;
+		const usagePercent = allocatedTokens > 0 ? Math.min(100, Math.round((usedTokens / allocatedTokens) * 1000) / 10) : 0;
 		const isActive = m.status === 'active' && m.health_status === 'healthy';
 
 		return {
@@ -928,7 +1005,7 @@ export async function getKeyStatus(apiKey: string): Promise<{ status: string;[ke
 			name: m.name || `${m.provider} Master Key`,
 			provider: m.provider,
 			planName: `Master Key (${m.provider})`,
-			unlimited: allocated === 0,
+			unlimited: allocatedTokens === 0,
 			usagePercent,
 			totalRequests: m.total_requests || 0,
 			successRequests: m.success_requests || 0,
@@ -942,15 +1019,15 @@ export async function getKeyStatus(apiKey: string): Promise<{ status: string;[ke
 			connectionStatus: isActive ? "Online" : "Offline",
 			isActive,
 			windowActive: isActive,
-			windowTokensLimit: allocated > 0 ? allocated * 1000 : 100000000,
-			windowTokensUsed: Math.round(used * 1000),
-			remainingTokens: Math.max(0, (allocated * 1000) - Math.round(used * 1000)),
+			windowTokensLimit: allocatedTokens > 0 ? allocatedTokens : 100000000,
+			windowTokensUsed: usedTokens,
+			remainingTokens,
 			windowResetAt: m.expiry_date,
 			allowedModels: ["claude-opus-4-8", "claude-opus-4-7", "claude-sonnet-4-6", "claude-haiku-4-5-20251001"],
 			allowedProviders: [m.provider],
 			allocatedCredits: allocated,
 			usedCredits: used,
-			remainingCredits: remaining,
+			remainingCredits: m.remaining_credits ?? Math.max(0, allocated - used),
 			recentLogs: [],
 		};
 	}
@@ -987,45 +1064,190 @@ async function fetchUpstreamKeyStatus(cleanKey: string): Promise<{ status: strin
 	for (const ep of endpoints) {
 		try {
 			const controller = new AbortController();
-			const timeoutId = setTimeout(() => controller.abort(), 4000);
+			const timeoutId = setTimeout(() => controller.abort(), 6000);
 			const res = await fetch(ep, {
-				headers: { 'User-Agent': 'OpusZen-Gateway/1.4' },
+				headers: {
+					'User-Agent': 'OpusZen-Gateway/1.4',
+					'Accept': 'application/json',
+					'x-api-key': cleanKey,
+					'Authorization': `Bearer ${cleanKey}`,
+				},
 				signal: controller.signal,
 			});
 			clearTimeout(timeoutId);
 
 			if (res.ok) {
-				const json: any = await res.json().catch(() => null);
-				if (json && json.status !== 'error' && (json.planName || json.keyStatus || json.allocatedCredits !== undefined || json.windowTokensLimit || json.valid)) {
+				const rawJson: any = await res.json().catch(() => null);
+				if (!rawJson) continue;
+
+				// Handle wrapped payloads (e.g. { data: { ... } } or { result: { ... } })
+				const json = rawJson.data || rawJson.result || rawJson.keyData || rawJson.key || rawJson;
+
+				if (json && json.status !== 'error' && !json.error) {
+					// Parse Limit with all possible upstream field names
+					const rawLimit = Number(
+						json.windowTokensLimit ??
+						json.window_tokens_limit ??
+						json.windowTokenLimit ??
+						json.window_token_limit ??
+						json.tokensLimit ??
+						json.tokens_limit ??
+						json.tokenLimit ??
+						json.token_limit ??
+						json.totalTokenLimit ??
+						json.total_token_limit ??
+						json.allocatedTokens ??
+						json.allocated_tokens ??
+						json.max_tokens ??
+						json.maxTokens ??
+						json.quota ??
+						json.total_tokens ??
+						json.totalTokens ??
+						0
+					);
+
+					const rawCreditsAllocated = Number(json.allocatedCredits ?? json.allocated_credits ?? json.totalCredits ?? json.total_credits ?? 0);
+					const planInferredLimit = inferTokenLimitFromPlan(json.planName || json.plan || json.name || json.keyName || json.label || '');
+
+					const finalTokensLimit = rawLimit > 0
+						? rawLimit
+						: rawCreditsAllocated > 100_000
+							? rawCreditsAllocated
+							: rawCreditsAllocated > 0
+								? rawCreditsAllocated * 1000
+								: planInferredLimit > 0
+									? planInferredLimit
+									: (json.unlimited ? 0 : 10_000_000);
+
+					// Parse Used with all possible upstream field names
+					const rawUsed = Number(
+						json.windowTokensUsed ??
+						json.window_tokens_used ??
+						json.windowTokenUsed ??
+						json.window_token_used ??
+						json.tokensUsed ??
+						json.tokens_used ??
+						json.usedTokens ??
+						json.used_tokens ??
+						json.tokenUsage ??
+						json.token_usage ??
+						json.used_quota ??
+						json.usedQuota ??
+						(json.totalPromptTokens || json.totalCompletionTokens
+							? Number(json.totalPromptTokens || 0) + Number(json.totalCompletionTokens || 0)
+							: undefined) ??
+						(json.prompt_tokens || json.completion_tokens
+							? Number(json.prompt_tokens || 0) + Number(json.completion_tokens || 0)
+							: undefined) ??
+						0
+					);
+
+					const rawCreditsUsed = Number(json.usedCredits ?? json.used_credits ?? json.spentCredits ?? json.spent_credits ?? 0);
+
+					// Parse Remaining
+					const rawRemaining = Number(
+						json.remainingTokens ??
+						json.remaining_tokens ??
+						json.windowTokensRemaining ??
+						json.window_tokens_remaining ??
+						json.tokensRemaining ??
+						json.tokens_remaining ??
+						json.remaining_quota ??
+						json.remainingQuota ??
+						0
+					);
+
+					const rawCreditsRemaining = Number(json.remainingCredits ?? json.remaining_credits ?? 0);
+					const rawPercent = Number(json.usagePercent ?? json.usage_percent ?? json.usagePercentage ?? json.usage_percentage ?? json.usage_pct ?? 0);
+
+					// Check if usage object exists
+					const usageObjTokens = typeof json.usage === 'object' && json.usage !== null
+						? Number(
+							json.usage.total_tokens ??
+							json.usage.totalTokens ??
+							json.usage.tokens ??
+							json.usage.used ??
+							(json.usage.prompt_tokens || json.usage.completion_tokens
+								? Number(json.usage.prompt_tokens || 0) + Number(json.usage.completion_tokens || 0)
+								: 0)
+						  )
+						: 0;
+
+					// Check if logs contain token usage
+					const logsTokens = (Array.isArray(json.recentLogs) ? json.recentLogs : Array.isArray(json.recent_logs) ? json.recent_logs : Array.isArray(json.logs) ? json.logs : [])
+						.reduce((sum: number, l: any) => sum + Number(l?.tokens || l?.total_tokens || (Number(l?.prompt_tokens || 0) + Number(l?.completion_tokens || 0)) || 0), 0);
+
+					let finalTokensUsed = rawUsed > 0
+						? rawUsed
+						: usageObjTokens > 0
+							? usageObjTokens
+							: logsTokens > 0
+								? logsTokens
+								: rawCreditsAllocated > 100_000
+									? Math.round(rawCreditsUsed)
+									: rawCreditsUsed > 0
+										? Math.round(rawCreditsUsed * 1000)
+										: 0;
+
+					// If still 0, check if remaining tokens is less than limit (Used = Limit - Remaining)
+					if (finalTokensUsed === 0 && rawRemaining > 0 && finalTokensLimit > rawRemaining) {
+						finalTokensUsed = finalTokensLimit - rawRemaining;
+					} else if (finalTokensUsed === 0 && rawCreditsAllocated > 0 && rawCreditsRemaining > 0 && rawCreditsAllocated > rawCreditsRemaining) {
+						const diff = rawCreditsAllocated - rawCreditsRemaining;
+						finalTokensUsed = rawCreditsAllocated > 100_000 ? Math.round(diff) : Math.round(diff * 1000);
+					} else if (finalTokensUsed === 0 && rawPercent > 0 && finalTokensLimit > 0) {
+						finalTokensUsed = Math.round(finalTokensLimit * (rawPercent / 100));
+					}
+
+					const finalTokensRemaining = rawRemaining > 0
+						? rawRemaining
+						: rawCreditsAllocated > 100_000 && rawCreditsRemaining > 0
+							? Math.round(rawCreditsRemaining)
+							: rawCreditsRemaining > 0
+								? Math.round(rawCreditsRemaining * 1000)
+								: finalTokensLimit > 0
+									? Math.max(0, finalTokensLimit - finalTokensUsed)
+									: 0;
+
+					const finalUsagePercent = rawPercent > 0
+						? rawPercent
+						: finalTokensLimit > 0 && finalTokensUsed > 0
+							? Math.min(100, Math.round((finalTokensUsed / finalTokensLimit) * 1000) / 10)
+							: 0;
+
+					const expiresAt = json.expiresAt || json.expires_at || json.expiry_date || json.expiryDate || json.expire_at;
+					const createdAt = json.createdAt || json.created_at || json.created;
+					const lastUsedAt = json.lastUsedAt || json.last_used_at || json.last_used || json.lastUsed;
+					const windowResetAt = json.windowResetAt || json.window_reset_at || json.resetAt || json.reset_at || json.reset_time || expiresAt;
+
 					return {
 						status: 'ok',
 						isRealtime: true,
-						keyStatus: json.keyStatus || (json.isActive === false ? 'disabled' : 'active'),
-						name: json.name || 'API Key',
-						planName: json.planName || 'Custom Plan',
-						unlimited: json.unlimited ?? false,
-						usagePercent: json.usagePercent ?? 0,
-						totalRequests: json.totalRequests ?? 0,
-						successRequests: json.successRequests ?? 0,
-						failedRequests: json.failedRequests ?? 0,
-						last24h: json.last24h ?? { requests: 0 },
-						rateLimit: json.rateLimit ?? 60,
-						expiresAt: json.expiresAt || json.expiry_date,
-						createdAt: json.createdAt || json.created_at,
-						lastUsedAt: json.lastUsedAt || json.last_used,
+						keyStatus: json.keyStatus || json.status || (json.isActive === false ? 'disabled' : 'active'),
+						name: json.name || json.keyName || json.label || 'API Key',
+						unlimited: Boolean(json.unlimited ?? (finalTokensLimit === 0)),
+						usagePercent: finalUsagePercent,
+						totalRequests: Number(json.totalRequests ?? json.total_requests ?? json.requests ?? json.request_count ?? 0),
+						successRequests: Number(json.successRequests ?? json.success_requests ?? 0),
+						failedRequests: Number(json.failedRequests ?? json.failed_requests ?? 0),
+						last24h: json.last24h || { requests: Number(json.last24hRequests ?? json.last_24h_requests ?? 0) },
+						rateLimit: Number(json.rateLimit ?? json.rate_limit ?? json.rpm ?? 60),
+						expiresAt,
+						createdAt,
+						lastUsedAt,
 						connectionStatus: json.connectionStatus || 'Online',
-						isActive: json.isActive ?? true,
+						isActive: json.isActive ?? (json.status === 'active' || !json.status),
 						windowActive: json.windowActive ?? true,
-						windowTokensLimit: json.windowTokensLimit ?? (json.allocatedCredits ? json.allocatedCredits * 1000 : 10000000),
-						windowTokensUsed: json.windowTokensUsed ?? (json.usedCredits ? json.usedCredits * 1000 : 0),
-						remainingTokens: json.remainingTokens ?? (json.remainingCredits ? json.remainingCredits * 1000 : 10000000),
-						windowResetAt: json.windowResetAt || json.expiresAt || json.expiry_date,
-						allowedModels: json.allowedModels || ["claude-opus-4-8", "claude-opus-4-7", "claude-sonnet-4-6", "claude-haiku-4-5-20251001"],
-						allowedProviders: json.allowedProviders || ["opuslive"],
-						allocatedCredits: json.allocatedCredits ?? 0,
-						usedCredits: json.usedCredits ?? 0,
-						remainingCredits: json.remainingCredits ?? 0,
-						recentLogs: json.recentLogs || [],
+						windowTokensLimit: finalTokensLimit,
+						windowTokensUsed: finalTokensUsed,
+						remainingTokens: finalTokensRemaining,
+						windowResetAt,
+						allowedModels: json.allowedModels || json.allowed_models || json.models || ["claude-opus-4-8", "claude-opus-4-7", "claude-sonnet-4-6", "claude-haiku-4-5-20251001"],
+						allowedProviders: json.allowedProviders || json.allowed_providers || ["opuslive"],
+						allocatedCredits: rawCreditsAllocated,
+						usedCredits: rawCreditsUsed,
+						remainingCredits: rawCreditsRemaining,
+						recentLogs: json.recentLogs || json.recent_logs || json.logs || [],
 					};
 				}
 			}

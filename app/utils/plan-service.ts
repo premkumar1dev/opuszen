@@ -245,22 +245,97 @@ export async function assignPlanToApiKey(assignment: {
 }
 
 export async function getAssignmentByApiKey(apiKey: string): Promise<PlanAssignmentWithDetails | null> {
-	const { data: assignment, error } = await supabase
+	if (!apiKey) return null;
+	const cleanKey = apiKey.trim();
+	const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanKey);
+
+	// First try direct lookup by api_key in assignments
+	let query = supabase
 		.from("api_key_plan_assignments")
 		.select("*")
-		.eq("api_key", apiKey)
-		.eq("is_active", true)
-		.maybeSingle();
+		.eq("is_active", true);
 
-	if (error || !assignment) return null;
+	if (isUuid) {
+		query = query.or(`api_key.eq.${cleanKey},user_api_key_id.eq.${cleanKey}`);
+	} else {
+		query = query.eq("api_key", cleanKey);
+	}
 
-	const plan = await getPlanById(assignment.plan_id);
-	if (!plan) return null;
+	const { data: directAssignment } = await query.maybeSingle();
 
-	return {
-		...assignment,
-		plan,
-	};
+	if (directAssignment) {
+		const plan = await getPlanById(directAssignment.plan_id);
+		if (plan) {
+			return {
+				...directAssignment,
+				plan,
+			};
+		}
+	}
+
+	// Next, check user_api_keys to find user_api_key_id or plan_name
+	try {
+		const { data: userKey } = await supabase
+			.from("user_api_keys")
+			.select("id, plan_name")
+			.or(isUuid ? `id.eq.${cleanKey},api_key.eq.${cleanKey}` : `api_key.eq.${cleanKey}`)
+			.maybeSingle();
+
+		if (userKey) {
+			if (userKey.id) {
+				const { data: linkedAssignment } = await supabase
+					.from("api_key_plan_assignments")
+					.select("*")
+					.eq("user_api_key_id", userKey.id)
+					.eq("is_active", true)
+					.maybeSingle();
+
+				if (linkedAssignment) {
+					const plan = await getPlanById(linkedAssignment.plan_id);
+					if (plan) {
+						return {
+							...linkedAssignment,
+							plan,
+						};
+					}
+				}
+			}
+
+			// If plan_name exists on user_api_keys, match with admin_plans
+			if (userKey.plan_name) {
+				const { data: matchedPlan } = await supabase
+					.from("admin_plans")
+					.select("*")
+					.ilike("name", userKey.plan_name)
+					.eq("is_active", true)
+					.maybeSingle();
+
+				if (matchedPlan) {
+					return {
+						id: userKey.id,
+						api_key: cleanKey,
+						user_api_key_id: userKey.id,
+						plan_id: matchedPlan.id,
+						custom_display_name: null,
+						custom_badge_color: null,
+						custom_daily_token_limit: null,
+						custom_monthly_token_limit: null,
+						assigned_by: null,
+						expiry_date: null,
+						is_active: true,
+						notes: "",
+						created_at: new Date().toISOString(),
+						updated_at: new Date().toISOString(),
+						plan: matchedPlan as any,
+					};
+				}
+			}
+		}
+	} catch {
+		// ignore lookup errors
+	}
+
+	return null;
 }
 
 export async function getAllAssignments(): Promise<PlanAssignmentWithDetails[]> {
@@ -328,6 +403,37 @@ export async function deactivateAssignment(assignmentId: string): Promise<boolea
 		return false;
 	}
 	return true;
+}
+
+export function inferTokenLimitFromPlan(planName?: string | null): number {
+	if (!planName) return 0;
+	const name = String(planName).toLowerCase().trim();
+
+	// Direct token indicators in string (e.g., "500M", "150M", "50M", "20M", "15M", "10M", "5M", "3M", "1M", "500K")
+	const mMatch = name.match(/(\d+)\s*m(?:tokens|b)?\b/);
+	if (mMatch && mMatch[1]) {
+		return parseInt(mMatch[1], 10) * 1_000_000;
+	}
+	const kMatch = name.match(/(\d+)\s*k(?:tokens|b)?\b/);
+	if (kMatch && kMatch[1]) {
+		return parseInt(kMatch[1], 10) * 1_000;
+	}
+
+	// Multiplier patterns (e.g., "50x", "20x", "15x", "10x", "5x", "3x", "2x", "1x")
+	const xMatch = name.match(/(\d+)\s*x\b/);
+	if (xMatch && xMatch[1]) {
+		const factor = parseInt(xMatch[1], 10);
+		return factor * 1_000_000;
+	}
+
+	// Named tiers
+	if (name.includes("enterprise")) return 500_000_000;
+	if (name.includes("business")) return 150_000_000;
+	if (name.includes("premium")) return 50_000_000;
+	if (name.includes("pro")) return 15_000_000;
+	if (name.includes("starter") || name.includes("basic") || name.includes("trial")) return 3_000_000;
+
+	return 0;
 }
 
 // ---------------------------------------------------------------------------
