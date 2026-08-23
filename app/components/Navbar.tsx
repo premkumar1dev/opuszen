@@ -130,14 +130,6 @@ export function Navbar() {
 						)}
 					</button>
 
-					{/* Sign In Link */}
-					<Link
-						to="/auth/login"
-						className="px-4 py-2 text-xs font-bold text-muted-foreground hover:text-foreground transition-colors rounded-xl hover:bg-secondary/60"
-					>
-						Sign In
-					</Link>
-
 					{/* Get Key / Pricing Button */}
 					<Link
 						to="/pricing"
@@ -215,23 +207,6 @@ export function Navbar() {
 							<Zap className="w-4 h-4 fill-white/20" />
 							<span>Get Started / View Plans</span>
 						</Link>
-
-						<div className="grid grid-cols-2 gap-2 pt-1">
-							<Link
-								to="/auth/login"
-								onClick={() => setMobileMenuOpen(false)}
-								className="py-2.5 px-3 rounded-xl text-xs font-bold text-center border border-border bg-card text-foreground hover:bg-secondary"
-							>
-								Sign In
-							</Link>
-							<Link
-								to="/auth/admin"
-								onClick={() => setMobileMenuOpen(false)}
-								className="py-2.5 px-3 rounded-xl text-xs font-bold text-center border border-border bg-card text-muted-foreground hover:text-foreground hover:bg-secondary"
-							>
-								Admin
-							</Link>
-						</div>
 					</div>
 				</div>
 			)}

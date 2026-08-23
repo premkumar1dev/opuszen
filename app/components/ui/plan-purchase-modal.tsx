@@ -315,7 +315,7 @@ export function PlanPurchaseModal({
 				pricePer1mOutput: String(selectedPlan.pricePer1mOutput || 0),
 				minCredits: String(selectedPlan.minCredits || 0),
 			});
-			const redirectUrl = `${window.location.origin}/user/my-keys?${returnParams.toString()}`;
+			const redirectUrl = `${window.location.origin}/orders?${returnParams.toString()}`;
 
 			// Direct instant activation for ₹0 / Free Trial plan (bypasses payment gateway API)
 			if (selectedPlan.price === 0) {

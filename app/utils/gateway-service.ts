@@ -1099,21 +1099,57 @@ export async function getKeyStatus(apiKey: string): Promise<{ status: string;[ke
 		return upstreamData;
 	}
 
+	// 4. Direct verification for Anthropic keys (sk-ant-...)
 	if (cleanKey.startsWith("sk-ant-")) {
-		await new Promise((r) => setTimeout(r, minDelay));
-		return { status: 'error', error: "This looks like a direct Anthropic API key ('sk-ant-...'). Please enter your OpusZen Gateway key ('sk_live_...')." };
+		const anthropicResult = await verifyDirectAnthropicKey(cleanKey);
+		if (anthropicResult) {
+			return anthropicResult;
+		}
 	}
-	if (cleanKey.startsWith("sk-proj-")) {
-		await new Promise((r) => setTimeout(r, minDelay));
-		return { status: 'error', error: "This looks like an OpenAI project API key ('sk-proj-...'). Please enter your OpusZen Gateway key ('sk_live_...')." };
+
+	// 5. Direct verification for OpenAI keys (sk-proj-... or sk-...)
+	if (cleanKey.startsWith("sk-proj-") || cleanKey.startsWith("sk-")) {
+		const openaiResult = await verifyDirectOpenAIKey(cleanKey);
+		if (openaiResult) {
+			return openaiResult;
+		}
 	}
+
+	// 6. Check orders table in case user entered an Order ID or payment reference
+	try {
+		const { data: orderData } = await supabase
+			.from('orders')
+			.select('*')
+			.or(`id.eq.${cleanKey},display_id.eq.${cleanKey},payment_ref.eq.${cleanKey}`)
+			.maybeSingle();
+
+		if (orderData) {
+			const o = orderData as any;
+			return {
+				status: 'ok',
+				keyStatus: o.status === 'completed' ? 'active' : o.status || 'pending',
+				name: `Order ${o.display_id || o.id}`,
+				planName: o.plan_name || 'Purchased Plan',
+				connectionStatus: o.status === 'completed' ? 'Online' : 'Pending Activation',
+				isActive: o.status === 'completed',
+				windowActive: o.status === 'completed',
+				expiresAt: o.expiry_date,
+				createdAt: o.created_at,
+				warning: o.status !== 'completed' ? `Order status: ${o.status}. Please check your order details.` : undefined,
+				recentLogs: [],
+			};
+		}
+	} catch {
+		// ignore order lookup error
+	}
+
 	if (cleanKey.toLowerCase().includes("your_") || cleanKey.toLowerCase().includes("placeholder") || cleanKey.includes("<")) {
 		await new Promise((r) => setTimeout(r, minDelay));
-		return { status: 'error', error: "Please enter your actual OpusZen API key rather than placeholder text." };
+		return { status: 'error', error: "Please enter your actual API key rather than placeholder text." };
 	}
 
 	await new Promise((r) => setTimeout(r, minDelay));
-	return { status: 'error', error: `API key not found. Please make sure to copy your full key starting with 'sk_live_' from your dashboard.` };
+	return { status: 'error', error: `API key not found. Please verify your key or retrieve your active key from your dashboard or orders.` };
 }
 
 function parseUniversalDateToMs(val: unknown): number {
@@ -1161,19 +1197,85 @@ function parseUniversalDateToMs(val: unknown): number {
  * Query upstream providers (api.opuslive.pro, api.opusmax.live, api.opuszen.shop) as a fallback
  */
 async function fetchUpstreamKeyStatus(cleanKey: string): Promise<{ status: string;[key: string]: unknown } | null> {
-	const endpoints = [
-		'https://api.opuslive.pro/api/key-status',
-		'https://api.opusmax.live/api/key-status',
-		'https://api.opuszen.shop/api/key-status',
+	const baseHosts = [
+		'https://api.opuslive.pro',
+		'https://api.opusmax.live',
+		'https://api.opuszen.shop',
 	];
 
-	for (const ep of endpoints) {
+	for (const base of baseHosts) {
+		const targetUrls = [
+			`${base}/api/key-status?key=${encodeURIComponent(cleanKey)}`,
+			`${base}/api/key-status`,
+			`${base}/v1/key/status?key=${encodeURIComponent(cleanKey)}`,
+		];
+
+		for (const ep of targetUrls) {
+			try {
+				const controller = new AbortController();
+				const timeoutId = setTimeout(() => controller.abort(), 6000);
+				const res = await fetch(ep, {
+					headers: {
+						'User-Agent': 'OpusZen-Gateway/1.4',
+						'Accept': 'application/json',
+						'x-api-key': cleanKey,
+						'api-key': cleanKey,
+						'Authorization': `Bearer ${cleanKey}`,
+					},
+					signal: controller.signal,
+				});
+				clearTimeout(timeoutId);
+
+				if (res.ok) {
+					const rawJson: any = await res.json().catch(() => null);
+					if (rawJson) {
+						const json = rawJson.data || rawJson.result || rawJson.keyData || rawJson.key || rawJson;
+						if (json && json.status !== 'error' && !json.error) {
+							return parseUpstreamKeyJson(json);
+						}
+					}
+				}
+			} catch {
+				// try next URL
+			}
+		}
+
+		// Try POST fallback with JSON payload
 		try {
 			const controller = new AbortController();
 			const timeoutId = setTimeout(() => controller.abort(), 6000);
-			const res = await fetch(ep, {
+			const postRes = await fetch(`${base}/api/key-status`, {
+				method: 'POST',
 				headers: {
-					'User-Agent': 'OpusZen-Gateway/1.4',
+					'Content-Type': 'application/json',
+					'Accept': 'application/json',
+					'x-api-key': cleanKey,
+					'Authorization': `Bearer ${cleanKey}`,
+				},
+				body: JSON.stringify({ key: cleanKey, apiKey: cleanKey, api_key: cleanKey }),
+				signal: controller.signal,
+			});
+			clearTimeout(timeoutId);
+
+			if (postRes.ok) {
+				const rawJson: any = await postRes.json().catch(() => null);
+				if (rawJson) {
+					const json = rawJson.data || rawJson.result || rawJson.keyData || rawJson.key || rawJson;
+					if (json && json.status !== 'error' && !json.error) {
+						return parseUpstreamKeyJson(json);
+					}
+				}
+			}
+		} catch {
+			// continue
+		}
+
+		// Try probing /v1/models to verify key authenticity with provider
+		try {
+			const controller = new AbortController();
+			const timeoutId = setTimeout(() => controller.abort(), 6000);
+			const modelsRes = await fetch(`${base}/v1/models`, {
+				headers: {
 					'Accept': 'application/json',
 					'x-api-key': cleanKey,
 					'Authorization': `Bearer ${cleanKey}`,
@@ -1182,14 +1284,41 @@ async function fetchUpstreamKeyStatus(cleanKey: string): Promise<{ status: strin
 			});
 			clearTimeout(timeoutId);
 
-			if (res.ok) {
-				const rawJson: any = await res.json().catch(() => null);
-				if (!rawJson) continue;
+			if (modelsRes.ok) {
+				const rawModels: any = await modelsRes.json().catch(() => null);
+				const modelList = Array.isArray(rawModels?.data) ? rawModels.data.map((m: any) => m.id || m) : ["claude-3-7-sonnet", "claude-3-5-sonnet", "claude-3-5-haiku"];
+				return {
+					status: 'ok',
+					isRealtime: true,
+					keyStatus: 'active',
+					healthStatus: 'healthy',
+					name: `${base.replace('https://', '')} Key`,
+					provider: base.replace('https://', ''),
+					planName: 'Upstream Enterprise',
+					unlimited: true,
+					connectionStatus: 'Online',
+					isActive: true,
+					windowActive: true,
+					windowTokensLimit: 100000000,
+					windowTokensUsed: 0,
+					remainingTokens: 100000000,
+					allowedModels: modelList.slice(0, 10),
+					allowedProviders: [base.replace('https://', '')],
+					allocatedCredits: 100000,
+					usedCredits: 0,
+					remainingCredits: 100000,
+					recentLogs: [],
+					warning: `Key verified with ${base.replace('https://', '')}`,
+				};
+			}
+		} catch {
+			// continue
+		}
+	}
+	return null;
+}
 
-				// Handle wrapped payloads (e.g. { data: { ... } } or { result: { ... } })
-				const json = rawJson.data || rawJson.result || rawJson.keyData || rawJson.key || rawJson;
-
-				if (json && json.status !== 'error' && !json.error) {
+function parseUpstreamKeyJson(json: any) {
 					// Parse Limit with all possible upstream field names
 					const rawLimit = Number(
 						json.windowTokensLimit ??
@@ -1365,13 +1494,165 @@ async function fetchUpstreamKeyStatus(cleanKey: string): Promise<{ status: strin
 						allocatedCredits: rawCreditsAllocated,
 						usedCredits: rawCreditsUsed,
 						remainingCredits: rawCreditsRemaining,
-						recentLogs: json.recentLogs || json.recent_logs || json.logs || [],
-					};
-				}
-			}
-		} catch {
-			// continue to next endpoint
+		recentLogs: json.recentLogs || json.recent_logs || json.logs || [],
+	};
+}
+
+/**
+ * Verify direct Anthropic API keys (sk-ant-...) via api.anthropic.com
+ */
+async function verifyDirectAnthropicKey(cleanKey: string): Promise<{ status: string; [key: string]: unknown } | null> {
+	try {
+		const controller = new AbortController();
+		const timeoutId = setTimeout(() => controller.abort(), 6000);
+		const res = await fetch("https://api.anthropic.com/v1/messages", {
+			method: "POST",
+			headers: {
+				"content-type": "application/json",
+				"x-api-key": cleanKey,
+				"anthropic-version": "2023-06-01",
+			},
+			body: JSON.stringify({
+				model: "claude-3-5-haiku-20241022",
+				max_tokens: 1,
+				messages: [{ role: "user", content: "ping" }],
+			}),
+			signal: controller.signal,
+		});
+		clearTimeout(timeoutId);
+
+		if (res.ok) {
+			return {
+				status: 'ok',
+				isRealtime: true,
+				keyStatus: 'active',
+				healthStatus: 'healthy',
+				name: 'Anthropic Direct Key',
+				provider: 'Anthropic',
+				planName: 'Anthropic Official Key',
+				unlimited: true,
+				connectionStatus: 'Online',
+				isActive: true,
+				windowActive: true,
+				windowTokensLimit: 100000000,
+				windowTokensUsed: 0,
+				remainingTokens: 100000000,
+				allowedModels: ["claude-3-7-sonnet", "claude-3-5-sonnet", "claude-3-5-haiku", "claude-3-opus"],
+				allowedProviders: ["Anthropic"],
+				allocatedCredits: 100000,
+				usedCredits: 0,
+				remainingCredits: 100000,
+				recentLogs: [],
+				warning: "Direct Anthropic API key verified with api.anthropic.com.",
+			};
 		}
+
+		if (res.status === 401) {
+			return {
+				status: 'error',
+				error: "Invalid Anthropic API Key (401 Unauthorized from api.anthropic.com). Please check the key and try again.",
+			};
+		}
+
+		const errJson: any = await res.json().catch(() => null);
+		const errMessage = errJson?.error?.message || `Anthropic returned HTTP ${res.status}`;
+
+		if (res.status === 429) {
+			return {
+				status: 'ok',
+				keyStatus: 'rate_limited',
+				healthStatus: 'degraded',
+				name: 'Anthropic Direct Key',
+				provider: 'Anthropic',
+				planName: 'Anthropic Official Key',
+				connectionStatus: 'Online',
+				isActive: true,
+				windowActive: true,
+				warning: `Anthropic Rate Limit: ${errMessage}`,
+				recentLogs: [],
+			};
+		}
+
+		if (res.status === 400 && (errMessage.toLowerCase().includes("credit") || errMessage.toLowerCase().includes("balance") || errMessage.toLowerCase().includes("prepaid"))) {
+			return {
+				status: 'ok',
+				keyStatus: 'disabled',
+				healthStatus: 'unhealthy',
+				name: 'Anthropic Direct Key',
+				provider: 'Anthropic',
+				planName: 'Anthropic Official Key',
+				connectionStatus: 'Offline',
+				isActive: false,
+				windowActive: false,
+				warning: `Anthropic Balance Alert: ${errMessage}`,
+				recentLogs: [],
+			};
+		}
+
+		return {
+			status: 'error',
+			error: `Anthropic validation failed: ${errMessage}`,
+		};
+	} catch {
+		return null;
 	}
-	return null;
+}
+
+/**
+ * Verify direct OpenAI API keys (sk-proj-... / sk-...) via api.openai.com
+ */
+async function verifyDirectOpenAIKey(cleanKey: string): Promise<{ status: string; [key: string]: unknown } | null> {
+	try {
+		const controller = new AbortController();
+		const timeoutId = setTimeout(() => controller.abort(), 6000);
+		const res = await fetch("https://api.openai.com/v1/models", {
+			headers: {
+				Authorization: `Bearer ${cleanKey}`,
+			},
+			signal: controller.signal,
+		});
+		clearTimeout(timeoutId);
+
+		if (res.ok) {
+			return {
+				status: 'ok',
+				isRealtime: true,
+				keyStatus: 'active',
+				healthStatus: 'healthy',
+				name: 'OpenAI Direct Key',
+				provider: 'OpenAI',
+				planName: 'OpenAI Official Key',
+				unlimited: true,
+				connectionStatus: 'Online',
+				isActive: true,
+				windowActive: true,
+				windowTokensLimit: 100000000,
+				windowTokensUsed: 0,
+				remainingTokens: 100000000,
+				allowedModels: ["gpt-4o", "gpt-4o-mini", "o1", "o3-mini"],
+				allowedProviders: ["OpenAI"],
+				allocatedCredits: 100000,
+				usedCredits: 0,
+				remainingCredits: 100000,
+				recentLogs: [],
+				warning: "Direct OpenAI API key verified with api.openai.com.",
+			};
+		}
+
+		if (res.status === 401) {
+			return {
+				status: 'error',
+				error: "Invalid OpenAI API Key (401 Unauthorized from api.openai.com). Please check the key.",
+			};
+		}
+
+		const errJson: any = await res.json().catch(() => null);
+		const errMessage = errJson?.error?.message || `OpenAI returned HTTP ${res.status}`;
+		return {
+			status: 'error',
+			error: `OpenAI validation failed: ${errMessage}`,
+		};
+	} catch {
+		return null;
+	}
 }

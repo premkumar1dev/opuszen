@@ -99,8 +99,6 @@ export default function KeyStatusRoute() {
 	const [showKeyInput, setShowKeyInput] = useState<boolean>(false);
 	const [autoRefresh, setAutoRefresh] = useState<boolean>(false);
 	const [copiedKey, setCopiedKey] = useState<boolean>(false);
-	const [copiedSnippet, setCopiedSnippet] = useState<string | null>(null);
-	const [activeTab, setActiveTab] = useState<"api" | "cursor" | "claude" | "python" | "curl">("api");
 	const inputRef = useRef<HTMLInputElement>(null);
 
 	// Sync with server action / loader when SSR updates
@@ -309,17 +307,12 @@ export default function KeyStatusRoute() {
 		};
 	}, [resolvedResetMs]);
 
-	const copyToClipboard = async (text: string, type: "key" | "snippet") => {
+	const copyToClipboard = async (text: string) => {
 		if (!text) return;
 		try {
 			await navigator.clipboard.writeText(text);
-			if (type === "key") {
-				setCopiedKey(true);
-				setTimeout(() => setCopiedKey(false), 2200);
-			} else {
-				setCopiedSnippet(text);
-				setTimeout(() => setCopiedSnippet(null), 2200);
-			}
+			setCopiedKey(true);
+			setTimeout(() => setCopiedKey(false), 2200);
 		} catch {
 			// fallback
 		}
@@ -602,44 +595,6 @@ export default function KeyStatusRoute() {
 		}
 	};
 
-	const getSnippetCode = () => {
-		const targetUrl = typeof window !== "undefined" ? window.location.origin : "https://opuszen.com";
-		const k = displayKey || "sk_live_YOUR_API_KEY";
-		switch (activeTab) {
-			case "api":
-				return `# Real-time API Endpoint Query
-curl -X GET "${targetUrl}/api/key-status?key=${k}" \\
-  -H "Accept: application/json"`;
-			case "cursor":
-				return `// Cursor / Cline / Windsurf OpenAI-Compatible Configuration
-Base URL: ${targetUrl}/v1
-API Key:  ${k}
-Model:    claude-3-5-sonnet-20241022 (or claude-opus-4-8)`;
-			case "claude":
-				return `# Claude Code Environment Config
-export ANTHROPIC_BASE_URL="${targetUrl}/v1"
-export ANTHROPIC_API_KEY="${k}"`;
-			case "python":
-				return `import requests
-
-# Query real-time key telemetry via API
-response = requests.get(
-    "${targetUrl}/api/key-status",
-    params={"key": "${k}"},
-    headers={"Accept": "application/json"}
-)
-print(response.json())`;
-			case "curl":
-				return `curl ${targetUrl}/v1/chat/completions \\
-  -H "Content-Type: application/json" \\
-  -H "Authorization: Bearer ${k}" \\
-  -d '{
-    "model": "claude-3-5-sonnet-20241022",
-    "messages": [{"role": "user", "content": "Ping test"}]
-  }'`;
-		}
-	};
-
 	return (
 		<Layout>
 			{/* SaaS Atmospheric Background Glows */}
@@ -753,8 +708,8 @@ print(response.json())`;
 									<h3 className="font-heading font-bold text-foreground text-base">Key Lookup Failed</h3>
 									<p className="text-sm text-destructive/90">{errorMessage}</p>
 									<div className="pt-2 flex flex-wrap items-center gap-4 text-xs font-semibold">
-										<a href="/user/my-keys" className="inline-flex items-center gap-1.5 text-primary hover:underline">
-											<span>Manage API Keys</span>
+										<a href="/orders" className="inline-flex items-center gap-1.5 text-primary hover:underline">
+											<span>Track Orders</span>
 											<svg xmlns="http://www.w3.org/2000/svg" width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
 										</a>
 										<a href="/pricing" className="inline-flex items-center gap-1.5 text-muted-foreground hover:text-foreground hover:underline">
@@ -831,7 +786,7 @@ print(response.json())`;
 											</code>
 											<button
 												type="button"
-												onClick={() => copyToClipboard(displayKey, "key")}
+												onClick={() => copyToClipboard(displayKey)}
 												className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
 													copiedKey
 														? "bg-emerald-500 text-white shadow-md shadow-emerald-500/20"
@@ -1333,66 +1288,6 @@ print(response.json())`;
 										<p className="text-xs opacity-75 mt-1 font-mono">Telemetry updates automatically via live API as requests are dispatched.</p>
 									</div>
 								)}
-							</div>
-
-							{/* Developer Integration Hub / Quick Code Snippets */}
-							<div className="p-6 sm:p-8 rounded-3xl border border-border/80 bg-card/85 dark:bg-card/45 backdrop-blur-xl shadow-xl">
-								<div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
-									<div>
-										<h3 className="font-heading text-lg font-bold text-foreground flex items-center gap-2">
-											<span className="p-1.5 rounded-lg bg-primary/10 text-primary">
-												<svg xmlns="http://www.w3.org/2000/svg" width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
-											</span>
-											Quick Integration & API Access
-										</h3>
-										<p className="text-xs text-muted-foreground mt-0.5">
-											Query key telemetry programmatically via API or connect to your IDE extensions.
-										</p>
-									</div>
-
-									{/* Code Tab Switcher */}
-									<div className="flex items-center p-1 rounded-xl bg-background/80 dark:bg-background/40 border border-border/70 overflow-x-auto">
-										{(["api", "cursor", "claude", "python", "curl"] as const).map((tab) => (
-											<button
-												key={tab}
-												type="button"
-												onClick={() => setActiveTab(tab)}
-												className={`px-3 py-1.5 rounded-lg text-xs font-mono font-semibold transition-all cursor-pointer whitespace-nowrap ${
-													activeTab === tab
-														? "bg-primary text-primary-foreground shadow-xs"
-														: "text-muted-foreground hover:text-foreground"
-												}`}
-											>
-												{tab === "api" ? "GET /api/key-status" : tab === "cursor" ? "Cursor / Cline" : tab === "claude" ? "Claude Code" : tab === "python" ? "Python" : "cURL"}
-											</button>
-										))}
-									</div>
-								</div>
-
-								{/* Code Block Container */}
-								<div className="relative rounded-2xl bg-zinc-950 p-4 font-mono text-xs text-zinc-200 border border-zinc-800 shadow-inner overflow-hidden">
-									<button
-										type="button"
-										onClick={() => copyToClipboard(getSnippetCode(), "snippet")}
-										className="absolute right-3 top-3 px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-semibold flex items-center gap-1.5 transition-colors border border-zinc-700 shadow-sm cursor-pointer"
-										title="Copy configuration snippet"
-									>
-										{copiedSnippet ? (
-											<>
-												<svg xmlns="http://www.w3.org/2000/svg" width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" className="text-emerald-400"><polyline points="20 6 9 17 4 12"/></svg>
-												<span className="text-emerald-400">Copied!</span>
-											</>
-										) : (
-											<>
-												<svg xmlns="http://www.w3.org/2000/svg" width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
-												<span>Copy Snippet</span>
-											</>
-										)}
-									</button>
-									<pre className="overflow-x-auto pr-24 leading-relaxed select-all">
-										{getSnippetCode()}
-									</pre>
-								</div>
 							</div>
 
 						</div>

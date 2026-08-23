@@ -123,11 +123,6 @@ export function Footer() {
 								</Link>
 							</li>
 							<li>
-								<Link to="/user/dashboard" className="text-muted-foreground hover:text-foreground transition-colors">
-									User Dashboard
-								</Link>
-							</li>
-							<li>
 								<Link to="/auth/admin" className="text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1">
 									<Lock className="w-3 h-3" /> Admin Console
 								</Link>

@@ -3,26 +3,6 @@ import { type RouteConfig, index } from "@react-router/dev/routes";
 export default [
 	index("routes/home.tsx"),
 	{
-		path: "/auth/login",
-		file: "routes/login.tsx",
-	},
-	{
-		path: "/auth/signup",
-		file: "routes/signup.tsx",
-	},
-	{
-		path: "/auth/forgot-password",
-		file: "routes/forgot-password.tsx",
-	},
-	{
-		path: "/auth/reset-password",
-		file: "routes/reset-password.tsx",
-	},
-	{
-		path: "/auth/oauth-callback",
-		file: "routes/oauth-callback.tsx",
-	},
-	{
 		path: "/auth/admin",
 		file: "routes/admin-login.tsx",
 	},
@@ -105,34 +85,6 @@ export default [
 	{
 		path: "/auth/admin/payments",
 		file: "routes/admin-payments.tsx",
-	},
-	{
-		path: "/user/dashboard",
-		file: "routes/user-dashboard.tsx",
-	},
-	{
-		path: "/user/my-keys",
-		file: "routes/user-my-keys.tsx",
-	},
-	{
-		path: "/user/child-keys",
-		file: "routes/user-child-keys.tsx",
-	},
-	{
-		path: "/user/orders",
-		file: "routes/user-orders.tsx",
-	},
-	{
-		path: "/user/refer-earn",
-		file: "routes/user-refer-earn.tsx",
-	},
-	{
-		path: "/user/support",
-		file: "routes/user-support.tsx",
-	},
-	{
-		path: "/user/account",
-		file: "routes/user-account.tsx",
 	},
 	{
 		path: "/docs",
@@ -260,10 +212,6 @@ export default [
 	{
 		path: "/api/child-keys",
 		file: "routes/api.child-keys.tsx",
-	},
-	{
-		path: "/dashboard/*",
-		file: "routes/dashboard.tsx",
 	},
 	{
 		path: "*",
