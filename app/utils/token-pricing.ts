@@ -19,41 +19,42 @@
  * @returns credits to deduct (rounded to 4 decimal places)
  */
 export function calculateTokenCredits(
- promptTokens: number,
- completionTokens: number,
- pricePer1mInput: number,
- pricePer1mOutput: number
+	promptTokens: number,
+	completionTokens: number,
+	pricePer1mInput: number,
+	pricePer1mOutput: number
 ): number {
- if (pricePer1mInput <= 0 && pricePer1mOutput <= 0) {
- return 0; // flat pricing — credits are managed differently
- }
+	if (pricePer1mInput <= 0 && pricePer1mOutput <= 0) {
+		return 0; // flat pricing — credits are managed differently
+	}
 
- const inputCredits = (promptTokens / 1_000_000) * pricePer1mInput;
- const outputCredits = (completionTokens / 1_000_000) * pricePer1mOutput;
- return Math.round((inputCredits + outputCredits) * 10_000) / 10_000;
+	// Multiply before dividing to preserve integer precision (avoid (n/1e6)*p precision loss)
+	const inputCredits = (promptTokens * pricePer1mInput) / 1_000_000;
+	const outputCredits = (completionTokens * pricePer1mOutput) / 1_000_000;
+	return Math.round((inputCredits + outputCredits) * 10_000) / 10_000;
 }
 
 /**
  * Determine if a plan uses per-token pricing.
  */
 export function isTokenPricingPlan(
- pricePer1mInput: number,
- pricePer1mOutput: number
+	pricePer1mInput: number,
+	pricePer1mOutput: number
 ): boolean {
- return (pricePer1mInput ?? 0) > 0 || (pricePer1mOutput ?? 0) > 0;
+	return (pricePer1mInput ?? 0) > 0 || (pricePer1mOutput ?? 0) > 0;
 }
 
 /**
  * Format a token count for display (e.g. 1,234,567 → "1.23M")
  */
 export function formatTokenCount(tokens: number): string {
- if (tokens >= 1_000_000) {
- return (tokens / 1_000_000).toFixed(2) + "M";
- }
- if (tokens >= 1_000) {
- return (tokens / 1_000).toFixed(1) + "K";
- }
- return String(tokens);
+	if (tokens >= 1_000_000) {
+		return (tokens / 1_000_000).toFixed(2) + "M";
+	}
+	if (tokens >= 1_000) {
+		return (tokens / 1_000).toFixed(1) + "K";
+	}
+	return String(tokens);
 }
 
 /**
@@ -62,15 +63,15 @@ export function formatTokenCount(tokens: number): string {
  * price_per_1m_input_tokens as a heuristic (1M input tokens worth).
  */
 export function computeInitialCredits(
- minCredits: number,
- pricePer1mInput: number,
- pricePer1mOutput: number
+	minCredits: number,
+	pricePer1mInput: number,
+	pricePer1mOutput: number
 ): number {
- if (minCredits > 0) return minCredits;
+	if (minCredits > 0) return minCredits;
 
- if (pricePer1mInput > 0 || pricePer1mOutput > 0) {
- const heuristic = Math.max(pricePer1mInput, pricePer1mOutput) * 1;
- return Math.max(heuristic, 1); // at least 1 credit worth
- }
- return 0;
+	if (pricePer1mInput > 0 || pricePer1mOutput > 0) {
+		const heuristic = Math.max(pricePer1mInput, pricePer1mOutput) * 1;
+		return Math.max(heuristic, 1); // at least 1 credit worth
+	}
+	return 0;
 }

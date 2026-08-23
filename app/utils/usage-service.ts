@@ -38,8 +38,8 @@ function getModelPricing(model: string): { input: number; output: number } {
 
 export function calculateCredits(model: string, usage: TokenUsage): number {
 	const pricing = getModelPricing(model);
-	const inputCost = (usage.promptTokens / 1_000_000) * pricing.input;
-	const outputCost = (usage.completionTokens / 1_000_000) * pricing.output;
+	const inputCost = (usage.promptTokens * pricing.input) / 1_000_000;
+	const outputCost = (usage.completionTokens * pricing.output) / 1_000_000;
 	return parseFloat((inputCost + outputCost).toFixed(6));
 }
 
@@ -161,7 +161,7 @@ export async function getDashboardStats(): Promise<{
 
 	const totalCreditsRemaining = masterKeys.reduce((s, k) => s + (k.remaining_credits ?? 0), 0);
 	const activeMasterKeys = masterKeys.filter((k) => k.health_status === 'healthy' && k.status === 'active').length;
-	const failedMasterKeys = masterKeys.filter((k) => k.health_status === 'unhealthy' || k.status === 'temporarily_failed').length;
+	const failedMasterKeys = masterKeys.filter((k) => !(k.health_status === 'healthy' && k.status === 'active')).length;
 
 	// Provider aggregation
 	const providerMap = new Map<string, any>();

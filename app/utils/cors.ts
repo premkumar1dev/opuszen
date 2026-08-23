@@ -27,13 +27,18 @@ function parseAllowedOrigins(): string[] {
 	return Array.from(combined);
 }
 
-let cachedOrigins: string[] | null = null;
+let cachedOrigins: { origins: string[]; timestamp: number } | null = null;
+const CORS_CACHE_TTL_MS = 5 * 60_000; // 5 minutes
 
 function getAllowedOrigins(): string[] {
-	if (!cachedOrigins) {
-		cachedOrigins = parseAllowedOrigins();
+	const now = Date.now();
+	if (cachedOrigins && now - cachedOrigins.timestamp < CORS_CACHE_TTL_MS) {
+		return cachedOrigins.origins;
 	}
-	return cachedOrigins;
+
+	const origins = parseAllowedOrigins();
+	cachedOrigins = { origins, timestamp: now };
+	return origins;
 }
 
 /** Refresh the origin cache — call after env changes (tests). */

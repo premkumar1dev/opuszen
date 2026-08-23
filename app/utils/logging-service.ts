@@ -91,7 +91,7 @@ export async function getRequestLogs(filters: ApiRequestLogFilters, page = 1, pe
 
 	if (filters.search) {
 		// Sanitize: escape PostgREST special characters to prevent filter injection
-		const sanitized = filters.search.replace(/[%_\\,()]/g, (c) => `\\${c}`);
+		const sanitized = filters.search.replace(/[%_\\'()]/g, (c) => `\\${c}`);
 		query = query.or(`model.ilike.%${sanitized}%,provider.ilike.%${sanitized}%,error_message.ilike.%${sanitized}%`);
 	}
 	if (filters.provider) query = query.eq("provider", filters.provider);

@@ -58,15 +58,29 @@ function getProviderConfig(provider: string): ProviderConfig {
 		try {
 			const parsed = new URL(baseUrl);
 			const hostname = parsed.hostname.toLowerCase();
+			const normalized = hostname.replace(/^\.+|\.+$/g, '');
+
+			// Cloud metadata endpoints
+			const isMetadata =
+				normalized === '169.254.169.254' ||
+				normalized === 'metadata.google.internal' ||
+				normalized === 'metadata.internal' ||
+				normalized === 'metadata';
+
+			// Full 127.0.0.0/8 range (was only checking 127.0.0.1)
+			const isLocalhost = normalized === 'localhost' ||
+				normalized === '127.0.0.1' ||
+				normalized.startsWith('127.');
+
 			const isInternal =
-				hostname === 'localhost' ||
-				hostname === '127.0.0.1' ||
-				hostname === '0.0.0.0' ||
-				hostname === '::1' ||
-				hostname.startsWith('169.254.') ||
-				hostname.startsWith('10.') ||
-				hostname.startsWith('192.168.') ||
-				(hostname.startsWith('172.') && parseInt(hostname.split('.')[1], 10) >= 16 && parseInt(hostname.split('.')[1], 10) <= 31);
+				isMetadata ||
+				isLocalhost ||
+				normalized === '0.0.0.0' ||
+				normalized === '::1' ||
+				normalized.startsWith('169.254.') ||
+				normalized.startsWith('10.') ||
+				normalized.startsWith('192.168.') ||
+				(normalized.startsWith('172.') && parseInt(normalized.split('.')[1], 10) >= 16 && parseInt(normalized.split('.')[1], 10) <= 31);
 
 			if (isInternal) {
 				throw new Error('Internal network addresses are not allowed for provider URL: ' + hostname);
@@ -457,7 +471,12 @@ export async function handleGatewayRequest(
 			});
 			clearTimeout(timeoutId);
 		} catch (fetchErr: unknown) {
-			const errorMsg = fetchErr instanceof Error ? fetchErr.message : 'Network error';
+			let errorMsg: string;
+			if (fetchErr instanceof Error && fetchErr.name === 'AbortError') {
+				errorMsg = `Request timed out after ${requestTimeoutMs}ms`;
+			} else {
+				errorMsg = fetchErr instanceof Error ? fetchErr.message : 'Network error';
+			}
 			lastError = errorMsg;
 			lastStatusCode = 0;
 
@@ -509,8 +528,8 @@ export async function handleGatewayRequest(
 			let credits: number;
 			if (isPerTokenPlan) {
 				credits = Math.round(
-					((usage.promptTokens / 1_000_000) * planInputPrice +
-						(usage.completionTokens / 1_000_000) * planOutputPrice) * 10_000
+					((usage.promptTokens * planInputPrice) / 1_000_000 +
+						(usage.completionTokens * planOutputPrice) / 1_000_000) * 10_000
 				) / 10_000;
 			} else {
 				credits = calculateCredits(ctx.model, usage);
@@ -538,6 +557,7 @@ export async function handleGatewayRequest(
 				if (!currentKey) continue;
 
 				const prevUsed = currentKey.used_credits ?? 0;
+				const prevTotal = currentKey.total_credits ?? 0;
 				const prevRemaining = currentKey.remaining_credits ?? 0;
 
 				if (prevRemaining <= 0) continue; // no credits left
@@ -556,7 +576,8 @@ export async function handleGatewayRequest(
 					})
 					.eq('id', candidate.id)
 					.eq('used_credits', prevUsed)
-					.eq('remaining_credits', prevRemaining);
+					.eq('remaining_credits', prevRemaining)
+					.eq('total_credits', prevTotal);
 
 				if (updError || count === 0) {
 					// Compare-and-swap failed: concurrent write detected
@@ -785,6 +806,37 @@ export async function handleGatewayRequest(
 // ---------------------------------------------------------------------------
 // User API key status endpoint
 // ---------------------------------------------------------------------------
+// In-memory cache for key-status enumeration prevention
+// Tracks recent lookup timestamps per key prefix to add artificial delays
+const keyStatusLookupTimestamps = new Map<string, number[]>();
+const KEY_STATUS_RATE_LIMIT_WINDOW_MS = 60_000;
+const KEY_STATUS_RATE_LIMIT_MAX = 10; // max 10 lookups per minute per key prefix
+const KEY_STATUS_MIN_DELAY_MS = 800; // minimum response time for "not found"
+
+/**
+ * Check and record a key-status lookup to prevent timing-based enumeration.
+ * Returns the minimum delay (ms) the caller should wait before responding.
+ */
+function recordKeyStatusLookup(apiKey: string): number {
+	const prefix = apiKey.slice(0, 8);
+	const now = Date.now();
+
+	// Clean up old entries
+	const timestamps = keyStatusLookupTimestamps.get(prefix) ?? [];
+	const recent = timestamps.filter((t) => now - t < KEY_STATUS_RATE_LIMIT_WINDOW_MS);
+	recent.push(now);
+	keyStatusLookupTimestamps.set(prefix, recent);
+
+	if (recent.length > KEY_STATUS_RATE_LIMIT_MAX) {
+		// Over the rate limit — add extra delay for this response
+		return KEY_STATUS_MIN_DELAY_MS + Math.min(recent.length * 200, 2000);
+	}
+
+	// Under the limit — still add a small base delay for not-found responses
+	// to reduce the timing differential between valid and invalid keys
+	return KEY_STATUS_MIN_DELAY_MS;
+}
+
 export async function getKeyStatus(apiKey: string): Promise<{ status: string;[key: string]: unknown }> {
 	if (!apiKey) {
 		return { status: 'error', error: 'API key is required. Please provide your API key.' };
@@ -799,6 +851,9 @@ export async function getKeyStatus(apiKey: string): Promise<{ status: string;[ke
 	if (!cleanKey) {
 		return { status: 'error', error: 'API key is empty. Please check your key and try again.' };
 	}
+
+	// Record this lookup for enumeration prevention
+	const minDelay = recordKeyStatusLookup(cleanKey);
 
 	const isUuidKey = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanKey);
 
@@ -826,7 +881,7 @@ export async function getKeyStatus(apiKey: string): Promise<{ status: string;[ke
 			}
 		}
 
-		// 1. Check user_api_keys table (including child keys)
+		// Compute token allocation from key and plan assignment
 		const allocated = Number(key.allocated_credits || key.tokens_limit || 0);
 		let allocatedTokens = key.tokens_limit && Number(key.tokens_limit) > 0
 			? Number(key.tokens_limit)
@@ -870,18 +925,18 @@ export async function getKeyStatus(apiKey: string): Promise<{ status: string;[ke
 				supabase
 					.from('api_request_logs')
 					.select('created_at, model, http_status, is_success, total_tokens, prompt_tokens, completion_tokens')
-					.or(`user_api_key_id.eq.${key.id},user_id.eq.${key.user_id}`)
+					.eq('user_api_key_id', key.id)
 					.order('created_at', { ascending: false })
 					.limit(20),
 				supabase
 					.from('api_request_logs')
 					.select('id', { count: 'exact', head: true })
-					.or(`user_api_key_id.eq.${key.id},user_id.eq.${key.user_id}`)
+					.eq('user_api_key_id', key.id)
 					.gte('created_at', twentyFourHoursAgo),
 				supabase
 					.from('api_request_logs')
 					.select('total_tokens, prompt_tokens, completion_tokens, created_at')
-					.or(`user_api_key_id.eq.${key.id},user_id.eq.${key.user_id}`),
+					.eq('user_api_key_id', key.id),
 				supabase
 					.from('token_usage_windows')
 					.select('total_tokens')
@@ -921,7 +976,7 @@ export async function getKeyStatus(apiKey: string): Promise<{ status: string;[ke
 				}
 			}
 		} catch (e) {
-			// silence log fetch errors
+			console.error("[gateway] Failed to fetch logs for key status:", e);
 		}
 
 		const totalLoggedTokens = Math.max(
@@ -1045,15 +1100,19 @@ export async function getKeyStatus(apiKey: string): Promise<{ status: string;[ke
 	}
 
 	if (cleanKey.startsWith("sk-ant-")) {
+		await new Promise((r) => setTimeout(r, minDelay));
 		return { status: 'error', error: "This looks like a direct Anthropic API key ('sk-ant-...'). Please enter your OpusZen Gateway key ('sk_live_...')." };
 	}
 	if (cleanKey.startsWith("sk-proj-")) {
+		await new Promise((r) => setTimeout(r, minDelay));
 		return { status: 'error', error: "This looks like an OpenAI project API key ('sk-proj-...'). Please enter your OpusZen Gateway key ('sk_live_...')." };
 	}
 	if (cleanKey.toLowerCase().includes("your_") || cleanKey.toLowerCase().includes("placeholder") || cleanKey.includes("<")) {
+		await new Promise((r) => setTimeout(r, minDelay));
 		return { status: 'error', error: "Please enter your actual OpusZen API key rather than placeholder text." };
 	}
 
+	await new Promise((r) => setTimeout(r, minDelay));
 	return { status: 'error', error: `API key not found. Please make sure to copy your full key starting with 'sk_live_' from your dashboard.` };
 }
 
@@ -1103,9 +1162,9 @@ function parseUniversalDateToMs(val: unknown): number {
  */
 async function fetchUpstreamKeyStatus(cleanKey: string): Promise<{ status: string;[key: string]: unknown } | null> {
 	const endpoints = [
-		`https://api.opuslive.pro/api/key-status?key=${encodeURIComponent(cleanKey)}`,
-		`https://api.opusmax.live/api/key-status?key=${encodeURIComponent(cleanKey)}`,
-		`https://api.opuszen.shop/api/key-status?key=${encodeURIComponent(cleanKey)}`,
+		'https://api.opuslive.pro/api/key-status',
+		'https://api.opusmax.live/api/key-status',
+		'https://api.opuszen.shop/api/key-status',
 	];
 
 	for (const ep of endpoints) {

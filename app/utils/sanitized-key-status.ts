@@ -9,6 +9,32 @@
 import { getKeyStatus } from "~/utils/gateway-service";
 import { getPlanInfoForApiKey } from "~/utils/plan-service";
 
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+export interface OpusZenPlanMetadata {
+	planName: string;
+	displayName: string;
+	badgeColor: string;
+	description: string;
+	monthlyPrice: number;
+	dailyTokenLimit: number;
+	monthlyTokenLimit: number;
+	features: string[];
+	modelAccess: string[];
+	priority: number;
+}
+
+export interface SanitizedKeyStatus {
+	status: string;
+	[key: string]: unknown;
+}
+
+// ---------------------------------------------------------------------------
+// Sanitization
+// ---------------------------------------------------------------------------
+
 // OpusLive plan name patterns that must NEVER be shown to customers
 const OPUSLIVE_PLAN_PATTERNS = [
 	/\b\d+X\b/i, // 5X, 10X, 20X, etc.
@@ -22,7 +48,7 @@ const OPUSLIVE_PLAN_PATTERNS = [
  */
 function sanitizePlanName(name: string): string {
 	if (!name) return name;
-	// If it matches an OpusLive pattern, replace with "Standard Plan"
+	// If it matches an OpusLive pattern, replace with "Custom Plan"
 	for (const pattern of OPUSLIVE_PLAN_PATTERNS) {
 		if (pattern.test(name)) {
 			return "Custom Plan";
@@ -32,10 +58,13 @@ function sanitizePlanName(name: string): string {
 }
 
 /**
- * Sanitize any object recursively to strip OpusLive data
+ * Sanitize any object to strip OpusLive data
  */
-function sanitizeObject(obj: Record<string, unknown>, planName?: string): Record<string, unknown> {
-	const sanitized: Record<string, unknown> = { ...obj };
+function sanitizeObject(
+	obj: Record<string, unknown>,
+	planName?: string
+): SanitizedKeyStatus {
+	const sanitized: SanitizedKeyStatus = { ...obj, status: obj.status as string };
 
 	// Override planName with OpusZen plan name
 	if (sanitized.planName && planName) {
@@ -48,9 +77,9 @@ function sanitizeObject(obj: Record<string, unknown>, planName?: string): Record
 	}
 
 	// Remove any fields that might expose OpusLive internal data
-	delete (sanitized as any).multiplier;
-	delete (sanitized as any).opuslivePlan;
-	delete (sanitized as any).originalPlanName;
+	delete sanitized.multiplier;
+	delete sanitized.opuslivePlan;
+	delete sanitized.originalPlanName;
 
 	// Sanitize allowedModels — remove any OpusLive-specific model naming
 	if (sanitized.allowedModels && Array.isArray(sanitized.allowedModels)) {
@@ -62,35 +91,36 @@ function sanitizeObject(obj: Record<string, unknown>, planName?: string): Record
 	return sanitized;
 }
 
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
+
 /**
  * Get sanitized key status — the ONLY function that should be called
  * from customer-facing endpoints.
  *
  * CRITICAL: This function ensures no OpusLive plan names are ever returned.
  */
-export async function getSanitizedKeyStatus(apiKey: string): Promise<{
-	status: string;
-	[key: string]: unknown;
-}> {
+export async function getSanitizedKeyStatus(apiKey: string): Promise<SanitizedKeyStatus> {
 	// Get raw status from gateway (validates key with OpusLive internally)
 	const rawResult = await getKeyStatus(apiKey);
 
 	// If error, return as-is (no plan data to sanitize)
 	if (rawResult.status === "error") {
-		return rawResult;
+		return rawResult as SanitizedKeyStatus;
 	}
 
 	// Look up the OpusZen plan assignment for this key
 	const planInfo = await getPlanInfoForApiKey(apiKey);
 
-	const opusZenPlanName = planInfo ? planInfo.displayName : undefined;
+	const opusZenPlanName = planInfo?.displayName;
 
 	// Sanitize: replace OpusLive plan name with OpusZen plan name
 	const sanitized = sanitizeObject(rawResult as Record<string, unknown>, opusZenPlanName);
 
 	// Add plan metadata from OpusZen database if available
 	if (planInfo && sanitized.status !== "error") {
-		(sanitized as any).opusZenPlan = {
+		sanitized.opusZenPlan = {
 			planName: planInfo.planName,
 			displayName: planInfo.displayName,
 			badgeColor: planInfo.badgeColor,
@@ -101,12 +131,12 @@ export async function getSanitizedKeyStatus(apiKey: string): Promise<{
 			features: planInfo.features,
 			modelAccess: planInfo.modelAccess,
 			priority: planInfo.priority,
-		};
-		(sanitized as any).planName = planInfo.displayName;
+		} as OpusZenPlanMetadata;
+		sanitized.planName = planInfo.displayName;
 		if (planInfo.monthlyTokenLimit && (!sanitized.windowTokensLimit || Number(sanitized.windowTokensLimit) === 0)) {
 			sanitized.windowTokensLimit = planInfo.monthlyTokenLimit;
 		}
 	}
 
-	return sanitized as { status: string; [key: string]: unknown };
+	return sanitized;
 }

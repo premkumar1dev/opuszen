@@ -346,23 +346,43 @@ export async function getAllAssignments(): Promise<PlanAssignmentWithDetails[]> 
 
 	if (error || !assignments) return [];
 
+	const assignmentList = assignments as PlanAssignment[];
+
+	// Batch-fetch all plans and user keys in parallel instead of N+1 queries
+	const planIds = [...new Set(assignmentList.map((a) => a.plan_id))];
+	const userKeyIds = [...new Set(
+		assignmentList.map((a) => a.user_api_key_id).filter((id): id is string => id != null)
+	)];
+
+	const [plansResult, userKeysResult] = await Promise.all([
+		planIds.length > 0
+			? supabase.from("admin_plans").select("*").in("id", planIds)
+			: Promise.resolve({ data: [] as AdminPlan[] }),
+		userKeyIds.length > 0
+			? supabase.from("user_api_keys").select("id, name, user_id").in("id", userKeyIds)
+			: Promise.resolve({ data: [] as any[] }),
+	]);
+
+	const planMap = new Map<string, AdminPlan>();
+	for (const p of (plansResult.data ?? [])) {
+		planMap.set(p.id, p as AdminPlan);
+	}
+
+	const userKeyMap = new Map<string, { id: string; name: string; user_id: string }>();
+	for (const k of (userKeysResult.data ?? [])) {
+		userKeyMap.set(k.id, k);
+	}
+
 	const result: PlanAssignmentWithDetails[] = [];
-	for (const a of assignments as PlanAssignment[]) {
-		const plan = await getPlanById(a.plan_id);
+	for (const a of assignmentList) {
+		const plan = planMap.get(a.plan_id);
 		if (!plan) continue;
 
-			// Fetch user key info
-			let userApiKeyData: PlanAssignmentWithDetails["user_api_key"] = undefined;
-			if (a.user_api_key_id) {
-				const { data } = await supabase
-					.from("user_api_keys")
-					.select("id, name, user_id")
-					.eq("id", a.user_api_key_id)
-					.maybeSingle();
-				if (data) userApiKeyData = data;
-			}
-
-			result.push({ ...a, plan, user_api_key: userApiKeyData });
+		result.push({
+			...a,
+			plan,
+			user_api_key: a.user_api_key_id ? userKeyMap.get(a.user_api_key_id) : undefined,
+		});
 	}
 
 	return result;
@@ -426,12 +446,13 @@ export function inferTokenLimitFromPlan(planName?: string | null): number {
 		return factor * 1_000_000;
 	}
 
-	// Named tiers
-	if (name.includes("enterprise")) return 500_000_000;
-	if (name.includes("business")) return 150_000_000;
-	if (name.includes("premium")) return 50_000_000;
-	if (name.includes("pro")) return 15_000_000;
-	if (name.includes("starter") || name.includes("basic") || name.includes("trial")) return 3_000_000;
+	// Named tiers — use word-boundary matching to avoid false positives
+	// (e.g., "Product Analytics Pro" should not match "pro")
+	if (/\benterprise\b/i.test(name)) return 500_000_000;
+	if (/\bbusiness\b/i.test(name)) return 150_000_000;
+	if (/\bpremium\b/i.test(name)) return 50_000_000;
+	if (/\bpro\b/i.test(name)) return 15_000_000;
+	if (/\b(starter|basic|trial)\b/i.test(name)) return 3_000_000;
 
 	return 0;
 }
@@ -495,8 +516,9 @@ export async function logActivity(entry: {
 			admin_ip: entry.admin_ip ?? null,
 			details: entry.details ?? {},
 		});
-	} catch {
-		// best-effort logging
+	} catch (err) {
+		// Log the error so failures are visible, but don't throw
+		console.error("[plan-service] logActivity failed:", err);
 	}
 }
 
