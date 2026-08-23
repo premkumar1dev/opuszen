@@ -1,6 +1,6 @@
 import { type LoaderFunctionArgs, type ActionFunctionArgs, type MetaFunction, Form } from "react-router";
 import { useLoaderData, useActionData, useNavigation } from "react-router";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { Layout } from "../components/Layout";
 import { getKeyStatus } from "~/utils/gateway-service";
 import { getPlanInfoForApiKey, inferTokenLimitFromPlan } from "~/utils/plan-service";
@@ -230,7 +230,7 @@ export default function KeyStatusRoute() {
 	};
 
 	// Determine the fixed target reset timestamp whenever keyData is loaded
-	const resolvedResetMs = (() => {
+	const resolvedResetMs = useMemo(() => {
 		if (!keyData) return null;
 		const now = Date.now();
 		const fiveHoursMs = 5 * 60 * 60 * 1000;
@@ -250,9 +250,10 @@ export default function KeyStatusRoute() {
 			return lastUsedMs + fiveHoursMs;
 		}
 
-		// If all tokens are replenished or window reset has passed, next rolling window is 5 hours from now
-		return now + fiveHoursMs;
-	})();
+		// Anchor 5 hours from sync time
+		const baseAnchor = lastSyncedTime ? lastSyncedTime.getTime() : now;
+		return baseAnchor + fiveHoursMs;
+	}, [keyData?.windowResetAt, keyData?.lastUsedAt, keyData?.id, keyData?.name, lastSyncedTime]);
 
 	// 5-Hour rolling window countdown loop
 	useEffect(() => {

@@ -1057,6 +1057,47 @@ export async function getKeyStatus(apiKey: string): Promise<{ status: string;[ke
 	return { status: 'error', error: `API key not found. Please make sure to copy your full key starting with 'sk_live_' from your dashboard.` };
 }
 
+function parseUniversalDateToMs(val: unknown): number {
+	if (!val) return NaN;
+	if (typeof val === 'number') {
+		return val < 10_000_000_000 ? val * 1000 : val;
+	}
+	if (typeof val === 'string') {
+		const s = val.trim();
+		if (/^\d+$/.test(s)) {
+			const n = Number(s);
+			return n < 10_000_000_000 ? n * 1000 : n;
+		}
+		const dmyMatch = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})(?:[,\s]+(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM)?)?/i);
+		if (dmyMatch) {
+			const day = parseInt(dmyMatch[1], 10);
+			const month = parseInt(dmyMatch[2], 10) - 1;
+			let year = parseInt(dmyMatch[3], 10);
+			if (year < 100) year += 2000;
+
+			let hours = dmyMatch[4] ? parseInt(dmyMatch[4], 10) : 0;
+			const minutes = dmyMatch[5] ? parseInt(dmyMatch[5], 10) : 0;
+			const seconds = dmyMatch[6] ? parseInt(dmyMatch[6], 10) : 0;
+			const meridiem = dmyMatch[7]?.toUpperCase();
+
+			if (meridiem === 'PM' && hours < 12) hours += 12;
+			if (meridiem === 'AM' && hours === 12) hours = 0;
+
+			const parsedDate = new Date(year, month, day, hours, minutes, seconds);
+			if (!isNaN(parsedDate.getTime())) return parsedDate.getTime();
+		}
+
+		const parsed = Date.parse(s);
+		if (!isNaN(parsed)) return parsed;
+
+		const iso = s.replace(' ', 'T');
+		const parsedIso = Date.parse(iso);
+		if (!isNaN(parsedIso)) return parsedIso;
+	}
+	const d = new Date(val as any);
+	return d.getTime();
+}
+
 /**
  * Query upstream providers (api.opuslive.pro, api.opusmax.live, api.opuszen.shop) as a fallback
  */
@@ -1226,14 +1267,16 @@ async function fetchUpstreamKeyStatus(cleanKey: string): Promise<{ status: strin
 					const lastUsedAt = json.lastUsedAt || json.last_used_at || json.last_used || json.lastUsed;
 
 					const fiveHoursMs = 5 * 60 * 60 * 1000;
-					const lastUsedMs = lastUsedAt ? new Date(lastUsedAt).getTime() : NaN;
+					const lastUsedMs = parseUniversalDateToMs(lastUsedAt);
+					const rawWindowReset = json.windowResetAt || json.window_reset_at || json.resetAt || json.reset_at || json.reset_time;
+					const rawResetMs = parseUniversalDateToMs(rawWindowReset);
+
 					const computedRollingReset = !isNaN(lastUsedMs) && (Date.now() - lastUsedMs < fiveHoursMs)
 						? new Date(lastUsedMs + fiveHoursMs).toISOString()
 						: new Date(Date.now() + fiveHoursMs).toISOString();
 
-					const rawWindowReset = json.windowResetAt || json.window_reset_at || json.resetAt || json.reset_at || json.reset_time;
-					const windowResetAt = rawWindowReset && !isNaN(new Date(rawWindowReset).getTime()) && new Date(rawWindowReset).getTime() > Date.now()
-						? rawWindowReset
+					const windowResetAt = !isNaN(rawResetMs) && rawResetMs > Date.now()
+						? new Date(rawResetMs).toISOString()
 						: computedRollingReset;
 
 					return {
