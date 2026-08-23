@@ -111,12 +111,12 @@ export default function KeyStatusRoute() {
 		formattedText: string;
 		isResetting: boolean;
 	}>({
-		hours: "00",
-		minutes: "00",
-		seconds: "00",
-		totalSecondsRemaining: 0,
+		hours: "04",
+		minutes: "59",
+		seconds: "59",
+		totalSecondsRemaining: 18000,
 		percentRemaining: 100,
-		formattedText: "",
+		formattedText: "4h 59m 59s remaining",
 		isResetting: false,
 	});
 
@@ -127,29 +127,23 @@ export default function KeyStatusRoute() {
 			return;
 		}
 
-		let targetTime = keyData.windowResetAt ? new Date(keyData.windowResetAt).getTime() : NaN;
-		if (isNaN(targetTime)) {
-			const baseTime = keyData.lastUsedAt ? new Date(keyData.lastUsedAt).getTime() : Date.now();
-			targetTime = baseTime + 5 * 60 * 60 * 1000;
-		}
+		const fiveHoursMs = 5 * 60 * 60 * 1000;
 
 		const updateTimer = () => {
 			const now = Date.now();
-			const diff = targetTime - now;
+			let targetMs = parseTimestampToMs(keyData.windowResetAt);
 
-			if (diff <= 0) {
-				setTimeLeft("Window Reset Cycle Ready");
-				setRollingTimer({
-					hours: "00",
-					minutes: "00",
-					seconds: "00",
-					totalSecondsRemaining: 0,
-					percentRemaining: 0,
-					formattedText: "Window cycle ready",
-					isResetting: true,
-				});
-				return;
+			// If targetMs is invalid, expired, or represents a distant expiry date (> 5.5h in future), compute rolling 5h window
+			if (isNaN(targetMs) || targetMs <= now || (targetMs - now) > 5.5 * 60 * 60 * 1000) {
+				const lastUsedMs = parseTimestampToMs(keyData.lastUsedAt || keyData.last_used);
+				if (!isNaN(lastUsedMs) && (now - lastUsedMs) < fiveHoursMs) {
+					targetMs = lastUsedMs + fiveHoursMs;
+				} else {
+					targetMs = now + fiveHoursMs;
+				}
 			}
+
+			const diff = Math.max(0, targetMs - now);
 
 			const h = Math.floor(diff / (1000 * 60 * 60));
 			const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
@@ -160,7 +154,7 @@ export default function KeyStatusRoute() {
 			const secondsStr = String(s).padStart(2, "0");
 
 			const totalSec = Math.floor(diff / 1000);
-			const pct = Math.min(100, Math.max(0, Math.round((diff / (5 * 60 * 60 * 1000)) * 100)));
+			const pct = Math.min(100, Math.max(1, Math.round((diff / fiveHoursMs) * 100)));
 
 			const parts = [];
 			if (h > 0) parts.push(`${h}h`);
@@ -176,7 +170,7 @@ export default function KeyStatusRoute() {
 				totalSecondsRemaining: totalSec,
 				percentRemaining: pct,
 				formattedText: text,
-				isResetting: false,
+				isResetting: diff === 0,
 			});
 		};
 
@@ -202,6 +196,26 @@ export default function KeyStatusRoute() {
 		} catch {
 			// fallback
 		}
+	};
+
+	const parseTimestampToMs = (val: any): number => {
+		if (!val) return NaN;
+		if (typeof val === "number") {
+			return val < 10_000_000_000 ? val * 1000 : val;
+		}
+		if (typeof val === "string") {
+			const num = Number(val);
+			if (!isNaN(num) && num > 0) {
+				return num < 10_000_000_000 ? num * 1000 : num;
+			}
+			const parsed = Date.parse(val);
+			if (!isNaN(parsed)) return parsed;
+			const iso = val.replace(" ", "T");
+			const parsedIso = Date.parse(iso);
+			if (!isNaN(parsedIso)) return parsedIso;
+		}
+		const d = new Date(val);
+		return d.getTime();
 	};
 
 	const formatDateToDDMMYY = (date: Date) => {

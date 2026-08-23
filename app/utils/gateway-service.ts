@@ -942,6 +942,12 @@ export async function getKeyStatus(apiKey: string): Promise<{ status: string;[ke
 		const usagePercent = finalLimit > 0 ? Math.min(100, Math.round((usedTokens / finalLimit) * 1000) / 10) : 0;
 		const isActive = effectiveStatus === 'active';
 
+		const fiveHoursMs = 5 * 60 * 60 * 1000;
+		const lastUsedMs = lastUsedAt ? new Date(lastUsedAt).getTime() : NaN;
+		const windowResetAt = !isNaN(lastUsedMs) && (Date.now() - lastUsedMs < fiveHoursMs)
+			? new Date(lastUsedMs + fiveHoursMs).toISOString()
+			: new Date(Date.now() + fiveHoursMs).toISOString();
+
 		return {
 			status: 'ok',
 			isRealtime: true,
@@ -964,7 +970,7 @@ export async function getKeyStatus(apiKey: string): Promise<{ status: string;[ke
 			windowTokensLimit: finalLimit > 0 ? finalLimit : 10000000,
 			windowTokensUsed: windowTokensFromLogs > 0 ? windowTokensFromLogs : usedTokens,
 			remainingTokens,
-			windowResetAt: key.expiry_date || new Date(Date.now() + 5 * 60 * 60 * 1000).toISOString(),
+			windowResetAt,
 			allowedModels: key.allowed_models?.length ? key.allowed_models : ["claude-opus-4-8", "claude-opus-4-7", "claude-sonnet-4-6", "claude-haiku-4-5-20251001"],
 			allowedProviders: key.allowed_providers || [],
 			allocatedCredits: allocated,
@@ -1218,7 +1224,17 @@ async function fetchUpstreamKeyStatus(cleanKey: string): Promise<{ status: strin
 					const expiresAt = json.expiresAt || json.expires_at || json.expiry_date || json.expiryDate || json.expire_at;
 					const createdAt = json.createdAt || json.created_at || json.created;
 					const lastUsedAt = json.lastUsedAt || json.last_used_at || json.last_used || json.lastUsed;
-					const windowResetAt = json.windowResetAt || json.window_reset_at || json.resetAt || json.reset_at || json.reset_time || expiresAt;
+
+					const fiveHoursMs = 5 * 60 * 60 * 1000;
+					const lastUsedMs = lastUsedAt ? new Date(lastUsedAt).getTime() : NaN;
+					const computedRollingReset = !isNaN(lastUsedMs) && (Date.now() - lastUsedMs < fiveHoursMs)
+						? new Date(lastUsedMs + fiveHoursMs).toISOString()
+						: new Date(Date.now() + fiveHoursMs).toISOString();
+
+					const rawWindowReset = json.windowResetAt || json.window_reset_at || json.resetAt || json.reset_at || json.reset_time;
+					const windowResetAt = rawWindowReset && !isNaN(new Date(rawWindowReset).getTime()) && new Date(rawWindowReset).getTime() > Date.now()
+						? rawWindowReset
+						: computedRollingReset;
 
 					return {
 						status: 'ok',
