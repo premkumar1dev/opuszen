@@ -7,10 +7,10 @@ import { getPlanInfoForApiKey, inferTokenLimitFromPlan } from "~/utils/plan-serv
 
 export const meta: MetaFunction = () => {
 	return [
-		{ title: "API Key Status & Real-time Usage | OpusZen" },
+		{ title: "API Key Telemetry & Token Quotas | OpusZen Developer Platform" },
 		{
 			name: "description",
-			content: "Check real-time OpusZen API key token usage, rolling limits, request metrics, and live status.",
+			content: "Enterprise-grade real-time token telemetry, sliding 5-hour quota enforcement, and live gateway request analytics.",
 		},
 	];
 };
@@ -88,7 +88,9 @@ export default function KeyStatusRoute() {
 	const [timeLeft, setTimeLeft] = useState<string>("");
 	const [showKeyInput, setShowKeyInput] = useState<boolean>(false);
 	const [autoRefresh, setAutoRefresh] = useState<boolean>(false);
-	const [copied, setCopied] = useState<boolean>(false);
+	const [copiedKey, setCopiedKey] = useState<boolean>(false);
+	const [copiedSnippet, setCopiedSnippet] = useState<string | null>(null);
+	const [activeTab, setActiveTab] = useState<"cursor" | "claude" | "python" | "curl">("cursor");
 
 	// Auto-refresh every 30s when enabled
 	useEffect(() => {
@@ -142,12 +144,17 @@ export default function KeyStatusRoute() {
 		};
 	}, [keyData?.windowResetAt]);
 
-	const copyToClipboard = async (text: string) => {
+	const copyToClipboard = async (text: string, type: "key" | "snippet") => {
 		if (!text) return;
 		try {
 			await navigator.clipboard.writeText(text);
-			setCopied(true);
-			setTimeout(() => setCopied(false), 2500);
+			if (type === "key") {
+				setCopiedKey(true);
+				setTimeout(() => setCopiedKey(false), 2200);
+			} else {
+				setCopiedSnippet(text);
+				setTimeout(() => setCopiedSnippet(null), 2200);
+			}
 		} catch {
 			// fallback
 		}
@@ -214,7 +221,7 @@ export default function KeyStatusRoute() {
 	};
 
 	// ------------------------------------------------------------------------
-	// ACCURATE TOKEN & USAGE METRICS PARSING (Supports all gateway schemas)
+	// ACCURATE SAAS TOKEN & USAGE METRICS RESOLUTION
 	// ------------------------------------------------------------------------
 	const rawLimit = Number(
 		keyData?.windowTokensLimit ??
@@ -401,7 +408,7 @@ export default function KeyStatusRoute() {
 	const recentLogs = (keyData?.recentLogs as any[]) || [];
 	const displayKey = key || "";
 
-	// Format helper for large numbers (e.g. 1.2M, 500K, or locale string)
+	// Format helper for large numbers (e.g. 1.25M, 500K, or locale string)
 	const formatNumberCompact = (num: number) => {
 		if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(num % 1_000_000 === 0 ? 0 : 2)}M`;
 		if (num >= 1_000) return `${(num / 1_000).toFixed(num % 1_000 === 0 ? 0 : 1)}K`;
@@ -409,48 +416,85 @@ export default function KeyStatusRoute() {
 	};
 
 	const getProgressColor = (percent: number) => {
-		if (percent >= 90) return "from-rose-500 via-red-500 to-rose-600 shadow-rose-500/20";
-		if (percent >= 75) return "from-amber-500 via-orange-500 to-amber-600 shadow-amber-500/20";
-		return "from-emerald-500 via-teal-500 to-cyan-500 shadow-emerald-500/20";
+		if (percent >= 90) return "from-rose-500 via-red-500 to-rose-600 shadow-rose-500/30";
+		if (percent >= 75) return "from-amber-500 via-orange-500 to-amber-600 shadow-amber-500/30";
+		return "from-emerald-500 via-teal-400 to-cyan-500 shadow-emerald-500/30";
 	};
 
 	const getProgressBadgeColor = (percent: number) => {
-		if (percent >= 90) return "text-rose-600 dark:text-rose-400 bg-rose-500/10 border-rose-500/30";
-		if (percent >= 75) return "text-amber-600 dark:text-amber-400 bg-amber-500/10 border-amber-500/30";
-		return "text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border-emerald-500/30";
+		if (percent >= 90) return "text-rose-500 bg-rose-500/10 border-rose-500/25";
+		if (percent >= 75) return "text-amber-500 bg-amber-500/10 border-amber-500/25";
+		return "text-emerald-500 bg-emerald-500/10 border-emerald-500/25";
+	};
+
+	const getSnippetCode = () => {
+		const targetUrl = typeof window !== "undefined" ? window.location.origin : "http://localhost:5176";
+		const k = displayKey || "sk_live_YOUR_API_KEY";
+		switch (activeTab) {
+			case "cursor":
+				return `// Cursor / Cline / Windsurf OpenAI-Compatible Configuration
+Base URL: ${targetUrl}/v1
+API Key:  ${k}
+Model:    claude-3-5-sonnet-20241022 (or claude-opus-4-8)`;
+			case "claude":
+				return `# Claude Code Environment Config
+export ANTHROPIC_BASE_URL="${targetUrl}/v1"
+export ANTHROPIC_API_KEY="${k}"`;
+			case "python":
+				return `import openai
+
+client = openai.OpenAI(
+    base_url="${targetUrl}/v1",
+    api_key="${k}"
+)
+
+response = client.chat.completions.create(
+    model="claude-3-5-sonnet-20241022",
+    messages=[{"role": "user", "content": "Hello via OpusZen Gateway!"}]
+)
+print(response.choices[0].message.content)`;
+			case "curl":
+				return `curl ${targetUrl}/v1/chat/completions \\
+  -H "Content-Type: application/json" \\
+  -H "Authorization: Bearer ${k}" \\
+  -d '{
+    "model": "claude-3-5-sonnet-20241022",
+    "messages": [{"role": "user", "content": "Ping test"}]
+  }'`;
+		}
 	};
 
 	return (
 		<Layout>
-			{/* Ambient Glowing Background Elements */}
-			<div className="relative min-h-screen overflow-hidden">
-				<div className="pointer-events-none absolute -top-40 left-1/2 -translate-x-1/2 w-[700px] h-[500px] bg-gradient-to-tr from-primary/15 via-emerald-500/10 to-transparent blur-3xl opacity-70 dark:opacity-40" />
-				<div className="pointer-events-none absolute top-96 -left-32 w-80 h-80 bg-teal-500/10 blur-3xl rounded-full" />
-				<div className="pointer-events-none absolute top-[600px] -right-32 w-80 h-80 bg-primary/10 blur-3xl rounded-full" />
+			{/* SaaS Atmospheric Background Glows */}
+			<div className="relative min-h-screen bg-background font-sans selection:bg-primary/20 selection:text-primary">
+				<div className="pointer-events-none absolute -top-32 left-1/2 -translate-x-1/2 w-[850px] h-[450px] bg-gradient-to-tr from-primary/10 via-emerald-500/8 to-cyan-500/10 blur-[130px] rounded-full opacity-80" />
+				<div className="pointer-events-none absolute top-[400px] -left-48 w-96 h-96 bg-primary/5 blur-[120px] rounded-full" />
+				<div className="pointer-events-none absolute top-[700px] -right-48 w-96 h-96 bg-emerald-500/5 blur-[120px] rounded-full" />
 
-				<div className="relative max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
+				<div className="relative max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-16">
 					
-					{/* Header section */}
-					<div className="text-center max-w-2xl mx-auto mb-10">
-						<div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-primary/10 text-primary border border-primary/20 mb-4 backdrop-blur-md shadow-xs">
+					{/* SaaS Platform Header */}
+					<div className="text-center max-w-3xl mx-auto mb-10">
+						<div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-mono font-semibold bg-primary/10 text-primary border border-primary/20 mb-4 backdrop-blur-md shadow-xs">
 							<span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-							Real-Time Usage & Limit Telemetry
+							<span>CLUSTER TELEMETRY • LIVE REALTIME</span>
 						</div>
-						<h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight text-foreground mb-3 text-gradient">
-							API Key Status
+						<h1 className="font-heading text-3xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-foreground mb-3 text-gradient">
+							Key Status & Usage
 						</h1>
-						<p className="text-muted-foreground text-sm sm:text-base leading-relaxed">
-							Inspect real-time token usage, sliding quota limits, rate allowances, and request latency for your OpusZen Gateway keys.
+						<p className="text-muted-foreground text-sm sm:text-base max-w-xl mx-auto leading-relaxed">
+							Real-time token quota telemetry, sliding 5-hour rolling windows, and multi-model gateway request metrics.
 						</p>
 					</div>
 
-					{/* Key Input Search Box */}
+					{/* Search / Key Submission Command Bar */}
 					<div className="max-w-3xl mx-auto mb-10">
-						<div className="relative p-2 rounded-2xl border border-border/80 bg-card/75 dark:bg-card/45 backdrop-blur-xl shadow-xl shadow-black/5 hover:border-primary/40 transition-all duration-300">
+						<div className="relative p-2 rounded-2xl border border-border/80 bg-card/85 dark:bg-card/45 backdrop-blur-xl shadow-xl shadow-black/5 hover:border-primary/50 transition-all duration-300">
 							<Form method="post" action="/key-status" className="flex flex-col sm:flex-row gap-2">
 								<div className="relative flex-1 flex items-center">
 									<div className="absolute left-3.5 text-muted-foreground/70 pointer-events-none">
-										<svg xmlns="http://www.w3.org/2000/svg" width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+										<svg xmlns="http://www.w3.org/2000/svg" width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
 											<path d="M21 2l-2 2m-1.5 1.5L10 13l-4 4-2-2 4-4 7.5-7.5" />
 											<circle cx="7.5" cy="16.5" r="3.5" />
 											<path d="m15.5 4.5 4 4" />
@@ -461,7 +505,7 @@ export default function KeyStatusRoute() {
 										name="key"
 										defaultValue={key}
 										disabled={isLoading}
-										className="w-full pl-11 pr-20 py-3.5 rounded-xl bg-background/70 dark:bg-background/40 border border-input/60 text-foreground text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/60 transition-all placeholder:text-muted-foreground/60 placeholder:font-sans disabled:opacity-60"
+										className="w-full pl-10 pr-20 py-3.5 rounded-xl bg-background/80 dark:bg-background/40 border border-input/60 text-foreground text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/60 transition-all placeholder:text-muted-foreground/60 placeholder:font-sans disabled:opacity-60"
 										placeholder="Paste your OpusZen API key (sk_live_...)"
 										required
 										autoComplete="off"
@@ -484,7 +528,7 @@ export default function KeyStatusRoute() {
 									{isLoading ? (
 										<>
 											<svg className="animate-spin h-4 w-4 text-primary-foreground" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-												<circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+												<circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth={4} />
 												<path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
 											</svg>
 											<span>Querying Gateway...</span>
@@ -495,7 +539,7 @@ export default function KeyStatusRoute() {
 												<circle cx="11" cy="11" r="8" />
 												<path d="m21 21-4.3-4.3" />
 											</svg>
-											<span>Check Status</span>
+											<span>Inspect Key</span>
 										</>
 									)}
 								</button>
@@ -503,42 +547,25 @@ export default function KeyStatusRoute() {
 						</div>
 					</div>
 
-					{/* Loading State Skeleton Overlay */}
+					{/* Loading State Skeleton */}
 					{isLoading && (
-						<div className="mb-8 p-6 rounded-2xl border border-primary/30 bg-card/85 dark:bg-card/75 backdrop-blur-xl shadow-xl relative overflow-hidden animate-pulse">
+						<div className="mb-8 p-6 rounded-3xl border border-primary/30 bg-card/85 dark:bg-card/75 backdrop-blur-xl shadow-xl relative overflow-hidden animate-pulse">
 							<div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-primary via-emerald-400 to-primary animate-pulse" />
 							<div className="flex items-center gap-4">
 								<div className="w-10 h-10 rounded-full border-3 border-primary border-t-transparent animate-spin shrink-0" />
 								<div>
-									<h3 className="text-base font-bold text-foreground">Querying OpusZen Gateway & Node Cluster...</h3>
-									<p className="text-xs text-muted-foreground mt-0.5">Fetching live token quotas, rolling usage telemetry, and recent execution logs</p>
+									<h3 className="font-heading text-base font-bold text-foreground">Querying OpusZen Gateway Nodes...</h3>
+									<p className="text-xs text-muted-foreground mt-0.5">Aggregating live sliding window tokens, execution history, and rate allowances</p>
 								</div>
-							</div>
-						</div>
-					)}
-
-					{/* Warning Alert */}
-					{keyData && (keyData as any).warning && (
-						<div className="mb-8 p-4 rounded-2xl border border-amber-500/30 bg-amber-500/10 dark:bg-amber-500/5 text-amber-600 dark:text-amber-400 text-sm font-medium flex items-center gap-3.5 backdrop-blur-md">
-							<div className="p-2 rounded-xl bg-amber-500/20 shrink-0">
-								<svg xmlns="http://www.w3.org/2000/svg" width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-									<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
-									<line x1="12" y1="9" x2="12" y2="13" />
-									<line x1="12" y1="17" x2="12.01" y2="17" />
-								</svg>
-							</div>
-							<div>
-								<p className="font-bold text-foreground">Key Status Alert</p>
-								<p className="text-xs opacity-90 mt-0.5">{(keyData as any).warning}</p>
 							</div>
 						</div>
 					)}
 
 					{/* Error Alert */}
 					{error && (
-						<div className="mb-8 p-6 rounded-2xl border border-destructive/30 bg-destructive/10 dark:bg-destructive/5 backdrop-blur-md">
+						<div className="mb-8 p-6 rounded-3xl border border-destructive/30 bg-destructive/10 dark:bg-destructive/5 backdrop-blur-md">
 							<div className="flex items-start gap-4">
-								<div className="p-2.5 rounded-xl bg-destructive/20 text-destructive shrink-0">
+								<div className="p-2.5 rounded-2xl bg-destructive/20 text-destructive shrink-0">
 									<svg xmlns="http://www.w3.org/2000/svg" width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
 										<circle cx="12" cy="12" r="10" />
 										<line x1="12" y1="8" x2="12" y2="12" />
@@ -546,20 +573,14 @@ export default function KeyStatusRoute() {
 									</svg>
 								</div>
 								<div className="space-y-2 flex-1">
-									<h3 className="font-bold text-foreground text-base">Key Lookup Failed</h3>
+									<h3 className="font-heading font-bold text-foreground text-base">Key Lookup Failed</h3>
 									<p className="text-sm text-destructive/90">{error}</p>
-									<div className="pt-2 flex flex-wrap items-center gap-4 text-xs">
-										<a
-											href="/user/my-keys"
-											className="inline-flex items-center gap-1.5 font-semibold text-primary hover:underline"
-										>
+									<div className="pt-2 flex flex-wrap items-center gap-4 text-xs font-semibold">
+										<a href="/user/my-keys" className="inline-flex items-center gap-1.5 text-primary hover:underline">
 											<span>Manage API Keys</span>
 											<svg xmlns="http://www.w3.org/2000/svg" width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
 										</a>
-										<a
-											href="/pricing"
-											className="inline-flex items-center gap-1.5 font-semibold text-muted-foreground hover:text-foreground hover:underline"
-										>
+										<a href="/pricing" className="inline-flex items-center gap-1.5 text-muted-foreground hover:text-foreground hover:underline">
 											<span>Get New Key</span>
 											<svg xmlns="http://www.w3.org/2000/svg" width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
 										</a>
@@ -571,72 +592,72 @@ export default function KeyStatusRoute() {
 
 					{/* Empty State */}
 					{!keyData && !error && !isLoading && (
-						<div className="p-12 sm:p-16 text-center rounded-3xl border border-border/70 bg-card/40 dark:bg-card/20 backdrop-blur-xl shadow-lg">
+						<div className="p-12 sm:p-16 text-center rounded-3xl border border-border/80 bg-card/40 dark:bg-card/20 backdrop-blur-xl shadow-lg">
 							<div className="w-16 h-16 rounded-2xl bg-primary/10 border border-primary/20 text-primary mx-auto mb-5 flex items-center justify-center shadow-inner">
 								<svg xmlns="http://www.w3.org/2000/svg" width={32} height={32} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
 									<rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
 									<path d="M7 11V7a5 5 0 0 1 10 0v4" />
 								</svg>
 							</div>
-							<h3 className="text-xl font-bold text-foreground mb-2">
-								Real-Time Key Telemetry
+							<h3 className="font-heading text-xl font-bold text-foreground mb-2">
+								Real-Time Key Telemetry Dashboard
 							</h3>
 							<p className="text-sm text-muted-foreground max-w-md mx-auto mb-6 leading-relaxed">
-								Enter your OpusZen API key above to inspect live token balance, window limits, latency metrics, and API request logs.
+								Submit your OpusZen API key above to load live token balance, sliding 5h quota limits, rate capacity, and request logs.
 							</p>
 							<div className="flex flex-wrap justify-center items-center gap-3 text-xs text-muted-foreground">
-								<div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-background/60 border border-border">
+								<div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-background/60 border border-border font-mono">
 									<span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-									5-Hour Rolling Limit Support
+									5-Hour Rolling Window
 								</div>
-								<div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-background/60 border border-border">
+								<div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-background/60 border border-border font-mono">
 									<span className="w-1.5 h-1.5 rounded-full bg-cyan-500" />
-									Token Accurate Usage
+									Prompt & Completion Tokens
 								</div>
-								<div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-background/60 border border-border">
+								<div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-background/60 border border-border font-mono">
 									<span className="w-1.5 h-1.5 rounded-full bg-primary" />
-									Auto-Refresh Telemetry
+									Live Auto-Refresh
 								</div>
 							</div>
 						</div>
 					)}
 
 					{/* -------------------------------------------------------- */}
-					{/* MAIN DASHBOARD (When keyData is loaded)                   */}
+					{/* SAAS DASHBOARD (When keyData is loaded)                   */}
 					{/* -------------------------------------------------------- */}
 					{keyData && (
 						<div className="space-y-8 animate-in fade-in-50 duration-500">
 							
 							{/* Top Bar: Key Identity & Controls */}
-							<div className="p-6 rounded-3xl border border-border/80 bg-card/75 dark:bg-card/45 backdrop-blur-xl shadow-xl relative overflow-hidden">
+							<div className="p-6 rounded-3xl border border-border/80 bg-card/85 dark:bg-card/45 backdrop-blur-xl shadow-xl relative overflow-hidden">
 								<div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-primary via-teal-400 to-emerald-500" />
 								
 								<div className="flex flex-col md:flex-row md:items-center justify-between gap-5 mb-6">
 									<div>
 										<div className="flex items-center gap-2 mb-1.5">
-											<span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+											<span className="text-xs font-mono font-bold uppercase tracking-wider text-muted-foreground">
 												Active API Key
 											</span>
-											<span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+											<span className="inline-flex items-center gap-1 text-[11px] font-mono font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
 												<span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
-												Live Realtime
+												LIVE REALTIME
 											</span>
 										</div>
 										<div className="flex items-center gap-2.5 flex-wrap">
-											<code className="text-sm sm:text-base font-mono font-bold text-foreground bg-muted/60 dark:bg-muted/20 px-3 py-1.5 rounded-xl border border-border/60 break-all select-all">
+											<code className="text-sm sm:text-base font-mono font-bold text-foreground bg-muted/60 dark:bg-muted/20 px-3.5 py-1.5 rounded-xl border border-border/60 break-all select-all shadow-inner">
 												{displayKey}
 											</code>
 											<button
 												type="button"
-												onClick={() => copyToClipboard(displayKey)}
+												onClick={() => copyToClipboard(displayKey, "key")}
 												className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
-													copied
+													copiedKey
 														? "bg-emerald-500 text-white shadow-md shadow-emerald-500/20"
 														: "bg-background/80 hover:bg-muted border border-border text-foreground shadow-2xs"
 												}`}
 												title="Copy API key"
 											>
-												{copied ? (
+												{copiedKey ? (
 													<>
 														<svg xmlns="http://www.w3.org/2000/svg" width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
 														<span>Copied!</span>
@@ -644,7 +665,7 @@ export default function KeyStatusRoute() {
 												) : (
 													<>
 														<svg xmlns="http://www.w3.org/2000/svg" width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
-														<span>Copy Key</span>
+														<span>Copy</span>
 													</>
 												)}
 											</button>
@@ -696,43 +717,43 @@ export default function KeyStatusRoute() {
 										</button>
 
 										<span
-											className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold ${
+											className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold font-mono ${
 												isActive
 													? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25"
 													: "bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/25"
 											}`}
 										>
 											<span className={`w-2 h-2 rounded-full ${isActive ? "bg-emerald-500" : "bg-rose-500"}`} />
-											{isActive ? "Key Active" : "Key Inactive"}
+											{isActive ? "ACTIVE" : "INACTIVE"}
 										</span>
 									</div>
 								</div>
 
-								{/* Metadata Grid (Plan Name completely removed as requested) */}
+								{/* Metadata Grid */}
 								<div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 pt-5 border-t border-border/60">
-									<div className="p-3 rounded-2xl bg-background/50 dark:bg-background/25 border border-border/50">
-										<span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">
+									<div className="p-3.5 rounded-2xl bg-background/60 dark:bg-background/25 border border-border/50">
+										<span className="text-[11px] font-mono font-bold uppercase tracking-wider text-muted-foreground block mb-1">
 											Key Label
 										</span>
-										<span className="text-sm font-bold text-foreground block truncate">
+										<span className="text-sm font-semibold text-foreground block truncate">
 											{keyName}
 										</span>
 									</div>
 
-									<div className="p-3 rounded-2xl bg-background/50 dark:bg-background/25 border border-border/50">
-										<span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">
-											Created Date
+									<div className="p-3.5 rounded-2xl bg-background/60 dark:bg-background/25 border border-border/50">
+										<span className="text-[11px] font-mono font-bold uppercase tracking-wider text-muted-foreground block mb-1">
+											Created
 										</span>
-										<span className="text-sm font-bold text-foreground block truncate">
+										<span className="text-sm font-mono font-semibold text-foreground block truncate">
 											{createdAt ? formatDateTimeFormatted(createdAt) : "N/A"}
 										</span>
 									</div>
 
-									<div className="p-3 rounded-2xl bg-background/50 dark:bg-background/25 border border-border/50">
-										<span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">
+									<div className="p-3.5 rounded-2xl bg-background/60 dark:bg-background/25 border border-border/50">
+										<span className="text-[11px] font-mono font-bold uppercase tracking-wider text-muted-foreground block mb-1">
 											Expiration
 										</span>
-										<span className="text-sm font-bold text-foreground block truncate">
+										<span className="text-sm font-mono font-semibold text-foreground block truncate">
 											{expiresAt ? (
 												<>
 													{formatDateTimeFormatted(expiresAt)}
@@ -741,16 +762,16 @@ export default function KeyStatusRoute() {
 													</span>
 												</>
 											) : (
-												"Never (No Expiration)"
+												"Never (No Expiry)"
 											)}
 										</span>
 									</div>
 
-									<div className="p-3 rounded-2xl bg-background/50 dark:bg-background/25 border border-border/50">
-										<span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">
-											Gateway Status
+									<div className="p-3.5 rounded-2xl bg-background/60 dark:bg-background/25 border border-border/50">
+										<span className="text-[11px] font-mono font-bold uppercase tracking-wider text-muted-foreground block mb-1">
+											Gateway Routing
 										</span>
-										<span className="inline-flex items-center gap-1.5 text-sm font-bold text-emerald-600 dark:text-emerald-400">
+										<span className="inline-flex items-center gap-1.5 text-sm font-mono font-bold text-emerald-600 dark:text-emerald-400">
 											<span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
 											{connectionStatus}
 										</span>
@@ -759,37 +780,37 @@ export default function KeyStatusRoute() {
 							</div>
 
 							{/* Hero Card: Accurate Token Rolling Quota & Usage */}
-							<div className="p-6 sm:p-8 rounded-3xl border border-border/80 bg-card/75 dark:bg-card/45 backdrop-blur-xl shadow-xl relative overflow-hidden">
+							<div className="p-6 sm:p-8 rounded-3xl border border-border/80 bg-card/85 dark:bg-card/45 backdrop-blur-xl shadow-xl relative overflow-hidden">
 								<div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
 									<div>
-										<h2 className="text-xl sm:text-2xl font-bold text-foreground flex items-center gap-2.5">
+										<h2 className="font-heading text-xl sm:text-2xl font-bold text-foreground flex items-center gap-2.5">
 											<span className="p-2 rounded-xl bg-primary/10 text-primary">
 												<svg xmlns="http://www.w3.org/2000/svg" width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
 													<path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
 												</svg>
 											</span>
-											Token Quota & Usage
+											Token Quota & Sliding Allowance
 										</h2>
 										<p className="text-xs text-muted-foreground mt-1">
-											Calculated accurately from real-time 5-hour rolling windows and lifetime prompt/completion tokens.
+											Calculated from real-time sliding 5-hour rolling windows and lifetime prompt/completion tokens.
 										</p>
 									</div>
 
 									<div className="flex items-center gap-2">
-										<span className={`px-3 py-1 rounded-full text-xs font-bold border ${getProgressBadgeColor(usagePercentage)}`}>
-											{isUnlimited ? "Unlimited Allowance" : `${usagePercentage}% Token Capacity Used`}
+										<span className={`px-3.5 py-1.5 rounded-full text-xs font-mono font-bold border ${getProgressBadgeColor(usagePercentage)} shadow-2xs`}>
+											{isUnlimited ? "UNLIMITED ALLOWANCE" : `${usagePercentage}% TOKEN CAPACITY USED`}
 										</span>
 									</div>
 								</div>
 
 								{/* Primary Metric Numbers */}
 								<div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-									<div className="p-5 rounded-2xl bg-background/70 dark:bg-background/40 border border-border/60 shadow-2xs">
-										<span className="text-xs font-bold uppercase tracking-wider text-muted-foreground block mb-1">
+									<div className="p-5 rounded-2xl bg-background/80 dark:bg-background/40 border border-border/70 shadow-2xs hover:border-primary/30 transition-colors">
+										<span className="text-xs font-mono font-bold uppercase tracking-wider text-muted-foreground block mb-1">
 											Used Tokens
 										</span>
 										<div className="flex items-baseline gap-2">
-											<span className="text-2xl sm:text-3xl font-extrabold text-foreground font-mono">
+											<span className="text-2xl sm:text-3xl font-extrabold text-foreground font-mono tracking-tight">
 												{used.toLocaleString()}
 											</span>
 											<span className="text-xs font-semibold text-muted-foreground font-mono">
@@ -801,12 +822,12 @@ export default function KeyStatusRoute() {
 										</span>
 									</div>
 
-									<div className="p-5 rounded-2xl bg-background/70 dark:bg-background/40 border border-border/60 shadow-2xs">
-										<span className="text-xs font-bold uppercase tracking-wider text-muted-foreground block mb-1">
+									<div className="p-5 rounded-2xl bg-background/80 dark:bg-background/40 border border-border/70 shadow-2xs hover:border-emerald-500/30 transition-colors">
+										<span className="text-xs font-mono font-bold uppercase tracking-wider text-muted-foreground block mb-1">
 											Remaining Tokens
 										</span>
 										<div className="flex items-baseline gap-2">
-											<span className="text-2xl sm:text-3xl font-extrabold text-emerald-600 dark:text-emerald-400 font-mono">
+											<span className="text-2xl sm:text-3xl font-extrabold text-emerald-600 dark:text-emerald-400 font-mono tracking-tight">
 												{isUnlimited ? "Unlimited" : remaining.toLocaleString()}
 											</span>
 											{!isUnlimited && (
@@ -820,12 +841,12 @@ export default function KeyStatusRoute() {
 										</span>
 									</div>
 
-									<div className="p-5 rounded-2xl bg-background/70 dark:bg-background/40 border border-border/60 shadow-2xs">
-										<span className="text-xs font-bold uppercase tracking-wider text-muted-foreground block mb-1">
+									<div className="p-5 rounded-2xl bg-background/80 dark:bg-background/40 border border-border/70 shadow-2xs hover:border-primary/30 transition-colors">
+										<span className="text-xs font-mono font-bold uppercase tracking-wider text-muted-foreground block mb-1">
 											Total Token Limit
 										</span>
 										<div className="flex items-baseline gap-2">
-											<span className="text-2xl sm:text-3xl font-extrabold text-foreground font-mono">
+											<span className="text-2xl sm:text-3xl font-extrabold text-foreground font-mono tracking-tight">
 												{isUnlimited ? "Unlimited" : limit.toLocaleString()}
 											</span>
 											{!isUnlimited && (
@@ -844,12 +865,12 @@ export default function KeyStatusRoute() {
 								<div className="space-y-3">
 									<div className="flex justify-between text-xs font-semibold">
 										<span className="text-muted-foreground">Quota Utilization</span>
-										<span className="font-mono text-foreground">
-											{isUnlimited ? "Uncapped" : `${used.toLocaleString()} / ${limit.toLocaleString()} tokens`}
+										<span className="font-mono text-foreground font-bold">
+											{isUnlimited ? "Uncapped Capacity" : `${used.toLocaleString()} / ${limit.toLocaleString()} tokens`}
 										</span>
 									</div>
 									
-									<div className="w-full bg-muted/80 dark:bg-muted/30 rounded-full h-4 p-0.5 border border-border/40 overflow-hidden shadow-inner">
+									<div className="w-full bg-muted/80 dark:bg-muted/30 rounded-full h-4 p-0.5 border border-border/50 overflow-hidden shadow-inner">
 										<div
 											className={`h-full rounded-full transition-all duration-700 bg-gradient-to-r ${getProgressColor(usagePercentage)} shadow-sm`}
 											style={{
@@ -858,7 +879,7 @@ export default function KeyStatusRoute() {
 										/>
 									</div>
 
-									<div className="flex flex-col sm:flex-row sm:items-center justify-between text-xs text-muted-foreground gap-2 pt-1">
+									<div className="flex flex-col sm:flex-row sm:items-center justify-between text-xs text-muted-foreground gap-2 pt-1 font-mono">
 										<div className="flex items-center gap-1.5">
 											<svg xmlns="http://www.w3.org/2000/svg" width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
 											<span>
@@ -870,7 +891,7 @@ export default function KeyStatusRoute() {
 										</div>
 
 										{timeLeft && (
-											<div className="inline-flex items-center gap-1.5 font-bold text-primary dark:text-primary bg-primary/10 px-2.5 py-0.5 rounded-md">
+											<div className="inline-flex items-center gap-1.5 font-bold text-primary dark:text-primary bg-primary/10 px-3 py-1 rounded-lg border border-primary/20">
 												<span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
 												<span>{timeLeft}</span>
 											</div>
@@ -882,21 +903,19 @@ export default function KeyStatusRoute() {
 							{/* Secondary Metrics Grid: Limits, Requests & Activity */}
 							<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 								{/* Request Quotas Card */}
-								<div className="p-6 rounded-3xl border border-border/80 bg-card/75 dark:bg-card/45 backdrop-blur-xl shadow-xl flex flex-col justify-between">
+								<div className="p-6 rounded-3xl border border-border/80 bg-card/85 dark:bg-card/45 backdrop-blur-xl shadow-xl flex flex-col justify-between">
 									<div>
-										<h3 className="text-base font-bold text-foreground mb-4 flex items-center gap-2">
+										<h3 className="font-heading text-base font-bold text-foreground mb-4 flex items-center gap-2">
 											<span className="p-1.5 rounded-lg bg-teal-500/10 text-teal-600 dark:text-teal-400">
 												<svg xmlns="http://www.w3.org/2000/svg" width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
 											</span>
-											Request Quotas & Speed
+											Request Quotas & Rate Limits
 										</h3>
 
-										<div className="space-y-3.5 text-sm">
+										<div className="space-y-3.5 text-sm font-sans">
 											<div className="flex justify-between items-center py-2 border-b border-border/40">
-												<span className="text-muted-foreground flex items-center gap-1.5">
-													Rate Limit
-												</span>
-												<span className="font-bold text-foreground font-mono bg-muted/50 px-2 py-0.5 rounded-md">
+												<span className="text-muted-foreground">Rate Limit</span>
+												<span className="font-bold text-foreground font-mono bg-muted/60 dark:bg-muted/20 px-2.5 py-0.5 rounded-md border border-border/40">
 													{rateLimit} req / min
 												</span>
 											</div>
@@ -909,7 +928,7 @@ export default function KeyStatusRoute() {
 											</div>
 
 											<div className="flex justify-between items-center py-2">
-												<span className="text-muted-foreground">Total Lifetime Requests</span>
+												<span className="text-muted-foreground">Total API Requests</span>
 												<span className="font-bold text-foreground font-mono">
 													{totalRequests.toLocaleString()}
 												</span>
@@ -919,34 +938,34 @@ export default function KeyStatusRoute() {
 								</div>
 
 								{/* Activity & Health Card */}
-								<div className="p-6 rounded-3xl border border-border/80 bg-card/75 dark:bg-card/45 backdrop-blur-xl shadow-xl flex flex-col justify-between">
+								<div className="p-6 rounded-3xl border border-border/80 bg-card/85 dark:bg-card/45 backdrop-blur-xl shadow-xl flex flex-col justify-between">
 									<div>
-										<h3 className="text-base font-bold text-foreground mb-4 flex items-center gap-2">
+										<h3 className="font-heading text-base font-bold text-foreground mb-4 flex items-center gap-2">
 											<span className="p-1.5 rounded-lg bg-cyan-500/10 text-cyan-600 dark:text-cyan-400">
 												<svg xmlns="http://www.w3.org/2000/svg" width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
 											</span>
-											Gateway Activity
+											Gateway Health & Telemetry
 										</h3>
 
-										<div className="space-y-3.5 text-sm">
+										<div className="space-y-3.5 text-sm font-sans">
 											<div className="flex justify-between items-center py-2 border-b border-border/40">
 												<span className="text-muted-foreground">Last Request Processed</span>
-												<span className="font-bold text-foreground">
+												<span className="font-mono font-semibold text-foreground">
 													{lastUsedAt ? formatDateTimeFormatted(lastUsedAt) : "No requests logged yet"}
 												</span>
 											</div>
 
 											<div className="flex justify-between items-center py-2 border-b border-border/40">
-												<span className="text-muted-foreground">Edge Routing</span>
-												<span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+												<span className="text-muted-foreground">Edge Routing Protocol</span>
+												<span className="inline-flex items-center gap-1 text-xs font-mono font-semibold text-emerald-600 dark:text-emerald-400">
 													<span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-													Low-latency Active
+													Low-Latency HTTP/2 Proxy
 												</span>
 											</div>
 
 											<div className="flex justify-between items-center py-2">
-												<span className="text-muted-foreground">Health Status</span>
-												<span className="inline-flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-bold">
+												<span className="text-muted-foreground">Connection Status</span>
+												<span className="inline-flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-mono font-bold">
 													<div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
 													{connectionStatus}
 												</span>
@@ -957,8 +976,8 @@ export default function KeyStatusRoute() {
 							</div>
 
 							{/* Supported Models */}
-							<div className="p-6 rounded-3xl border border-border/80 bg-card/75 dark:bg-card/45 backdrop-blur-xl shadow-xl">
-								<h3 className="text-base font-bold text-foreground mb-3 flex items-center gap-2">
+							<div className="p-6 rounded-3xl border border-border/80 bg-card/85 dark:bg-card/45 backdrop-blur-xl shadow-xl">
+								<h3 className="font-heading text-base font-bold text-foreground mb-3 flex items-center gap-2">
 									<span className="p-1.5 rounded-lg bg-primary/10 text-primary">
 										<svg xmlns="http://www.w3.org/2000/svg" width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z"/><path d="M12 6v6l4 2"/></svg>
 									</span>
@@ -994,16 +1013,16 @@ export default function KeyStatusRoute() {
 							</div>
 
 							{/* Recent Usage Logs */}
-							<div className="p-6 rounded-3xl border border-border/80 bg-card/75 dark:bg-card/45 backdrop-blur-xl shadow-xl overflow-hidden">
+							<div className="p-6 rounded-3xl border border-border/80 bg-card/85 dark:bg-card/45 backdrop-blur-xl shadow-xl overflow-hidden">
 								<div className="flex items-center justify-between gap-2 mb-4">
-									<h3 className="text-base font-bold text-foreground flex items-center gap-2">
+									<h3 className="font-heading text-base font-bold text-foreground flex items-center gap-2">
 										<span className="p-1.5 rounded-lg bg-primary/10 text-primary">
 											<svg xmlns="http://www.w3.org/2000/svg" width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
 										</span>
-										Recent Requests (Last 20)
+										Recent Request Logs (Last 20)
 									</h3>
 									{recentLogs.length > 0 && (
-										<span className="text-xs text-muted-foreground font-semibold">
+										<span className="text-xs text-muted-foreground font-mono font-semibold">
 											{recentLogs.length} events logged
 										</span>
 									)}
@@ -1013,20 +1032,20 @@ export default function KeyStatusRoute() {
 									<div className="overflow-x-auto -mx-6 px-6">
 										<table className="w-full text-left text-sm border-collapse">
 											<thead>
-												<tr className="border-b border-border text-muted-foreground text-xs uppercase tracking-wider">
+												<tr className="border-b border-border text-muted-foreground text-xs uppercase tracking-wider font-mono">
 													<th className="py-3 px-3 font-bold">Timestamp</th>
 													<th className="py-3 px-3 font-bold">Model</th>
 													<th className="py-3 px-3 font-bold text-right">Tokens</th>
-													<th className="py-3 px-3 font-bold text-right">HTTP Status</th>
+													<th className="py-3 px-3 font-bold text-right">Status</th>
 												</tr>
 											</thead>
-											<tbody className="divide-y divide-border/40">
+											<tbody className="divide-y divide-border/40 font-mono text-xs">
 												{recentLogs.map((log: any, idx: number) => {
 													const isSuccess = Number(log.status) >= 200 && Number(log.status) < 300;
 													return (
 														<tr
 															key={idx}
-															className="hover:bg-muted/30 transition-colors font-mono text-xs"
+															className="hover:bg-muted/30 transition-colors"
 														>
 															<td className="py-3 px-3 text-foreground whitespace-nowrap">
 																{formatLogTime(log.time)}
@@ -1037,7 +1056,7 @@ export default function KeyStatusRoute() {
 															<td className="py-3 px-3 text-right text-muted-foreground whitespace-nowrap">
 																{log.tokens ? Number(log.tokens).toLocaleString() : "—"}
 															</td>
-															<td className="py-3 px-3 text-right whitespace-nowrap font-sans">
+															<td className="py-3 px-3 text-right whitespace-nowrap">
 																<span
 																	className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold ${
 																		isSuccess
@@ -1055,11 +1074,71 @@ export default function KeyStatusRoute() {
 										</table>
 									</div>
 								) : (
-									<div className="py-8 text-center text-muted-foreground text-sm">
+									<div className="py-8 text-center text-muted-foreground text-sm font-sans">
 										<p>No recent request logs recorded yet for this key.</p>
-										<p className="text-xs opacity-75 mt-1">Logs will automatically populate here as requests are dispatched.</p>
+										<p className="text-xs opacity-75 mt-1 font-mono">Telemetry updates automatically as requests are dispatched.</p>
 									</div>
 								)}
+							</div>
+
+							{/* Developer Integration Hub / Quick Code Snippets */}
+							<div className="p-6 sm:p-8 rounded-3xl border border-border/80 bg-card/85 dark:bg-card/45 backdrop-blur-xl shadow-xl">
+								<div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+									<div>
+										<h3 className="font-heading text-lg font-bold text-foreground flex items-center gap-2">
+											<span className="p-1.5 rounded-lg bg-primary/10 text-primary">
+												<svg xmlns="http://www.w3.org/2000/svg" width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+											</span>
+											Quick Integration Hub
+										</h3>
+										<p className="text-xs text-muted-foreground mt-0.5">
+											Use this API key in your favourite IDE extensions, SDKs, or CLI tools.
+										</p>
+									</div>
+
+									{/* Code Tab Switcher */}
+									<div className="flex items-center p-1 rounded-xl bg-background/80 dark:bg-background/40 border border-border/70">
+										{(["cursor", "claude", "python", "curl"] as const).map((tab) => (
+											<button
+												key={tab}
+												type="button"
+												onClick={() => setActiveTab(tab)}
+												className={`px-3 py-1.5 rounded-lg text-xs font-mono font-semibold transition-all cursor-pointer ${
+													activeTab === tab
+														? "bg-primary text-primary-foreground shadow-xs"
+														: "text-muted-foreground hover:text-foreground"
+												}`}
+											>
+												{tab === "cursor" ? "Cursor / Cline" : tab === "claude" ? "Claude Code" : tab === "python" ? "Python" : "cURL"}
+											</button>
+										))}
+									</div>
+								</div>
+
+								{/* Code Block Container */}
+								<div className="relative rounded-2xl bg-zinc-950 p-4 font-mono text-xs text-zinc-200 border border-zinc-800 shadow-inner overflow-hidden">
+									<button
+										type="button"
+										onClick={() => copyToClipboard(getSnippetCode(), "snippet")}
+										className="absolute right-3 top-3 px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-semibold flex items-center gap-1.5 transition-colors border border-zinc-700 shadow-sm cursor-pointer"
+										title="Copy configuration snippet"
+									>
+										{copiedSnippet ? (
+											<>
+												<svg xmlns="http://www.w3.org/2000/svg" width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" className="text-emerald-400"><polyline points="20 6 9 17 4 12"/></svg>
+												<span className="text-emerald-400">Copied!</span>
+											</>
+										) : (
+											<>
+												<svg xmlns="http://www.w3.org/2000/svg" width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+												<span>Copy Snippet</span>
+											</>
+										)}
+									</button>
+									<pre className="overflow-x-auto pr-24 leading-relaxed select-all">
+										{getSnippetCode()}
+									</pre>
+								</div>
 							</div>
 
 						</div>

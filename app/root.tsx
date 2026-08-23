@@ -45,31 +45,31 @@ export const meta: Route.MetaFunction = () => [
 ];
 
 export const links: Route.LinksFunction = () => [
- { rel: "preconnect", href: "https://fonts.googleapis.com" },
- {
- rel: "preconnect",
- href: "https://fonts.gstatic.com",
- crossOrigin: "anonymous",
- },
- {
- rel: "stylesheet",
- href: "https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap",
- },
- { rel: "icon", type: "image/x-icon", href: "/favicon.ico" },
- { rel: "icon", type: "image/png", href: "/favicon.png" },
+	{ rel: "preconnect", href: "https://fonts.googleapis.com" },
+	{
+		rel: "preconnect",
+		href: "https://fonts.gstatic.com",
+		crossOrigin: "anonymous",
+	},
+	{
+		rel: "stylesheet",
+		href: "https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&display=swap",
+	},
+	{ rel: "icon", type: "image/x-icon", href: "/favicon.ico" },
+	{ rel: "icon", type: "image/png", href: "/favicon.png" },
 ];
 
 export function Layout({ children }: { children: React.ReactNode }) {
- useLenisScroll();
- let location;
- let navigationState = "idle";
- try {
- location = useLocation();
- const navigation = useNavigation();
- navigationState = navigation.state;
- } catch (e) {
- // Fallback if accessed outside RouterProvider context
- }
+	useLenisScroll();
+	let location;
+	let navigationState = "idle";
+	try {
+		location = useLocation();
+		const navigation = useNavigation();
+		navigationState = navigation.state;
+	} catch (e) {
+		// Fallback if accessed outside RouterProvider context
+	}
  const pathname = location?.pathname || "";
  const isAdminPath = pathname.startsWith("/dashboard") || pathname.startsWith("/auth/admin");
 

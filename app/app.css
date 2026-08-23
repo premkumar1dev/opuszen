@@ -14,11 +14,12 @@
  --color-indigo-900: #312e81;
  --color-indigo-950: #1e1b4b;
 
- /* Fonts */
- --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif,
- "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
- --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
- "Liberation Mono", "Courier New", monospace;
+ 	/* Fonts */
+	--font-heading: "Plus Jakarta Sans", "Inter", ui-sans-serif, system-ui, sans-serif;
+	--font-sans: "Inter", "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif,
+		"Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+	--font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+		"Liberation Mono", "Courier New", monospace;
 
  /* ── OpusZen Terracotta & Sand Theme (default light) ─────────────────────── */
  --color-background: #ffffff;
