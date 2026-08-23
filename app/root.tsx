@@ -102,7 +102,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
  <ScrollProgressBar />
  {!isAdminPath && <CursorLight />}
  {children}
- {!isAdminPath && <WhatsAppWidget phoneNumber="8098830937" />}
+ {!isAdminPath && <WhatsAppWidget phoneNumber="918098830937" />}
  <ScrollRestoration />
  <Scripts />
  </body>

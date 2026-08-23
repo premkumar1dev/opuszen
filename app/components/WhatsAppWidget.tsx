@@ -53,7 +53,10 @@ export function WhatsAppWidget({
   const handleSend = () => {
     const defaultText = "Hello, I have a question about OpusZen.";
     const textToSend = message.trim() || defaultText;
-    const cleanPhone = phoneNumber.replace(/\D/g, "");
+    let cleanPhone = phoneNumber.replace(/\D/g, "");
+    if (cleanPhone.length === 10) {
+      cleanPhone = `91${cleanPhone}`;
+    }
     const url = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(textToSend)}`;
     window.open(url, "_blank", "noopener,noreferrer");
     setMessage("");
