@@ -102,17 +102,35 @@ export default function KeyStatusRoute() {
 		return () => clearInterval(interval);
 	}, [autoRefresh, key]);
 
-	// Countdown timer for window reset
+	const [rollingTimer, setRollingTimer] = useState<{
+		hours: string;
+		minutes: string;
+		seconds: string;
+		totalSecondsRemaining: number;
+		percentRemaining: number;
+		formattedText: string;
+		isResetting: boolean;
+	}>({
+		hours: "00",
+		minutes: "00",
+		seconds: "00",
+		totalSecondsRemaining: 0,
+		percentRemaining: 100,
+		formattedText: "",
+		isResetting: false,
+	});
+
+	// Countdown timer for 5-hour rolling window reset
 	useEffect(() => {
-		if (!keyData || !keyData.windowResetAt) {
+		if (!keyData) {
 			setTimeLeft("");
 			return;
 		}
 
-		const targetTime = new Date(keyData.windowResetAt).getTime();
+		let targetTime = keyData.windowResetAt ? new Date(keyData.windowResetAt).getTime() : NaN;
 		if (isNaN(targetTime)) {
-			setTimeLeft("");
-			return;
+			const baseTime = keyData.lastUsedAt ? new Date(keyData.lastUsedAt).getTime() : Date.now();
+			targetTime = baseTime + 5 * 60 * 60 * 1000;
 		}
 
 		const updateTimer = () => {
@@ -120,20 +138,46 @@ export default function KeyStatusRoute() {
 			const diff = targetTime - now;
 
 			if (diff <= 0) {
-				setTimeLeft("Window Resetting...");
+				setTimeLeft("Window Reset Cycle Ready");
+				setRollingTimer({
+					hours: "00",
+					minutes: "00",
+					seconds: "00",
+					totalSecondsRemaining: 0,
+					percentRemaining: 0,
+					formattedText: "Window cycle ready",
+					isResetting: true,
+				});
 				return;
 			}
 
-			const hours = Math.floor(diff / (1000 * 60 * 60));
-			const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-			const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+			const h = Math.floor(diff / (1000 * 60 * 60));
+			const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+			const s = Math.floor((diff % (1000 * 60)) / 1000);
+
+			const hoursStr = String(h).padStart(2, "0");
+			const minutesStr = String(m).padStart(2, "0");
+			const secondsStr = String(s).padStart(2, "0");
+
+			const totalSec = Math.floor(diff / 1000);
+			const pct = Math.min(100, Math.max(0, Math.round((diff / (5 * 60 * 60 * 1000)) * 100)));
 
 			const parts = [];
-			if (hours > 0) parts.push(`${hours}h`);
-			if (minutes > 0 || hours > 0) parts.push(`${minutes}m`);
-			parts.push(`${seconds}s`);
+			if (h > 0) parts.push(`${h}h`);
+			if (m > 0 || h > 0) parts.push(`${m}m`);
+			parts.push(`${s}s`);
 
-			setTimeLeft(parts.join(" ") + " remaining");
+			const text = parts.join(" ") + " remaining";
+			setTimeLeft(text);
+			setRollingTimer({
+				hours: hoursStr,
+				minutes: minutesStr,
+				seconds: secondsStr,
+				totalSecondsRemaining: totalSec,
+				percentRemaining: pct,
+				formattedText: text,
+				isResetting: false,
+			});
 		};
 
 		updateTimer();
@@ -142,7 +186,7 @@ export default function KeyStatusRoute() {
 		return () => {
 			if (interval) clearInterval(interval);
 		};
-	}, [keyData?.windowResetAt]);
+	}, [keyData?.windowResetAt, keyData?.lastUsedAt]);
 
 	const copyToClipboard = async (text: string, type: "key" | "snippet") => {
 		if (!text) return;
@@ -883,9 +927,9 @@ print(response.choices[0].message.content)`;
 										<div className="flex items-center gap-1.5">
 											<svg xmlns="http://www.w3.org/2000/svg" width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
 											<span>
-												Window Reset:{" "}
+												Rolling Window Reset:{" "}
 												<strong className="text-foreground">
-													{keyData.windowResetAt ? formatDateTimeFormatted(keyData.windowResetAt) : "Continuous Rolling"}
+													{keyData.windowResetAt ? formatDateTimeFormatted(keyData.windowResetAt) : "Continuous 5-Hour Rolling"}
 												</strong>
 											</span>
 										</div>
@@ -896,6 +940,80 @@ print(response.choices[0].message.content)`;
 												<span>{timeLeft}</span>
 											</div>
 										)}
+									</div>
+								</div>
+
+								{/* 5-Hour Rolling Window Dedicated Live Timer HUD */}
+								<div className="mt-6 p-5 sm:p-6 rounded-2xl bg-background/90 dark:bg-background/50 border border-border/80 shadow-md">
+									<div className="flex flex-col md:flex-row md:items-center justify-between gap-5">
+										<div>
+											<div className="flex items-center gap-2 mb-1.5">
+												<span className="p-1.5 rounded-lg bg-amber-500/10 text-amber-500">
+													<svg xmlns="http://www.w3.org/2000/svg" width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+												</span>
+												<span className="font-heading text-sm font-bold text-foreground">
+													5-Hour Rolling Quota Rollout Timer
+												</span>
+											</div>
+											<p className="text-xs text-muted-foreground leading-relaxed">
+												Tokens consumed in this sliding window continuously age out and replenish back to your quota.
+											</p>
+										</div>
+
+										{/* Digital Clock Display */}
+										<div className="flex items-center gap-3 self-start md:self-auto">
+											<div className="flex items-center gap-1.5 font-mono">
+												<div className="flex flex-col items-center">
+													<span className="px-3 py-2 rounded-xl bg-card border border-border shadow-xs text-xl font-extrabold text-foreground min-w-[46px] text-center">
+														{rollingTimer.hours}
+													</span>
+													<span className="text-[9px] font-bold text-muted-foreground mt-0.5 uppercase tracking-wider">HRS</span>
+												</div>
+												<span className="text-xl font-extrabold text-primary animate-pulse -mt-4">:</span>
+												<div className="flex flex-col items-center">
+													<span className="px-3 py-2 rounded-xl bg-card border border-border shadow-xs text-xl font-extrabold text-foreground min-w-[46px] text-center">
+														{rollingTimer.minutes}
+													</span>
+													<span className="text-[9px] font-bold text-muted-foreground mt-0.5 uppercase tracking-wider">MIN</span>
+												</div>
+												<span className="text-xl font-extrabold text-primary animate-pulse -mt-4">:</span>
+												<div className="flex flex-col items-center">
+													<span className="px-3 py-2 rounded-xl bg-card border border-border shadow-xs text-xl font-extrabold text-emerald-600 dark:text-emerald-400 min-w-[46px] text-center">
+														{rollingTimer.seconds}
+													</span>
+													<span className="text-[9px] font-bold text-muted-foreground mt-0.5 uppercase tracking-wider">SEC</span>
+												</div>
+											</div>
+
+											<div className="hidden sm:flex flex-col items-start pl-3 border-l border-border/60">
+												<span className="inline-flex items-center gap-1.5 text-[11px] font-mono font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-md border border-emerald-500/25">
+													<span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
+													TICKING LIVE
+												</span>
+												<span className="text-[10px] font-mono text-muted-foreground mt-1">
+													{keyData.windowResetAt ? formatDateTimeFormatted(keyData.windowResetAt) : "Continuous 5h"}
+												</span>
+											</div>
+										</div>
+									</div>
+
+									{/* Decay Progression Track */}
+									<div className="mt-4 pt-4 border-t border-border/50">
+										<div className="flex justify-between items-center text-[11px] font-mono text-muted-foreground mb-1.5">
+											<span className="flex items-center gap-1.5">
+												<span className="w-1.5 h-1.5 rounded-full bg-primary" />
+												Sliding 5-Hour Window Cycle
+											</span>
+											<span className="text-foreground font-semibold">
+												{rollingTimer.percentRemaining}% cycle remaining
+											</span>
+										</div>
+										<div className="w-full bg-muted/70 dark:bg-muted/30 rounded-full h-2 overflow-hidden">
+											<div
+												className="h-full bg-gradient-to-r from-emerald-500 via-teal-400 to-cyan-500 rounded-full transition-all duration-1000 shadow-sm"
+												style={{ width: `${rollingTimer.percentRemaining}%` }}
+											/>
+										</div>
 									</div>
 								</div>
 							</div>
