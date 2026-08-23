@@ -2,8 +2,7 @@ import { type LoaderFunctionArgs, type ActionFunctionArgs, type MetaFunction, Fo
 import { useLoaderData, useActionData, useNavigation } from "react-router";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { Layout } from "../components/Layout";
-import { getKeyStatus } from "~/utils/gateway-service";
-import { getPlanInfoForApiKey, inferTokenLimitFromPlan } from "~/utils/plan-service";
+import { inferTokenLimitFromPlan } from "~/utils/plan-utils";
 
 export const meta: MetaFunction = () => {
 	return [
@@ -16,6 +15,10 @@ export const meta: MetaFunction = () => {
 };
 
 async function fetchKeyStatus(key: string) {
+	// Server-only imports — kept inside function so client bundle doesn't pull them in
+	const { getKeyStatus } = await import("~/utils/gateway-service");
+	const { getPlanInfoForApiKey } = await import("~/utils/plan-service");
+
 	if (!key) {
 		return { keyData: null, error: null, key: "" };
 	}
