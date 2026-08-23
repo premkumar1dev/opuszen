@@ -189,13 +189,39 @@ export default function KeyStatusRoute() {
 			return val < 10_000_000_000 ? val * 1000 : val;
 		}
 		if (typeof val === "string") {
-			const num = Number(val);
-			if (!isNaN(num) && num > 0) {
-				return num < 10_000_000_000 ? num * 1000 : num;
+			const s = val.trim();
+			// 1. If numeric string (unix epoch)
+			if (/^\d+$/.test(s)) {
+				const n = Number(s);
+				return n < 10_000_000_000 ? n * 1000 : n;
 			}
-			const parsed = Date.parse(val);
+
+			// 2. Try DD/MM/YY or DD/MM/YYYY with optional time (e.g. "23/08/26, 3:37:24 PM")
+			const dmyMatch = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})(?:[,\s]+(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM)?)?/i);
+			if (dmyMatch) {
+				const day = parseInt(dmyMatch[1], 10);
+				const month = parseInt(dmyMatch[2], 10) - 1;
+				let year = parseInt(dmyMatch[3], 10);
+				if (year < 100) year += 2000;
+
+				let hours = dmyMatch[4] ? parseInt(dmyMatch[4], 10) : 0;
+				const minutes = dmyMatch[5] ? parseInt(dmyMatch[5], 10) : 0;
+				const seconds = dmyMatch[6] ? parseInt(dmyMatch[6], 10) : 0;
+				const meridiem = dmyMatch[7]?.toUpperCase();
+
+				if (meridiem === "PM" && hours < 12) hours += 12;
+				if (meridiem === "AM" && hours === 12) hours = 0;
+
+				const parsedDate = new Date(year, month, day, hours, minutes, seconds);
+				if (!isNaN(parsedDate.getTime())) return parsedDate.getTime();
+			}
+
+			// 3. Try standard Date.parse
+			const parsed = Date.parse(s);
 			if (!isNaN(parsed)) return parsed;
-			const iso = val.replace(" ", "T");
+
+			// 4. Try replacing space with T for ISO format
+			const iso = s.replace(" ", "T");
 			const parsedIso = Date.parse(iso);
 			if (!isNaN(parsedIso)) return parsedIso;
 		}
@@ -203,29 +229,43 @@ export default function KeyStatusRoute() {
 		return d.getTime();
 	};
 
+	// Determine the fixed target reset timestamp whenever keyData is loaded
+	const resolvedResetMs = (() => {
+		if (!keyData) return null;
+		const now = Date.now();
+		const fiveHoursMs = 5 * 60 * 60 * 1000;
+
+		const rawReset = keyData.windowResetAt || keyData.window_reset_at || keyData.resetAt;
+		const parsedResetMs = parseTimestampToMs(rawReset);
+
+		// If parsedResetMs is valid and in the future, use it!
+		if (!isNaN(parsedResetMs) && parsedResetMs > now) {
+			return parsedResetMs;
+		}
+
+		// Otherwise, if lastUsedAt exists and was within the last 5 hours:
+		const rawLastUsed = keyData.lastUsedAt || keyData.last_used_at || keyData.last_used;
+		const lastUsedMs = parseTimestampToMs(rawLastUsed);
+		if (!isNaN(lastUsedMs) && (now - lastUsedMs) < fiveHoursMs && (lastUsedMs + fiveHoursMs) > now) {
+			return lastUsedMs + fiveHoursMs;
+		}
+
+		// If all tokens are replenished or window reset has passed, next rolling window is 5 hours from now
+		return now + fiveHoursMs;
+	})();
+
 	// 5-Hour rolling window countdown loop
 	useEffect(() => {
-		if (!keyData) {
+		if (!resolvedResetMs) {
 			setTimeLeft("");
 			return;
 		}
 
 		const fiveHoursMs = 5 * 60 * 60 * 1000;
+		const targetMs = resolvedResetMs;
 
 		const updateTimer = () => {
 			const now = Date.now();
-			let targetMs = parseTimestampToMs(keyData.windowResetAt);
-
-			// If targetMs is invalid, expired, or represents a distant expiry date (> 5.5h in future), compute rolling 5h window
-			if (isNaN(targetMs) || targetMs <= now || (targetMs - now) > 5.5 * 60 * 60 * 1000) {
-				const lastUsedMs = parseTimestampToMs(keyData.lastUsedAt || keyData.last_used);
-				if (!isNaN(lastUsedMs) && (now - lastUsedMs) < fiveHoursMs) {
-					targetMs = lastUsedMs + fiveHoursMs;
-				} else {
-					targetMs = now + fiveHoursMs;
-				}
-			}
-
 			const diff = Math.max(0, targetMs - now);
 
 			const h = Math.floor(diff / (1000 * 60 * 60));
@@ -263,7 +303,7 @@ export default function KeyStatusRoute() {
 		return () => {
 			if (interval) clearInterval(interval);
 		};
-	}, [keyData?.windowResetAt, keyData?.lastUsedAt]);
+	}, [resolvedResetMs]);
 
 	const copyToClipboard = async (text: string, type: "key" | "snippet") => {
 		if (!text) return;
@@ -1021,7 +1061,7 @@ print(response.json())`;
 											<span>
 												Rolling Window Reset:{" "}
 												<strong className="text-foreground">
-													{keyData.windowResetAt ? formatDateTimeFormatted(keyData.windowResetAt) : "Continuous 5-Hour Rolling"}
+													{resolvedResetMs ? formatDateTimeFormatted(new Date(resolvedResetMs).toISOString()) : "Continuous 5-Hour Rolling"}
 												</strong>
 											</span>
 										</div>
@@ -1083,7 +1123,7 @@ print(response.json())`;
 													TICKING LIVE
 												</span>
 												<span className="text-[10px] font-mono text-muted-foreground mt-1">
-													{keyData.windowResetAt ? formatDateTimeFormatted(keyData.windowResetAt) : "Continuous 5h"}
+													{resolvedResetMs ? formatDateTimeFormatted(new Date(resolvedResetMs).toISOString()) : "Continuous 5h"}
 												</span>
 											</div>
 										</div>
