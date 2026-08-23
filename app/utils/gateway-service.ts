@@ -786,18 +786,26 @@ export async function handleGatewayRequest(
 // ---------------------------------------------------------------------------
 export async function getKeyStatus(apiKey: string): Promise<{ status: string;[key: string]: unknown }> {
 	if (!apiKey) {
-		return { status: 'error', error: 'API key is required' };
+		return { status: 'error', error: 'API key is required. Please provide your API key.' };
 	}
-	const cleanKey = apiKey.trim().replace(/^Bearer\s+/i, "");
+	const cleanKey = apiKey
+		.trim()
+		.replace(/^Bearer\s+/i, "")
+		.trim()
+		.replace(/^["']|["']$/g, "")
+		.trim();
+
 	if (!cleanKey) {
-		return { status: 'error', error: 'API key is empty' };
+		return { status: 'error', error: 'API key is empty. Please check your key and try again.' };
 	}
 
-	// 1. Check user_api_keys table (regardless of status, so detailed status can be reported)
+	const isUuidKey = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanKey);
+
+	// 1. Check user_api_keys table (including child keys)
 	const { data: userKeyData } = await supabase
 		.from('user_api_keys')
 		.select('*')
-		.eq('api_key', cleanKey)
+		.or(isUuidKey ? `api_key.eq.${cleanKey},id.eq.${cleanKey}` : `api_key.eq.${cleanKey}`)
 		.maybeSingle();
 
 	if (userKeyData) {
@@ -890,17 +898,20 @@ export async function getKeyStatus(apiKey: string): Promise<{ status: string;[ke
 			usedCredits: used,
 			remainingCredits: remaining,
 			recentLogs,
-			...(effectiveStatus !== 'active' ? { warning: `Key is currently ${effectiveStatus}.` } : {}),
+			...(effectiveStatus !== 'active' ? { warning: `Key status: ${effectiveStatus}.` } : {}),
 		};
 	}
 
-	// 2. If not found in user_api_keys, check master_api_keys table
-	const isUuidKey = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanKey);
-	const { data: masterKeyData } = await supabase
-		.from('master_api_keys')
-		.select('*')
-		.or(isUuidKey ? `api_key.eq.${cleanKey},id.eq.${cleanKey}` : `api_key.eq.${cleanKey}`)
-		.maybeSingle();
+	// 2. Check master_api_keys table (including encrypted and decrypted match)
+	let masterKeyData: any = null;
+	if (isUuidKey) {
+		const { data } = await supabase.from('master_api_keys').select('*').eq('id', cleanKey).maybeSingle();
+		if (data) masterKeyData = data;
+	}
+	if (!masterKeyData) {
+		const allMasters = await getAllMasterKeys().catch(() => []);
+		masterKeyData = allMasters.find((m) => m.api_key === cleanKey || m.id === cleanKey) || null;
+	}
 
 	if (masterKeyData) {
 		const m = masterKeyData as any;
@@ -944,5 +955,83 @@ export async function getKeyStatus(apiKey: string): Promise<{ status: string;[ke
 		};
 	}
 
-	return { status: 'error', error: 'Invalid or expired API key' };
+	// 3. Fallback: Query upstream key status endpoints (api.opuslive.pro, api.opusmax.live, api.opuszen.shop)
+	const upstreamData = await fetchUpstreamKeyStatus(cleanKey);
+	if (upstreamData) {
+		return upstreamData;
+	}
+
+	if (cleanKey.startsWith("sk-ant-")) {
+		return { status: 'error', error: "This looks like a direct Anthropic API key ('sk-ant-...'). Please enter your OpusZen Gateway key ('sk_live_...')." };
+	}
+	if (cleanKey.startsWith("sk-proj-")) {
+		return { status: 'error', error: "This looks like an OpenAI project API key ('sk-proj-...'). Please enter your OpusZen Gateway key ('sk_live_...')." };
+	}
+	if (cleanKey.toLowerCase().includes("your_") || cleanKey.toLowerCase().includes("placeholder") || cleanKey.includes("<")) {
+		return { status: 'error', error: "Please enter your actual OpusZen API key rather than placeholder text." };
+	}
+
+	return { status: 'error', error: `API key not found. Please make sure to copy your full key starting with 'sk_live_' from your dashboard.` };
+}
+
+/**
+ * Query upstream providers (api.opuslive.pro, api.opusmax.live, api.opuszen.shop) as a fallback
+ */
+async function fetchUpstreamKeyStatus(cleanKey: string): Promise<{ status: string;[key: string]: unknown } | null> {
+	const endpoints = [
+		`https://api.opuslive.pro/api/key-status?key=${encodeURIComponent(cleanKey)}`,
+		`https://api.opusmax.live/api/key-status?key=${encodeURIComponent(cleanKey)}`,
+		`https://api.opuszen.shop/api/key-status?key=${encodeURIComponent(cleanKey)}`,
+	];
+
+	for (const ep of endpoints) {
+		try {
+			const controller = new AbortController();
+			const timeoutId = setTimeout(() => controller.abort(), 4000);
+			const res = await fetch(ep, {
+				headers: { 'User-Agent': 'OpusZen-Gateway/1.4' },
+				signal: controller.signal,
+			});
+			clearTimeout(timeoutId);
+
+			if (res.ok) {
+				const json: any = await res.json().catch(() => null);
+				if (json && json.status !== 'error' && (json.planName || json.keyStatus || json.allocatedCredits !== undefined || json.windowTokensLimit || json.valid)) {
+					return {
+						status: 'ok',
+						isRealtime: true,
+						keyStatus: json.keyStatus || (json.isActive === false ? 'disabled' : 'active'),
+						name: json.name || 'API Key',
+						planName: json.planName || 'Custom Plan',
+						unlimited: json.unlimited ?? false,
+						usagePercent: json.usagePercent ?? 0,
+						totalRequests: json.totalRequests ?? 0,
+						successRequests: json.successRequests ?? 0,
+						failedRequests: json.failedRequests ?? 0,
+						last24h: json.last24h ?? { requests: 0 },
+						rateLimit: json.rateLimit ?? 60,
+						expiresAt: json.expiresAt || json.expiry_date,
+						createdAt: json.createdAt || json.created_at,
+						lastUsedAt: json.lastUsedAt || json.last_used,
+						connectionStatus: json.connectionStatus || 'Online',
+						isActive: json.isActive ?? true,
+						windowActive: json.windowActive ?? true,
+						windowTokensLimit: json.windowTokensLimit ?? (json.allocatedCredits ? json.allocatedCredits * 1000 : 10000000),
+						windowTokensUsed: json.windowTokensUsed ?? (json.usedCredits ? json.usedCredits * 1000 : 0),
+						remainingTokens: json.remainingTokens ?? (json.remainingCredits ? json.remainingCredits * 1000 : 10000000),
+						windowResetAt: json.windowResetAt || json.expiresAt || json.expiry_date,
+						allowedModels: json.allowedModels || ["claude-opus-4-8", "claude-opus-4-7", "claude-sonnet-4-6", "claude-haiku-4-5-20251001"],
+						allowedProviders: json.allowedProviders || ["opuslive"],
+						allocatedCredits: json.allocatedCredits ?? 0,
+						usedCredits: json.usedCredits ?? 0,
+						remainingCredits: json.remainingCredits ?? 0,
+						recentLogs: json.recentLogs || [],
+					};
+				}
+			}
+		} catch {
+			// continue to next endpoint
+		}
+	}
+	return null;
 }

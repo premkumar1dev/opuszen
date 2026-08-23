@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
 import { FadeUp, StaggerContainer, StaggerItem } from "../components/motion/FadeUp";
+import { SectionHeading } from "../components/SectionHeading";
 
 const features = [
  "Per-key budgets with 5h rolling windows",
@@ -21,17 +22,12 @@ export function WhyOpusZen() {
  <p className="text-sm font-semibold text-primary mb-4 tracking-wide uppercase">
  Why OpusZen
  </p>
- <h2 id="why-heading" className="text-3xl sm:text-4xl font-bold tracking-tight text-foreground mb-4">
- Built for teams that need control
- </h2>
- <p className="text-muted-foreground leading-relaxed">
- Multi-tenant API key management with per-key budgets, rate limits, usage tracking, and a full admin dashboard. Designed for resellers and teams.
- </p>
+ <SectionHeading number="" title="Built for teams that need control" description="Multi-tenant API key management with per-key budgets, rate limits, usage tracking, and a full admin dashboard. Designed for resellers and teams." align="left" />
  </div>
  </FadeUp>
 
  {/* Right: feature list */}
- <StaggerContainer staggerDelay={0.08}>
+ <StaggerContainer staggerDelay={0.1}>
  <ul className="space-y-4" role="list">
  {features.map((feature) => (
  <StaggerItem key={feature}>
@@ -41,9 +37,15 @@ export function WhyOpusZen() {
  <path d="M20 6 9 17l-5-5" />
  </svg>
  </div>
- <span className="text-sm text-foreground font-medium leading-relaxed">
+ <motion.span
+ className="text-sm text-foreground font-medium leading-relaxed"
+ initial={{ opacity: 0, y: 6 }}
+ whileInView={{ opacity: 1, y: 0 }}
+ viewport={{ once: true }}
+ transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] }}
+ >
  {feature}
- </span>
+ </motion.span>
  </li>
  </StaggerItem>
  ))}

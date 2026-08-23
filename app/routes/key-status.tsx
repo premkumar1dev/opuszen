@@ -279,7 +279,7 @@ export default function KeyStatusRoute() {
 								defaultValue={key}
 								disabled={isLoading}
 								className="w-full pl-10 pr-24 py-3 rounded-xl border border-input bg-background/50 text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all placeholder:text-muted-foreground font-mono disabled:opacity-60"
-								placeholder="sk-ant-opm-****************"
+								placeholder="sk_live_************************"
 								required
 							/>
 							<button
@@ -369,26 +369,42 @@ export default function KeyStatusRoute() {
 				)}
 
 				{error && (
-					<div className="mb-8 p-4 rounded-xl border border-destructive/30 bg-destructive/10 text-destructive text-sm font-medium flex items-center gap-3">
-						<svg
-							xmlns="http://www.w3.org/2000/svg"
-							width={20}
-							height={20}
-							viewBox="0 0 24 24"
-							fill="none"
-							stroke="currentColor"
-							strokeWidth={2}
-							strokeLinecap="round"
-							strokeLinejoin="round"
-							className="shrink-0"
-						>
-							<circle cx="12" cy="12" r="10" />
-							<line x1="12" y1="8" x2="12" y2="12" />
-							<line x1="12" y1="16" x2="12.01" y2="16" />
-						</svg>
-						<div>
-							<p className="font-semibold">Query Failed</p>
-							<p className="text-xs opacity-90">{error}</p>
+					<div className="mb-8 p-5 rounded-2xl border border-destructive/30 bg-destructive/10 text-destructive text-sm font-medium">
+						<div className="flex items-start gap-3.5">
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								width={22}
+								height={22}
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								strokeWidth={2}
+								strokeLinecap="round"
+								strokeLinejoin="round"
+								className="shrink-0 mt-0.5"
+							>
+								<circle cx="12" cy="12" r="10" />
+								<line x1="12" y1="8" x2="12" y2="12" />
+								<line x1="12" y1="16" x2="12.01" y2="16" />
+							</svg>
+							<div className="space-y-1.5 flex-1">
+								<p className="font-bold text-base">Query Failed</p>
+								<p className="text-sm opacity-90">{error}</p>
+								<div className="pt-2 flex flex-wrap items-center gap-3 text-xs">
+									<a
+										href="/user/my-keys"
+										className="inline-flex items-center gap-1 font-semibold underline hover:opacity-80 transition-opacity"
+									>
+										View My API Keys &rarr;
+									</a>
+									<a
+										href="/pricing"
+										className="inline-flex items-center gap-1 font-semibold underline hover:opacity-80 transition-opacity"
+									>
+										Get New API Key &rarr;
+									</a>
+								</div>
+							</div>
 						</div>
 					</div>
 				)}

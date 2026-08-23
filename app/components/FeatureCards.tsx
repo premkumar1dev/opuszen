@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
 import { StaggerContainer, StaggerItem } from "../components/motion/FadeUp";
+import { SectionHeading } from "../components/SectionHeading";
 import { BarChart3, Zap, Lock, Plug, Server, Eye } from "lucide-react";
 
 const features = [
@@ -45,33 +46,11 @@ export default function FeatureCards() {
  return (
  <section className="relative px-4">
  <div className="max-w-7xl mx-auto">
- <div className="text-center mb-16">
- <motion.h2
- initial={{ opacity: 0, y: 20 }}
- whileInView={{ opacity: 1, y: 0 }}
- viewport={{ once: true }}
- transition={{ duration: 0.5 }}
- className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight text-foreground mb-4"
- >
- <span className="text-muted-foreground text-2xl sm:text-3xl md:text-4xl font-mono">
- 02 —
- </span>{" "}
- Built for people who ship
- </motion.h2>
- <motion.p
- initial={{ opacity: 0, y: 20 }}
- whileInView={{ opacity: 1, y: 0 }}
- viewport={{ once: true }}
- transition={{ duration: 0.5, delay: 0.1 }}
- className="text-muted-foreground text-lg max-w-2xl mx-auto"
- >
- Budgets that hold, streaming that doesn't buffer, and tools that are already switched on.
- </motion.p>
- </div>
+ <SectionHeading number="02 —" title="Built for people who ship" description="Budgets that hold, streaming that doesn't buffer, and tools that are already switched on." />
 
- <StaggerContainer staggerDelay={0.08} className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+ <StaggerContainer staggerDelay={0.1} className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
  {features.map((feature, i) => (
- <StaggerItem key={feature.title} className="group relative rounded-xl border border-border bg-card p-6 hover:border-primary/30 card-lift transition-all duration-300">
+ <StaggerItem key={feature.title} delay={i * 0.06} className="group relative rounded-xl border border-border bg-card p-6 hover:border-primary/30 card-lift transition-all duration-300">
  <div className="flex items-start justify-between mb-4">
  <div className="w-10 h-10 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center group-hover:bg-primary/15 transition-colors">
  <feature.icon className="w-5 h-5 text-primary" />

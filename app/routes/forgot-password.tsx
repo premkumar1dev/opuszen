@@ -5,6 +5,7 @@ import { ArrowLeft, CheckCircle, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "~/utils/supabase";
+import { BrandLogo } from "~/components/ui/brand-logo";
 
 export const meta: MetaFunction = () => {
   return [
@@ -62,17 +63,7 @@ export default function ForgotPasswordRoute() {
       <div className="flex min-h-screen items-center justify-center px-4 py-8 sm:py-12">
         <div className="border-border bg-card flex w-full max-w-sm flex-col items-center gap-y-6 rounded-2xl border px-5 sm:px-6 py-10 sm:py-12 shadow-sm">
           <div className="flex flex-col items-center gap-y-2">
-            {/* Logo and Site Name */}
-            <div className="flex items-center gap-3">
-              <Link to="/" className="flex items-center gap-3">
-                <img
-                  src="/logo-blue.png"
-                  alt="OpusZen Logo"
-                  className="h-10 w-10"
-                />
-                <span className="text-2xl font-bold tracking-tight text-foreground">OpusZen</span>
-              </Link>
-            </div>
+            <BrandLogo size="lg" variant="full" />
             <h1 className="text-xl font-semibold mt-2">Reset password</h1>
             <p className="text-xs text-muted-foreground text-center px-4">
               Enter your email address and we'll send you a link to reset your password.

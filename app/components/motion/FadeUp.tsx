@@ -89,25 +89,26 @@ export function StaggerContainer({
 }
 
 interface StaggerItemProps {
- children: ReactNode;
- className?: string;
+	children: ReactNode;
+	className?: string;
+	delay?: number;
 }
 
-export function StaggerItem({ children, className = "" }: StaggerItemProps) {
- return (
- <MotionDiv
- variants={{
- hidden: { opacity: 0, y: 20, scale: 0.97 },
- visible: {
- opacity: 1,
- y: 0,
- scale: 1,
- transition: { duration: 0.5, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] },
- },
- }}
- className={className}
- >
- {children}
- </MotionDiv>
- );
+export function StaggerItem({ children, className = "", delay }: StaggerItemProps) {
+	return (
+		<MotionDiv
+			variants={{
+				hidden: { opacity: 0, y: 20, scale: 0.97 },
+				visible: {
+					opacity: 1,
+					y: 0,
+					scale: 1,
+					transition: { duration: 0.5, delay, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] },
+				},
+			}}
+			className={className}
+		>
+			{children}
+		</MotionDiv>
+	);
 }

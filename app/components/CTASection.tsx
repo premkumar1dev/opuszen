@@ -2,6 +2,7 @@ import { motion } from "framer-motion";
 import { Sparkles } from "lucide-react";
 import { Link } from "react-router";
 import { ScaleReveal } from "../components/motion/BlurScaleReveal";
+import { SectionHeading } from "../components/SectionHeading";
 
 export default function CTASection() {
  return (

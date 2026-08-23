@@ -52,14 +52,21 @@ export async function createUserApiKey(input: UserApiKeyInput): Promise<UserApiK
 
 export async function validateUserApiKey(apiKey: string): Promise<UserApiKeyRow | null> {
 	if (!apiKey) return null;
-	const cleanKey = apiKey.trim().replace(/^Bearer\s+/i, "");
+	const cleanKey = apiKey
+		.trim()
+		.replace(/^Bearer\s+/i, "")
+		.trim()
+		.replace(/^["']|["']$/g, "")
+		.trim();
 	if (!cleanKey) return null;
+
+	const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanKey);
 
 	// 1. Supabase PostgREST read-check-expire pattern for user keys
 	const { data, error } = await supabase
 		.from('user_api_keys')
 		.select('*')
-		.eq('api_key', cleanKey)
+		.or(isUuid ? `api_key.eq.${cleanKey},id.eq.${cleanKey}` : `api_key.eq.${cleanKey}`)
 		.eq('status', 'active')
 		.maybeSingle();
 
@@ -83,13 +90,11 @@ export async function validateUserApiKey(apiKey: string): Promise<UserApiKeyRow 
 
 	// 2. Also check master_api_keys table (for direct upstream master key inference & connection testing)
 	try {
-		const { data: masterData } = await supabase
-			.from('master_api_keys')
-			.select('*')
-			.eq('api_key', cleanKey)
-			.maybeSingle();
+		const { getAllMasterKeys } = await import("~/utils/master-key-service");
+		const allMasters = await getAllMasterKeys().catch(() => []);
+		const masterData = allMasters.find((m) => (m.api_key === cleanKey || m.id === cleanKey) && m.status !== 'disabled');
 
-		if (masterData && masterData.status !== 'disabled') {
+		if (masterData) {
 			return {
 				id: masterData.id,
 				user_id: 'master_admin',

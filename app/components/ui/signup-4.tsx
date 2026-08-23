@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "~/utils/supabase";
+import { BrandLogo } from "~/components/ui/brand-logo";
 
 interface Signup4Props {
  heading?: string;
@@ -90,10 +91,7 @@ const Signup4 = ({
 
  {/* Top: Logo & Title */}
  <div className="relative z-20 flex items-center gap-3">
- <a href={logo.url} className="flex items-center gap-3">
- <img src={logo.src} alt={logo.alt} className="h-10 w-10" />
- <span className="text-2xl font-bold tracking-tight text-white">{logo.title}</span>
- </a>
+ <BrandLogo size="lg" variant="full" />
  </div>
 
  {/* Bottom: Testimonial */}
@@ -115,10 +113,7 @@ const Signup4 = ({
  <div className="mx-auto w-full max-w-sm">
  {/* Logo & Header for Mobile/Tablet */}
  <div className="flex flex-col items-center gap-y-2 lg:hidden mb-8">
- <a href={logo.url} className="flex items-center gap-3">
- <img src={logo.src} alt={logo.alt} className="h-10 w-10" />
- <span className="text-2xl font-bold tracking-tight text-foreground">{logo.title}</span>
- </a>
+ <BrandLogo size="lg" variant="full" />
  </div>
 
  {/* Form Header */}
