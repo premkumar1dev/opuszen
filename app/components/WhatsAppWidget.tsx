@@ -1,14 +1,22 @@
 import { useState, useEffect, useRef } from "react";
 
 interface WhatsAppWidgetProps {
-  phoneNumber: string;
+  phoneNumber?: string;
   agentName?: string;
   agentRole?: string;
   welcomeMessage?: string;
 }
 
+function getCleanWhatsAppNumber(phone: string): string {
+  let clean = (phone || "").replace(/\D/g, "");
+  if (clean.length === 10) {
+    clean = `91${clean}`;
+  }
+  return clean || "918098830937";
+}
+
 export function WhatsAppWidget({
-  phoneNumber,
+  phoneNumber = "918098830937",
   agentName = "OpusZen Support",
   agentRole = "Online • Typically replies in minutes",
   welcomeMessage = "Hi there! 👋 How can we help you with OpusZen today?",
@@ -16,6 +24,11 @@ export function WhatsAppWidget({
   const [isOpen, setIsOpen] = useState(false);
   const [message, setMessage] = useState("");
   const panelRef = useRef<HTMLDivElement>(null);
+
+  const cleanPhone = getCleanWhatsAppNumber(phoneNumber);
+  const defaultText = "Hello, I have a question about OpusZen.";
+  const textToSend = message.trim() || defaultText;
+  const currentWhatsAppUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(textToSend)}`;
 
   // Close when clicking outside
   useEffect(() => {
@@ -51,14 +64,7 @@ export function WhatsAppWidget({
   }, [isOpen]);
 
   const handleSend = () => {
-    const defaultText = "Hello, I have a question about OpusZen.";
-    const textToSend = message.trim() || defaultText;
-    let cleanPhone = phoneNumber.replace(/\D/g, "");
-    if (cleanPhone.length === 10) {
-      cleanPhone = `91${cleanPhone}`;
-    }
-    const url = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(textToSend)}`;
-    window.open(url, "_blank", "noopener,noreferrer");
+    window.open(currentWhatsAppUrl, "_blank", "noopener,noreferrer");
     setMessage("");
     setIsOpen(false);
   };
@@ -117,14 +123,28 @@ export function WhatsAppWidget({
 
           {/* Chat Body */}
           <div className="flex-1 p-4 bg-muted/30 dark:bg-muted/10 min-h-[160px] flex flex-col justify-end relative bg-[radial-gradient(var(--color-border)_1px,transparent_1px)] [background-size:16px_16px]">
-            <div className="bg-card rounded-2xl rounded-tl-none p-3.5 shadow-sm border border-border max-w-[85%] self-start text-left mb-2 transition-colors">
+            <div className="bg-card rounded-2xl rounded-tl-none p-3.5 shadow-sm border border-border max-w-[90%] self-start text-left mb-2 transition-colors">
               <p className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 mb-1">{agentName}</p>
               <p className="text-sm text-foreground leading-relaxed font-normal">
                 {welcomeMessage}
               </p>
-              <span className="block text-[9px] text-muted-foreground text-right mt-1.5 font-medium">
-                Just now
-              </span>
+              <div className="mt-2.5 flex items-center justify-between gap-2">
+                <a
+                  href={currentWhatsAppUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => setIsOpen(false)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500 hover:bg-emerald-600 text-white shadow-xs transition-colors"
+                >
+                  <span>Chat on WhatsApp</span>
+                  <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
+                    <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+                  </svg>
+                </a>
+                <span className="text-[9px] text-muted-foreground font-medium">
+                  Just now
+                </span>
+              </div>
             </div>
           </div>
 
@@ -138,15 +158,21 @@ export function WhatsAppWidget({
               placeholder="Type a message..."
               className="flex-1 bg-muted/50 border border-border rounded-full px-4.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/50 text-foreground placeholder-muted-foreground"
             />
-            <button
-              onClick={handleSend}
+            <a
+              href={currentWhatsAppUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => {
+                setMessage("");
+                setIsOpen(false);
+              }}
               className="w-9.5 h-9.5 rounded-full bg-emerald-500 hover:bg-emerald-600 dark:bg-emerald-600 dark:hover:bg-emerald-500 text-white flex items-center justify-center transition-all shadow-md hover:shadow-emerald-500/10 active:scale-95 cursor-pointer shrink-0"
               aria-label="Send WhatsApp message"
             >
               <svg className="w-4.5 h-4.5 transform rotate-45 translate-x-0.5 -translate-y-0.5 fill-current" viewBox="0 0 24 24">
                 <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
               </svg>
-            </button>
+            </a>
           </div>
         </div>
       )}
