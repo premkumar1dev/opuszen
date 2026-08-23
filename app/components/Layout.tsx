@@ -6,6 +6,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
  const [darkMode, setDarkMode] = useState(false)
  const [scrolled, setScrolled] = useState(false)
  const tickingRef = useRef(false)
+ const drawerRef = useRef<HTMLElement>(null)
+ const hamburgerRef = useRef<HTMLButtonElement>(null)
 
  useEffect(() => {
  try {
@@ -17,7 +19,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
  }
  } catch {}
  }, []);
- const mobileNavRef = useRef<HTMLElement>(null)
  const location = useLocation()
 
  // Scroll to top on navigation
@@ -84,6 +85,77 @@ export function Layout({ children }: { children: React.ReactNode }) {
  }
  return () => {
  document.body.style.overflow = ''
+ }
+ }, [mobileOpen])
+
+ // Restore focus to hamburger button when drawer closes
+ useEffect(() => {
+ if (!mobileOpen) {
+ // Small delay to let the transition start
+ const timer = setTimeout(() => {
+ if (hamburgerRef.current) {
+ hamburgerRef.current.focus()
+ }
+ }, 100)
+ return () => clearTimeout(timer)
+ }
+ }, [mobileOpen])
+
+ // Trap focus inside the drawer when open
+ useEffect(() => {
+ if (!mobileOpen || !drawerRef.current) return
+
+ const drawer = drawerRef.current
+ const focusableSelector =
+ 'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])'
+
+ const handleTab = (e: KeyboardEvent) => {
+ if (e.key !== 'Tab') return
+ const focusable = Array.from(
+ drawer.querySelectorAll<HTMLElement>(focusableSelector)
+ )
+ if (focusable.length === 0) return
+ const first = focusable[0]
+ const last = focusable[focusable.length - 1]
+ if (e.shiftKey) {
+ if (document.activeElement === first) {
+ e.preventDefault()
+ last.focus()
+ }
+ } else {
+ if (document.activeElement === last) {
+ e.preventDefault()
+ first.focus()
+ }
+ }
+ }
+
+ // Focus first item in drawer on open
+ const focusable = Array.from(
+ drawer.querySelectorAll<HTMLElement>(focusableSelector)
+ )
+ if (focusable.length > 0) {
+ focusable[0].focus()
+ }
+
+ document.addEventListener('keydown', handleTab)
+ return () => document.removeEventListener('keydown', handleTab)
+ }, [mobileOpen])
+
+ // Mark main content as inert when drawer is open (accessibility)
+ useEffect(() => {
+ const mainEl = document.getElementById('main-content')
+ if (!mainEl) return
+ if (mobileOpen) {
+ mainEl.setAttribute('inert', '')
+ mainEl.setAttribute('aria-hidden', 'true')
+ } else {
+ mainEl.removeAttribute('inert')
+ mainEl.removeAttribute('aria-hidden')
+ }
+ return () => {
+ mainEl.removeAttribute('inert')
+ mainEl.removeAttribute('aria-hidden')
  }
  }, [mobileOpen])
 
@@ -231,6 +303,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
  {/* Mobile hamburger */}
  <button
+ ref={hamburgerRef}
  className="md:hidden p-2 min-w-11 min-h-11 rounded-full hover:bg-muted dark:hover:bg-muted/50 transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 flex items-center justify-center"
  onClick={toggleMobile}
  aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
@@ -268,7 +341,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
  {/* Mobile overlay */}
  <div
- className={`fixed inset-0 z-overlay bg-black/50 dark:bg-black/70 backdrop-blur-sm transition-opacity duration-300 md:hidden ${
+ className={`fixed inset-0 z-[1200] bg-black/50 dark:bg-black/70 backdrop-blur-sm transition-opacity duration-300 md:hidden ${
  mobileOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
  }`}
  onClick={() => { window.scrollTo({ top: 0, behavior: "instant" }); setMobileOpen(false); }}
@@ -278,8 +351,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
  {/* Mobile slide-out drawer */}
  <aside
  id="mobile-nav"
- ref={mobileNavRef}
- className={`fixed top-0 right-0 z-overlay h-full w-[280px] bg-background dark:bg-background/98 border-l border-border shadow-2xl transform transition-transform duration-300 ease-out md:hidden ${
+ ref={drawerRef}
+ className={`fixed top-0 right-0 z-[1300] h-full w-[280px] bg-background dark:bg-background/98 border-l border-border shadow-2xl transform transition-transform duration-300 ease-out md:hidden ${
  mobileOpen ? 'translate-x-0' : 'translate-x-full'
  }`}
  role="dialog"
