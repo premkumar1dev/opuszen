@@ -103,6 +103,9 @@ export async function getSanitizedKeyStatus(apiKey: string): Promise<{
 			priority: planInfo.priority,
 		};
 		(sanitized as any).planName = planInfo.displayName;
+		if (planInfo.monthlyTokenLimit && (!sanitized.windowTokensLimit || Number(sanitized.windowTokensLimit) === 0)) {
+			sanitized.windowTokensLimit = planInfo.monthlyTokenLimit;
+		}
 	}
 
 	return sanitized as { status: string; [key: string]: unknown };
