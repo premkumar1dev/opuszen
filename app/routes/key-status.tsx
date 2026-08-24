@@ -4,14 +4,10 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { Layout } from "../components/Layout";
 import { inferTokenLimitFromPlan } from "~/utils/plan-utils";
 
-export const meta: MetaFunction = () => {
-	return [
-		{ title: "API Key Telemetry & Token Quotas | OpusZen Developer Platform" },
-		{
-			name: "description",
-			content: "Enterprise-grade real-time token telemetry, sliding 5-hour quota enforcement, and live gateway request analytics via API.",
-		},
-	];
+import { buildPageMetaTags } from "~/utils/meta-helper";
+
+export const meta: MetaFunction = ({ matches }) => {
+	return buildPageMetaTags(matches, "/key-status");
 };
 
 async function fetchKeyStatus(key: string) {

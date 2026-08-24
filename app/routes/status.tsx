@@ -2,14 +2,10 @@ import { type MetaFunction, type LoaderFunctionArgs, useLoaderData } from "react
 import { Layout } from "../components/Layout";
 import { useState, useEffect, useRef, useCallback } from "react";
 
-export const meta: MetaFunction = () => {
-	return [
-		{ title: "Status | OpusZen" },
-		{
-			name: "description",
-			content: "Real-time service status and uptime for OpusZen API gateway.",
-		},
-	];
+import { buildPageMetaTags } from "~/utils/meta-helper";
+
+export const meta: MetaFunction = ({ matches }) => {
+	return buildPageMetaTags(matches, "/status");
 };
 
 interface ServiceStatus {

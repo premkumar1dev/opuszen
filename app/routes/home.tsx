@@ -8,8 +8,14 @@ import { ReadyIn60Seconds } from '../components/ReadyIn60Seconds'
 import { WhyOpusZen } from '../components/WhyOpusZen'
 import CTASection from '../components/CTASection'
 import GettingStarted from '../components/GettingStarted'
+import type { MetaFunction } from "react-router";
+import { buildPageMetaTags } from "~/utils/meta-helper";
 import { Layout } from '../components/Layout'
 import { ScrollSection, ScrollProgress } from "../components/motion/ScrollSection";
+
+export const meta: MetaFunction = ({ matches }) => {
+	return buildPageMetaTags(matches, "/");
+};
 
 export default function Home() {
  return (

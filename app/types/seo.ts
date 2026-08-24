@@ -1,3 +1,26 @@
+export interface SocialLink {
+	id?: string;
+	platform: string; // 'x' | 'facebook' | 'linkedin' | 'github' | 'instagram' | 'youtube' | 'tiktok' | 'discord' | 'telegram' | 'whatsapp' | 'email'
+	url: string;
+	label?: string; // optional display label
+	icon?: string; // optional custom icon svg url
+	visible: boolean;
+	sort_order: number;
+}
+
+export interface PageMeta {
+	id?: string;
+	route_path: string; // '/pricing', '/docs', etc.
+	meta_title?: string;
+	meta_description?: string;
+	meta_keywords?: string;
+	og_title?: string;
+	og_description?: string;
+	og_image?: string;
+	no_index: boolean;
+	updated_at?: string;
+}
+
 export interface SeoConfig {
 	id?: string;
 	site_name: string;
@@ -31,6 +54,11 @@ export interface SeoConfig {
 	json_ld_schema: string;
 	robots_txt_content: string;
 	sitemap_enabled: boolean;
+	// LLMs.txt
+	llms_txt_content: string;
+	llms_txt_enabled: boolean;
+	humans_txt_content: string;
+	humans_txt_enabled: boolean;
 	updated_at?: string;
 }
 
@@ -88,4 +116,72 @@ export const DEFAULT_SEO_CONFIG: SeoConfig = {
 	),
 	robots_txt_content: `User-agent: *\nAllow: /\nDisallow: /auth/admin/\nDisallow: /api/\n\nSitemap: https://opuszen.com/sitemap.xml`,
 	sitemap_enabled: true,
+	llms_txt_content: `# OpusZen
+
+> OpusZen is a high-performance Anthropic-compatible AI API gateway with automatic failover, rate limiting, and token-based billing.
+
+## Core Identity
+
+- **Name**: OpusZen
+- **Product**: AI API Gateway
+- **Compatibility**: Anthropic Claude API
+- **Features**: Automatic failover, rate limiting, token billing, multi-tenant key management
+- **Pricing**: Start free — https://opuszen.com/pricing
+
+## Key Concepts
+
+- **API Keys**: Authenticate with an OpusZen API key to access Claude models through the gateway.
+- **Failover**: Automatic provider fallback ensures high availability.
+- **Billing**: Token-based pay-as-you-go billing with plan options.
+- **Gateway**: The /api/ endpoint proxies requests to Anthropic-compatible backends.
+
+## Important Links
+
+- Documentation: https://opuszen.com/docs
+- Pricing: https://opuszen.com/pricing
+- Status: https://opuszen.com/status
+- Key Status: https://opuszen.com/key-status
+- Privacy: https://opuszen.com/privacy
+- Terms: https://opuszen.com/terms
+- Support: https://wa.me/918098830937
+
+## Models
+
+OpusZen provides access to Claude models (Claude 4 Sonnet, Claude 3.5 Sonnet, etc.) via the /api/v1/models endpoint.
+
+## Last Updated
+
+This file was last generated on 2025-01-01.`,
+	llms_txt_enabled: true,
+	humans_txt_content: `# Humans of OpusZen
+
+This file contains information about the people behind OpusZen.
+
+## Team
+
+- **Founded by**: Premkumar
+- **Location**: India
+- **Focus**: Building reliable, developer-first AI infrastructure
+
+## Contact
+
+- **WhatsApp**: +91 8098830937
+- **Email**: admin@opuszen.com
+- **Website**: https://opuszen.com
+
+## Technology
+
+OpusZen is built with React, TypeScript, Node.js, and Supabase.
+
+## Status
+
+We are actively maintaining and improving OpusZen. Check our status page for real-time updates:
+https://opuszen.com/status
+
+## Source
+
+Our source code is proprietary. We welcome feedback and partnership inquiries.
+
+This humans.txt file was last updated on 2025-01-01.`,
+	humans_txt_enabled: true,
 };

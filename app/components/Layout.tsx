@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { NavLink, useLocation } from 'react-router'
+import { SocialIconsDisplay } from './SocialIconsDisplay'
+import { useSocialLinks } from './SocialLinksProvider'
 
 export function Layout({ children }: { children: React.ReactNode }) {
  const [mobileOpen, setMobileOpen] = useState(false)
@@ -8,6 +10,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
  const tickingRef = useRef(false)
  const drawerRef = useRef<HTMLElement>(null)
  const hamburgerRef = useRef<HTMLButtonElement>(null)
+ const { links: socialLinks, loading: socialLoading } = useSocialLinks()
 
  useEffect(() => {
  try {
@@ -524,6 +527,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
  <span className="text-xs text-muted-foreground ml-2">Anthropic-compatible API gateway for Claude</span>
  </div>
  </div>
+ <SocialIconsDisplay links={socialLinks} size="sm" variant="ghost" />
+ </div>
+ <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 pt-6 border-t border-border/40">
  <nav className="flex items-center gap-5 text-xs text-muted-foreground" aria-label="Footer navigation">
  <NavLink to="/docs" className="hover:text-primary transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded">Docs</NavLink>
  <NavLink to="/key-status" className="hover:text-primary transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded">Key Status</NavLink>
@@ -532,6 +538,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
  <NavLink to="/terms" className="hover:text-primary transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded">Terms</NavLink>
  <NavLink to="/privacy" className="hover:text-primary transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded">Privacy</NavLink>
  </nav>
+ <p className="text-[11px] text-muted-foreground/60">
+ &copy; {new Date().getFullYear()} OpusZen. All rights reserved.
+ </p>
  </div>
  </footer>
  </div>

@@ -1,14 +1,10 @@
 import { type MetaFunction } from "react-router";
 import { Layout } from "../components/Layout";
 
-export const meta: MetaFunction = () => {
-  return [
-    { title: "Terms of Service | OpusZen" },
-    {
-      name: "description",
-      content: "Terms of Service for OpusZen — Anthropic-compatible API gateway.",
-    },
-  ];
+import { buildPageMetaTags } from "~/utils/meta-helper";
+
+export const meta: MetaFunction = ({ matches }) => {
+	return buildPageMetaTags(matches, "/terms");
 };
 
 export default function TermsRoute() {

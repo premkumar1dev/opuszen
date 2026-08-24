@@ -14,6 +14,10 @@ import {
 	ChevronRight,
 	Clock,
 	Globe,
+	Search,
+	Share2,
+	BarChart3,
+	FileText,
 } from "lucide-react";
 import { IndianRupee } from "lucide-react";
 import { NavLink } from "react-router";
@@ -45,6 +49,14 @@ const NAV_ITEMS: SidebarItem[] = [
 	{ to: "/auth/admin/gateway/logs", label: "Request Logs", icon: Clock },
 	{ to: "/auth/admin/gateway/failover-logs", label: "Failover Logs", icon: Activity },
 	{ to: "/auth/admin/gateway/health", label: "Health Monitor", icon: RefreshCw },
+
+	// SEO & Marketing group
+	{ label: "SEO & Marketing", isHeader: true },
+	{ to: "/auth/admin/seo", label: "SEO Tools", icon: Search },
+	{ to: "/auth/admin/social-links", label: "Social Links", icon: Share2 },
+	{ to: "/auth/admin/seo?tab=analytics", label: "Analytics Settings", icon: BarChart3 },
+	{ to: "/auth/admin/page-meta", label: "Page Meta Editor", icon: FileText },
+
 	{ to: "/auth/admin/settings", label: "Settings", icon: Settings },
 ];
 

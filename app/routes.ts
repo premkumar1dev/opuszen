@@ -87,6 +87,34 @@ export default [
 		file: "routes/admin-payments.tsx",
 	},
 	{
+		path: "/auth/admin/seo",
+		file: "routes/admin-seo.tsx",
+	},
+	{
+		path: "/auth/admin/social-links",
+		file: "routes/admin-social-links.tsx",
+	},
+	{
+		path: "/auth/admin/page-meta",
+		file: "routes/admin-page-meta.tsx",
+	},
+	{
+		path: "/sitemap.xml",
+		file: "routes/sitemap-xml.tsx",
+	},
+	{
+		path: "/robots.txt",
+		file: "routes/robots-txt.tsx",
+	},
+	{
+		path: "/llms.txt",
+		file: "routes/llms-txt.tsx",
+	},
+	{
+		path: "/humans.txt",
+		file: "routes/humans-txt.tsx",
+	},
+	{
 		path: "/docs",
 		file: "routes/docs.tsx",
 	},

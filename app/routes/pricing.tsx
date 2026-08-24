@@ -16,15 +16,13 @@ import { PlanPurchaseOptionModal } from "~/components/ui/plan-purchase-option-mo
 import { PhoneRequiredModal } from "~/components/ui/phone-required-modal";
 import { extractMobile } from "~/utils/payment-sdk";
 
+import { buildPageMetaTags } from "~/utils/meta-helper";
+
 const ADMIN_WHATSAPP_NUMBER = "918098830937";
 
-export const meta: MetaFunction = () => [
-	{ title: "Pricing | OpusZen" },
-	{
-		name: "description",
-		content: "OpusZen API plans — transparent pricing with no hidden fees. Rent a plan and get your API key in seconds.",
-	},
-];
+export const meta: MetaFunction = ({ matches }) => {
+	return buildPageMetaTags(matches, "/pricing");
+};
 
 export async function loader({ request }: LoaderFunctionArgs) {
 	const srv = await import("~/utils/supabase.server");

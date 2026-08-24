@@ -3,15 +3,10 @@ import type { Route } from "./+types/docs";
 import { Layout } from "../components/Layout";
 import { useState, useEffect } from "react";
 
-export const meta: MetaFunction = () => {
- return [
- { title: "Documentation | OpusZen" },
- {
- name: "description",
- content:
- "Documentation for OpusZen — Anthropic-compatible API gateway with multi-tenant key management. Quick start, API reference, models, and IDE configuration.",
- },
- ];
+import { buildPageMetaTags } from "~/utils/meta-helper";
+
+export const meta: MetaFunction = ({ matches }) => {
+	return buildPageMetaTags(matches, "/docs");
 };
 
 // ─── Table of contents ───────────────────────────────────────────────────────

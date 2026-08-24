@@ -45,6 +45,8 @@ import {
 	Plus,
 	Smartphone,
 	Laptop,
+	FileText,
+	Globe2,
 } from "lucide-react";
 
 export const meta: MetaFunction = () => [
@@ -120,6 +122,10 @@ export async function action({ request }: ActionFunctionArgs) {
 			json_ld_schema: (formData.get("json_ld_schema") as string) || "",
 			robots_txt_content: (formData.get("robots_txt_content") as string) || "",
 			sitemap_enabled: formData.get("sitemap_enabled") === "true",
+			llms_txt_content: (formData.get("llms_txt_content") as string) || DEFAULT_SEO_CONFIG.llms_txt_content,
+			llms_txt_enabled: formData.get("llms_txt_enabled") === "true",
+			humans_txt_content: (formData.get("humans_txt_content") as string) || DEFAULT_SEO_CONFIG.humans_txt_content,
+			humans_txt_enabled: formData.get("humans_txt_enabled") === "true",
 		};
 
 		const result = await updateSeoConfig(updates);
@@ -141,7 +147,7 @@ export default function AdminSeoRoute() {
 
 	const isSubmitting = navigation.state === "submitting";
 	const [mobileOpen, setMobileOpen] = useState(false);
-	const [activeTab, setActiveTab] = useState<"meta" | "social" | "analytics" | "schema" | "robots" | "audit">("meta");
+	const [activeTab, setActiveTab] = useState<"meta" | "social" | "analytics" | "schema" | "robots" | "llms" | "humans" | "audit">("meta");
 
 	useEffect(() => {
 		setMobileOpen(false);
@@ -502,6 +508,8 @@ ${form.google_site_verification ? `<meta name="google-site-verification" content
 									{ id: "analytics", label: "Analytics & Scripts", icon: BarChart3 },
 									{ id: "schema", label: "Structured Data", icon: FileCode },
 									{ id: "robots", label: "Robots & Sitemap", icon: Bot },
+									{ id: "llms", label: "LLMs.txt", icon: FileText },
+									{ id: "humans", label: "Humans.txt", icon: Globe2 },
 									{ id: "audit", label: "SEO Health Audit", icon: CheckCircle2 },
 								].map((s) => {
 									const Icon = s.icon;
@@ -1665,9 +1673,78 @@ ${form.google_site_verification ? `<meta name="google-site-verification" content
 								)}
 
 								{/* ═══════════════════════════════════════════════════════════════════
-								    TAB 6: SEO HEALTH AUDIT & EXPORT
+								    TAB 6: LLMS.TXT
 								   ═══════════════════════════════════════════════════════════════════ */}
-								{activeTab === "audit" && (
+								{activeTab === "llms" && (
+									<div className="space-y-5">
+										<div className="rounded-2xl border border-border bg-card/60 p-6 space-y-5">
+										<div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+											<div className="flex items-center gap-3">
+												<div className="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-500">
+													<FileText className="w-4 h-4" />
+												</div>
+												<div>
+													<h3 className="text-base font-bold text-foreground">LLMs.txt Configuration</h3>
+													<p className="text-xs text-muted-foreground">
+													Standardized text file for AI/LLM crawlers to understand your content
+													</p>
+												</div>
+											</div>
+											<div className="flex items-center gap-2">
+												<a href="/llms.txt" target="_blank" rel="noopener noreferrer" className="text-xs px-3 py-1.5 rounded-lg border border-border hover:bg-muted text-foreground flex items-center gap-1.5 transition-all">
+													<Eye className="w-3.5 h-3.5" /> View Live
+												</a>
+												<button type="button" onClick={() => setForm((f) => ({ ...f, llms_txt_enabled: !f.llms_txt_enabled }))} className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors cursor-pointer ${form.llms_txt_enabled ? "bg-primary" : "bg-muted"}`}>
+													<span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${form.llms_txt_enabled ? "translate-x-[18px]" : "translate-x-1"}`} />
+												</button>
+												<input type="hidden" name="llms_txt_enabled" value={String(form.llms_txt_enabled)} />
+											</div>
+										</div>
+										<div>
+											<label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">LLMs.txt Content</label>
+											<textarea name="llms_txt_content" rows={18} value={form.llms_txt_content} onChange={(e) => setForm((f) => ({ ...f, llms_txt_content: e.target.value }))} className="w-full p-4 rounded-xl border border-border bg-background/70 font-mono text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all resize-y" />
+											<p className="text-[11px] text-muted-foreground mt-1.5">Served at /llms.txt. AI assistants and RAG systems use it to understand your site.</p>
+										</div>
+										<div className="rounded-xl border border-border/50 bg-muted/20 p-4">
+											<p className="text-xs text-muted-foreground leading-relaxed">LLMs.txt is an emerging standard (similar to robots.txt) for AI/LLM systems. It helps RAG pipelines, AI assistants, and LLM crawlers understand what your site offers. Learn more at <a href="https://llmstxt.org" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">llmstxt.org</a>.</p>
+										</div>
+									</div>
+								</div>
+							)}
+
+							{activeTab === "humans" && (
+								<div className="space-y-5">
+								<div className="rounded-2xl border border-border bg-card/60 p-6 space-y-5">
+									<div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+										<div className="flex items-center gap-3">
+											<div className="w-8 h-8 rounded-lg bg-teal-500/10 flex items-center justify-center text-teal-500">
+												<Globe2 className="w-4 h-4" />
+											</div>
+											<div>
+												<h3 className="text-base font-bold text-foreground">Humans.txt Configuration</h3>
+												<p className="text-xs text-muted-foreground">A plain text file about the humans behind your website</p>
+											</div>
+										</div>
+										<div className="flex items-center gap-2">
+											<a href="/humans.txt" target="_blank" rel="noopener noreferrer" className="text-xs px-3 py-1.5 rounded-lg border border-border hover:bg-muted text-foreground flex items-center gap-1.5 transition-all">
+												<Eye className="w-3.5 h-3.5" /> View Live
+											</a>
+											<button type="button" onClick={() => setForm((f) => ({ ...f, humans_txt_enabled: !f.humans_txt_enabled }))} className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors cursor-pointer ${form.humans_txt_enabled ? "bg-primary" : "bg-muted"}`}>
+												<span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${form.humans_txt_enabled ? "translate-x-[18px]" : "translate-x-1"}`} />
+											</button>
+											<input type="hidden" name="humans_txt_enabled" value={String(form.humans_txt_enabled)} />
+										</div>
+									</div>
+									<div>
+										<label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Humans.txt Content</label>
+										<textarea name="humans_txt_content" rows={18} value={form.humans_txt_content} onChange={(e) => setForm((f) => ({ ...f, humans_txt_content: e.target.value }))} className="w-full p-4 rounded-xl border border-border bg-background/70 font-mono text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all resize-y" />
+										<p className="text-[11px] text-muted-foreground mt-1.5">Served at /humans.txt. The humans.txt standard acknowledges the people behind a website. Learn more at <a href="https://humanstxt.org" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">humanstxt.org</a>.</p>
+									</div>
+								</div>
+							</div>
+							)}
+
+							{activeTab === "audit" && (
 									<div className="space-y-5">
 										<div className="rounded-2xl border border-border bg-card/60 p-6 space-y-5">
 											<div className="flex items-center gap-3">

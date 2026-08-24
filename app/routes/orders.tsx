@@ -3,13 +3,11 @@ import { Layout } from "../components/Layout";
 import { useState, useEffect } from "react";
 import { supabaseServer } from "~/utils/supabase.server";
 
-export const meta: MetaFunction = () => [
-	{ title: "Order Lookup | OpusZen" },
-	{
-		name: "description",
-		content: "Look up your order status by order ID or email.",
-	},
-];
+import { buildPageMetaTags } from "~/utils/meta-helper";
+
+export const meta: MetaFunction = ({ matches }) => {
+	return buildPageMetaTags(matches, "/orders");
+};
 
 interface OrderResult {
 	id: string;
