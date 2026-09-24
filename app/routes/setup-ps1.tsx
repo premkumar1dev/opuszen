@@ -1,7 +1,7 @@
 import { type LoaderFunctionArgs } from "react-router";
 
 export async function loader({ request }: LoaderFunctionArgs) {
-  const host = "https://opuszen.shop";
+  const host = "https://api.opuszen.shop";
 
   const apiEndpoint = import.meta.env.VITE_API_URL || "https://api.opuszen.shop";
   const brandName = "OpusZen";

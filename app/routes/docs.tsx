@@ -15,6 +15,7 @@ const sections = [
  { id: "overview", label: "Overview" },
  { id: "quick-start", label: "Quick Start" },
  { id: "ide-configuration", label: "IDE Configuration" },
+ { id: "sdks-examples", label: "SDKs & Examples" },
  { id: "api-reference", label: "API Reference" },
  { id: "models", label: "Models" },
  { id: "built-in-tools", label: "Built-in Tools" },
@@ -119,13 +120,7 @@ function Section({
 
 export default function DocsRoute() {
  const [activeSection, setActiveSection] = useState("overview");
- const [host, setHost] = useState("opuszen.shop");
-
- useEffect(() => {
- if (typeof window !== "undefined") {
- setHost(window.location.host.includes("localhost") ? "opuszen.shop" : window.location.host);
- }
- }, []);
+ const apiBaseUrl = "https://api.opuszen.shop";
 
  const [models, setModels] = useState<
  { id: string; name: string; context: string; type: string; created?: string }[]
@@ -134,17 +129,17 @@ export default function DocsRoute() {
  useEffect(() => {
  const fetchModels = async () => {
  try {
- const res = await fetch("/api/v1/models");
+ const res = await fetch(`${apiBaseUrl}/v1/models`);
  const json = await res.json();
  if (json.data && Array.isArray(json.data)) {
  const formatted = json.data.map((m: any) => ({
  id: m.id,
- name: m.name || m.id,
- context: m.context || "200,000",
- type: m.type || "Chat / Completion",
- created: m.launch_date || (m.created
- ? new Date(m.created * 1000).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
- : "Dec 2024"),
+ name: m.display_name || m.name || m.id,
+ context: m.context_window ? m.context_window.toLocaleString() : (m.context || "1,000,000"),
+ type: m.type === "model" ? "Chat / Completion" : (m.type || "Chat / Completion"),
+ created: m.created_at
+ ? new Date(m.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+ : (m.launch_date || (m.created ? new Date(m.created * 1000).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "2026")),
  }));
  setModels(formatted);
  }
@@ -153,10 +148,7 @@ export default function DocsRoute() {
  }
  };
  fetchModels();
- }, []);
-
- const protocol = typeof window !== "undefined" ? window.location.protocol : "https:";
- const apiBaseUrl = `${protocol}//${host}`;
+ }, [apiBaseUrl]);
 
  const scrollTo = (id: string) => {
  const el = document.getElementById(id);
@@ -195,7 +187,11 @@ export default function DocsRoute() {
  </h1>
  <p className="text-muted-foreground text-base max-w-2xl leading-relaxed">
  Anthropic-compatible API gateway providing Claude API access without
- waitlists. Drop-in replacement — just change your base URL.
+ waitlists. Drop-in replacement — set your Base URL to{" "}
+ <code className="text-xs font-mono bg-secondary text-primary px-1.5 py-0.5 rounded font-semibold">
+ {apiBaseUrl}
+ </code>
+ .
  </p>
  </div>
 
@@ -231,8 +227,12 @@ export default function DocsRoute() {
  <p className="text-muted-foreground leading-relaxed mb-6">
  OpusZen is an Anthropic-compatible API gateway providing Claude
  API access without waitlists. It works with Claude Code, Cursor,
- Windsurf, Cline, Roo Code, and any Anthropic SDK — just swap
- your base URL and go.
+ Windsurf, Cline, Roo Code, and any Anthropic SDK — just set
+ your Base URL to{" "}
+ <code className="text-xs font-mono bg-secondary text-primary px-1.5 py-0.5 rounded font-semibold">
+ {apiBaseUrl}
+ </code>{" "}
+ and go.
  </p>
  <div className="grid sm:grid-cols-2 gap-4">
  {[
@@ -403,21 +403,184 @@ export default function DocsRoute() {
         <span className="text-xs text-muted-foreground">Roo Code</span>
       </div>
       <p className="text-sm text-muted-foreground mb-3">
-        Add to your VS Code{" "}
+        In Cline / Roo Code extension settings, select provider{" "}
+        <code className="text-xs font-mono bg-secondary text-secondary-foreground px-1.5 py-0.5 rounded font-medium">
+          Anthropic
+        </code>{" "}
+        or configure in VS Code{" "}
         <code className="text-xs font-mono bg-secondary text-secondary-foreground px-1.5 py-0.5 rounded font-medium">
           settings.json
-        </code>{" "}
-        with provider{" "}
-        <code className="text-xs font-mono bg-secondary text-secondary-foreground px-1.5 py-0.5 rounded font-medium">
-          "anthropic"
         </code>
-        , your base URL, and API key.
+        :
       </p>
+      <div className="space-y-2 text-sm font-mono mb-4">
+        <div className="flex items-center gap-3 p-3 rounded-xl border border-border bg-card">
+          <span className="text-muted-foreground text-xs w-24 shrink-0">Base URL</span>
+          <code className="text-primary font-semibold">{apiBaseUrl}/v1</code>
+        </div>
+        <div className="flex items-center gap-3 p-3 rounded-xl border border-border bg-card">
+          <span className="text-muted-foreground text-xs w-24 shrink-0">API Key</span>
+          <code className="text-muted-foreground">YOUR_API_KEY</code>
+        </div>
+      </div>
+      <CodeBlock
+        lang="json"
+        code={`{
+  "cline.apiProvider": "anthropic",
+  "cline.anthropicBaseUrl": "${apiBaseUrl}/v1",
+  "cline.apiKey": "YOUR_API_KEY",
+  "cline.anthropicModelId": "claude-sonnet-4-6"
+}`}
+      />
+    </div>
+  </Section>
+
+  {/* ── SDKs & Code Examples ─────────────────────────────────── */}
+  <Section id="sdks-examples" title="SDKs & Code Examples">
+    <p className="text-muted-foreground leading-relaxed mb-6">
+      OpusZen is a drop-in replacement for the official Anthropic API. Simply configure the Base URL to{" "}
+      <code className="text-xs font-mono bg-secondary text-primary px-1.5 py-0.5 rounded font-semibold">{apiBaseUrl}</code>{" "}
+      in your preferred language or SDK.
+    </p>
+
+    {/* Python Anthropic SDK */}
+    <div className="mb-8">
+      <div className="flex items-center gap-2 mb-2">
+        <span className="text-sm font-bold bg-secondary text-primary border border-border px-2.5 py-1 rounded-lg">
+          Python
+        </span>
+        <span className="text-xs text-muted-foreground">Official Anthropic SDK</span>
+      </div>
+      <p className="text-sm text-muted-foreground mb-3">
+        Install with <code className="text-xs font-mono bg-secondary px-1.5 py-0.5 rounded">pip install anthropic</code>:
+      </p>
+      <CodeBlock
+        lang="python"
+        code={`import anthropic
+
+client = anthropic.Anthropic(
+    api_key="YOUR_API_KEY",
+    base_url="${apiBaseUrl}",
+)
+
+message = client.messages.create(
+    model="claude-opus-4-8",
+    max_tokens=1024,
+    messages=[
+        {"role": "user", "content": "Hello, Claude!"}
+    ],
+)
+
+print(message.content[0].text)`}
+      />
+    </div>
+
+    {/* TypeScript / Node.js Anthropic SDK */}
+    <div className="mb-8">
+      <div className="flex items-center gap-2 mb-2">
+        <span className="text-sm font-bold bg-secondary text-primary border border-border px-2.5 py-1 rounded-lg">
+          TypeScript / Node.js
+        </span>
+        <span className="text-xs text-muted-foreground">Official @anthropic-ai/sdk</span>
+      </div>
+      <p className="text-sm text-muted-foreground mb-3">
+        Install with <code className="text-xs font-mono bg-secondary px-1.5 py-0.5 rounded">npm install @anthropic-ai/sdk</code>:
+      </p>
+      <CodeBlock
+        lang="typescript"
+        code={`import Anthropic from "@anthropic-ai/sdk";
+
+const client = new Anthropic({
+  apiKey: "YOUR_API_KEY",
+  baseURL: "${apiBaseUrl}",
+});
+
+const message = await client.messages.create({
+  model: "claude-opus-4-8",
+  max_tokens: 1024,
+  messages: [{ role: "user", content: "Hello, Claude!" }],
+});
+
+console.log(message.content[0].text);`}
+      />
+    </div>
+
+    {/* cURL */}
+    <div className="mb-8">
+      <div className="flex items-center gap-2 mb-2">
+        <span className="text-sm font-bold bg-secondary text-primary border border-border px-2.5 py-1 rounded-lg">
+          cURL
+        </span>
+        <span className="text-xs text-muted-foreground">Raw HTTP / REST</span>
+      </div>
+      <p className="text-sm text-muted-foreground mb-3">
+        Direct messages endpoint via <code className="text-xs font-mono bg-secondary px-1.5 py-0.5 rounded">{apiBaseUrl}/v1/messages</code>:
+      </p>
+      <CodeBlock
+        lang="bash"
+        code={`curl ${apiBaseUrl}/v1/messages \\
+  -H "x-api-key: YOUR_API_KEY" \\
+  -H "anthropic-version: 2023-06-01" \\
+  -H "content-type: application/json" \\
+  -d '{
+    "model": "claude-opus-4-8",
+    "max_tokens": 1024,
+    "messages": [
+      {"role": "user", "content": "Hello, Claude!"}
+    ]
+  }'`}
+      />
+    </div>
+
+    {/* OpenAI SDK Compatible */}
+    <div>
+      <div className="flex items-center gap-2 mb-2">
+        <span className="text-sm font-bold border border-border text-primary bg-secondary/40 px-2.5 py-1 rounded-lg">
+          OpenAI SDK Compatible
+        </span>
+        <span className="text-xs text-muted-foreground">Python & Node.js drop-in</span>
+      </div>
+      <p className="text-sm text-muted-foreground mb-3">
+        Connect using the OpenAI client with base URL set to <code className="text-xs font-mono bg-secondary px-1.5 py-0.5 rounded">{apiBaseUrl}/v1</code>:
+      </p>
+      <CodeBlock
+        lang="python"
+        code={`from openai import OpenAI
+
+client = OpenAI(
+    api_key="YOUR_API_KEY",
+    base_url="${apiBaseUrl}/v1",
+)
+
+response = client.chat.completions.create(
+    model="claude-opus-4-8",
+    messages=[{"role": "user", "content": "Hello!"}],
+)
+
+print(response.choices[0].message.content)`}
+      />
     </div>
   </Section>
 
   {/* ── API Reference ─────────────────────────────────────── */}
   <Section id="api-reference" title="API Reference">
+
+    {/* Base URL Box */}
+    <div className="mb-8 p-4 rounded-xl border border-primary/30 bg-primary/5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div>
+        <span className="text-xs font-semibold text-primary uppercase tracking-wider block mb-1">
+          Gateway Base URL
+        </span>
+        <code className="text-base font-mono font-bold text-foreground bg-secondary/80 px-2.5 py-1 rounded border border-border">
+          {apiBaseUrl}
+        </code>
+      </div>
+      <div className="text-xs text-muted-foreground sm:text-right">
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-secondary text-primary font-medium border border-border">
+          Anthropic Compatible (v1)
+        </span>
+      </div>
+    </div>
 
     {/* Authentication */}
     <div className="mb-8">
@@ -444,26 +607,30 @@ export default function DocsRoute() {
       {[
         {
           method: "POST",
-          path: "/api/v1/messages",
-          desc: "Create a message. Set stream: true for Server-Sent Events with message_start, content_block_delta, and message_stop events.",
+          path: "/v1/messages",
+          fullUrl: `${apiBaseUrl}/v1/messages`,
+          desc: "Create a message. Full Anthropic format. Set stream: true for Server-Sent Events with message_start, content_block_delta, and message_stop events.",
           body: `{ "model": "claude-opus-4-8", "messages": [{ "role": "user", "content": "Hello" }], "max_tokens": 1024, "stream": false }`,
         },
         {
           method: "GET",
-          path: "/api/v1/models",
-          desc: "List all available models with context window information.",
+          path: "/v1/models",
+          fullUrl: `${apiBaseUrl}/v1/models`,
+          desc: "List all available models with context window and launch information.",
           body: null,
         },
         {
           method: "POST",
-          path: "/api/v1/messages/count_tokens",
-          desc: "Count tokens without sending a message.",
+          path: "/v1/messages/count_tokens",
+          fullUrl: `${apiBaseUrl}/v1/messages/count_tokens`,
+          desc: "Count tokens for a message payload without calling the model.",
           body: `{ "model": "claude-opus-4-8", "messages": [{ "role": "user", "content": "Hello" }] }`,
         },
         {
           method: "GET",
-          path: "/api/key-status?key=YOUR_API_KEY",
-          desc: "Check your key status, current usage, and rate limit windows.",
+          path: "/api/key-status",
+          fullUrl: `${apiBaseUrl}/api/key-status?key=YOUR_API_KEY`,
+          desc: "Check your API key status, token balance, and 5-hour rolling rate limits.",
           body: null,
         },
       ].map((ep) => (
@@ -471,18 +638,23 @@ export default function DocsRoute() {
           key={ep.path}
           className="p-5 rounded-2xl border border-border bg-card hover:border-primary/50 transition-colors"
         >
-          <div className="flex items-center gap-3 mb-2">
-            <span
-              className={`text-xs font-bold px-2 py-1 rounded-md ${
-                ep.method === "GET"
-                  ? "bg-secondary text-primary font-semibold"
-                  : "bg-primary text-primary-foreground font-semibold"
-              }`}
-            >
-              {ep.method}
-            </span>
-            <code className="text-sm font-mono text-foreground font-semibold">
-              {ep.path}
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+            <div className="flex items-center gap-3">
+              <span
+                className={`text-xs font-bold px-2 py-1 rounded-md ${
+                  ep.method === "GET"
+                    ? "bg-secondary text-primary font-semibold"
+                    : "bg-primary text-primary-foreground font-semibold"
+                }`}
+              >
+                {ep.method}
+              </span>
+              <code className="text-sm font-mono text-foreground font-semibold">
+                {ep.path}
+              </code>
+            </div>
+            <code className="text-xs font-mono text-muted-foreground bg-secondary/50 px-2 py-0.5 rounded">
+              {ep.fullUrl}
             </code>
           </div>
           <p className="text-sm text-muted-foreground mb-3">{ep.desc}</p>
@@ -570,14 +742,14 @@ export default function DocsRoute() {
         {
           icon: "🔍",
           title: "Web Search",
-          endpoint: "POST /tools/web_search",
+          endpoint: `POST ${apiBaseUrl}/tools/web_search`,
           desc: "Real-time web search powered by OpusZen. Use 3–5 focused keywords for best results.",
           example: `{ "query": "latest Anthropic API updates 2026" }`,
         },
         {
           icon: "🖼️",
           title: "Image Analysis",
-          endpoint: "POST /tools/understand_image",
+          endpoint: `POST ${apiBaseUrl}/tools/understand_image`,
           desc: "Analyze images via HTTP URLs, local file paths, or base64-encoded data. Max file size: 18MB.",
           example: `{ "image": "https://example.com/photo.jpg" }`,
         },
@@ -626,7 +798,7 @@ export default function DocsRoute() {
         {
           problem: "Rate limited",
           solution:
-            "Your five-hour window may be spent. Check /api/key-status for the reset time.",
+            `Your five-hour window may be spent. Check ${apiBaseUrl}/api/key-status for the reset time, or visit the Check Usage page.`,
         },
         {
           problem: "Changes not applying",
@@ -636,7 +808,7 @@ export default function DocsRoute() {
         {
           problem: "Cursor or Windsurf not routing",
           solution:
-            "Make sure the URL you pasted ends in /v1.",
+            `Make sure the URL you pasted is ${apiBaseUrl}/v1 (ending in /v1).`,
         },
       ].map((item) => (
         <div
