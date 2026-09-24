@@ -14,7 +14,7 @@ import { type LoaderFunctionArgs, type ActionFunctionArgs, type MetaFunction, da
 import { handleGatewayRequest } from "~/utils/gateway-service";
 import { checkRateLimit } from "~/utils/rate-limiter";
 import { corsHeaders } from "~/utils/cors";
-import { validateUserApiKeyDetailed, type UserApiKeyRow } from "~/utils/user-key-service";
+import type { GatewayRequestContext } from "~/types/gateway";
 
 const MAX_BODY_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
 
@@ -174,10 +174,15 @@ export async function action({ request }: ActionFunctionArgs) {
 			} catch {}
 		}
 
-		const apiKey = authHeader.replace(/^Bearer\s+/i, "").trim();
+		const apiKey = authHeader
+			.trim()
+			.replace(/^Bearer\s+/i, "")
+			.trim()
+			.replace(/^["']|["']$/g, "")
+			.trim();
 
 		if (!apiKey) {
-			console.log(`[GATEWAY] CUSTOMER AUTH RESULT | status=FAILED reason="Missing API key" id=${requestId}`);
+			console.log(`[GATEWAY] AUTH RESULT | status=FAILED reason="Missing API key" id=${requestId}`);
 			return data({
 				type: "error",
 				error: {
@@ -189,40 +194,9 @@ export async function action({ request }: ActionFunctionArgs) {
 			}, { status: 401, headers: cors });
 		}
 
-		// 2. Strict Customer API Key Validation
-		const valResult = await validateUserApiKeyDetailed(apiKey);
+		console.log(`[GATEWAY] INCOMING REQUEST | path=${urlPath} key=${maskKey(apiKey)} id=${requestId}`);
 
-		if (!valResult.valid || !valResult.key) {
-			console.log(`[GATEWAY] CUSTOMER AUTH RESULT | status=FAILED keyPrefix=${maskKey(apiKey)} error="${valResult.error}" id=${requestId}`);
-			return data({
-				type: "error",
-				error: {
-					type: valResult.errorType || "authentication_error",
-					message: valResult.error || "Authentication failed. Invalid API key.",
-					status: valResult.status || 401,
-					request_id: requestId,
-				},
-			}, { status: valResult.status || 401, headers: cors });
-		}
-
-		const userKey: UserApiKeyRow = valResult.key;
-		console.log(`[GATEWAY] CUSTOMER AUTH RESULT | status=SUCCESS user=${userKey.user_id} keyPrefix=${maskKey(apiKey)} credits=${userKey.remaining_credits} id=${requestId}`);
-
-		// 3. Quota & Credit check
-		if (userKey.allocated_credits > 0 && (userKey.remaining_credits ?? 0) <= 0) {
-			console.log(`[GATEWAY] CUSTOMER QUOTA EXHAUSTED | user=${userKey.user_id} keyPrefix=${maskKey(apiKey)} id=${requestId}`);
-			return data({
-				type: "error",
-				error: {
-					type: "quota_exceeded",
-					message: "Insufficient credits. Your OpusZen credit balance is exhausted. Please top up your account.",
-					status: 402,
-					request_id: requestId,
-				},
-			}, { status: 402, headers: cors });
-		}
-
-		// 4. Enforce body size limit
+		// 2. Enforce body size limit
 		const contentLength = request.headers.get("content-length");
 		if (contentLength && parseInt(contentLength, 10) > MAX_BODY_SIZE_BYTES) {
 			return data({
@@ -236,7 +210,7 @@ export async function action({ request }: ActionFunctionArgs) {
 			}, { status: 413, headers: cors });
 		}
 
-		// 5. Parse request body
+		// 3. Parse request body
 		let body: any;
 		try {
 			body = await request.json();
@@ -252,63 +226,29 @@ export async function action({ request }: ActionFunctionArgs) {
 			}, { status: 400, headers: cors });
 		}
 
-		// 6. Extract requested model and provider
-		const model = body.model ?? "claude-3-5-haiku-20241022";
-		let provider = 'opusmax';
+		// 4. Extract requested model and provider
+		const model = body.model ?? "claude-sonnet-4-6";
+		const provider = 'opusmax';
 
-		// 6b. Enforce allowed models restriction
-		if (userKey.allowed_models && userKey.allowed_models.length > 0) {
-			const modelAllowed = userKey.allowed_models.some(
-				(m: string) => model.toLowerCase().includes(m.toLowerCase())
-			);
-			if (!modelAllowed) {
-				return data({
-					type: "error",
-					error: {
-						type: "permission_error",
-						message: `Model "${model}" is not allowed for this API key. Allowed: ${userKey.allowed_models.join(", ")}`,
-						status: 403,
-						request_id: requestId,
-					},
-				}, { status: 403, headers: cors });
-			}
+		// 5. Rate limiting by IP (does not require Supabase key authentication)
+		const rateResult = await checkRateLimit(`ip_${clientIp || "unknown"}`, 120);
+		if (!rateResult.allowed) {
+			return data({
+				type: "error",
+				error: {
+					type: "rate_limit_error",
+					message: "Rate limit exceeded. Please retry after a moment.",
+					status: 429,
+					retry_after: rateResult.retryAfter,
+					request_id: requestId,
+				},
+			}, { status: 429, headers: cors });
 		}
 
-		// 6c. Enforce allowed providers restriction
-		if (userKey.allowed_providers && userKey.allowed_providers.length > 0) {
-			if (!userKey.allowed_providers.includes(provider)) {
-				return data({
-					type: "error",
-					error: {
-						type: "permission_error",
-						message: `Provider "${provider}" is not allowed for this API key. Allowed: ${userKey.allowed_providers.join(", ")}`,
-						status: 403,
-						request_id: requestId,
-					},
-				}, { status: 403, headers: cors });
-			}
-		}
-
-		// 6d. Rate limiting
-		if (userKey.rate_limit && userKey.rate_limit > 0) {
-			const rateResult = await checkRateLimit(userKey.id, userKey.rate_limit);
-			if (!rateResult.allowed) {
-				return data({
-					type: "error",
-					error: {
-						type: "rate_limit_error",
-						message: `Rate limit exceeded. Max ${userKey.rate_limit} requests per minute.`,
-						status: 429,
-						retry_after: rateResult.retryAfter,
-						request_id: requestId,
-					},
-				}, { status: 429, headers: cors });
-			}
-		}
-
-		const ctx = {
+		// 6. Build gateway request context with client provider key
+		const ctx: GatewayRequestContext = {
 			requestId,
-			userApiKey: userKey,
+			clientApiKey: apiKey,
 			provider,
 			model,
 			messages: body.messages ?? [],
@@ -320,12 +260,12 @@ export async function action({ request }: ActionFunctionArgs) {
 			signal: request.signal,
 		};
 
-		// 4. Execute gateway with failover
+		// 7. Execute direct provider request
 		const result = await handleGatewayRequest(ctx);
 
-		// 7. Return response
+		// 8. Return response
 		if (result.isSuccess) {
-			console.log(`[GATEWAY] REQUEST COMPLETED | id=${requestId} status=${result.httpStatus || 200} tokens=${result.totalTokens} credits=${result.creditsUsed.toFixed(4)}`);
+			console.log(`[GATEWAY] REQUEST COMPLETED | id=${requestId} status=${result.httpStatus || 200} tokens=${result.totalTokens}`);
 
 			if (result.isStream && result.stream) {
 				return new Response(result.stream, {
@@ -336,7 +276,6 @@ export async function action({ request }: ActionFunctionArgs) {
 						'Cache-Control': 'no-cache, no-transform',
 						'Connection': 'keep-alive',
 						'X-Request-Id': requestId,
-						'X-Master-Key-Id': result.masterKeyId,
 						'X-Provider': result.provider,
 					},
 				});
@@ -347,11 +286,9 @@ export async function action({ request }: ActionFunctionArgs) {
 				headers: {
 					...cors,
 					'X-Request-Id': requestId,
-					'X-Master-Key-Id': result.masterKeyId,
 					'X-Provider': result.provider,
 					'X-Retry-Count': String(result.retryNumber),
 					'X-Tokens-Used': String(result.totalTokens),
-					'X-Credits-Used': String(result.creditsUsed.toFixed(6)),
 				},
 			});
 		} else {

@@ -149,24 +149,17 @@ function extractUsage(responseBody: any): TokenUsage {
 // Transform OpenAI-compatible request to provider format
 // ---------------------------------------------------------------------------
 function buildProviderHeaders(
-	masterKey: MasterApiKeyRow,
+	providerKey: string,
 	incomingHeaders?: any,
-	clientKey?: string
+	endpointPath?: string
 ): Record<string, string> {
-	// The provider key sent upstream is ALWAYS the server-side provider credential
-	let keyToSend = masterKey?.api_key || '';
-
-	// STRICT ARCHITECTURAL RULE: Customer keys (sk_live_...) must NEVER be sent upstream!
-	if (keyToSend.startsWith('sk_live_')) {
-		keyToSend = '';
-	}
-
 	const headers: Record<string, string> = {
 		'Content-Type': 'application/json',
-		'Authorization': `Bearer ${keyToSend}`,
-		'x-api-key': keyToSend,
-		'anthropic-version': '2023-06-01',
+		'Authorization': `Bearer ${providerKey}`,
+		'x-api-key': providerKey,
 	};
+
+	const isMessages = !endpointPath || endpointPath.toLowerCase().includes('messages');
 
 	if (incomingHeaders) {
 		const getH = (k: string) => {
@@ -175,8 +168,15 @@ function buildProviderHeaders(
 		};
 		const antVer = getH('anthropic-version');
 		if (antVer) headers['anthropic-version'] = antVer;
+		else if (isMessages) headers['anthropic-version'] = '2023-06-01';
+
 		const antBeta = getH('anthropic-beta');
 		if (antBeta) headers['anthropic-beta'] = antBeta;
+
+		const accept = getH('accept');
+		if (accept) headers['Accept'] = accept;
+	} else if (isMessages) {
+		headers['anthropic-version'] = '2023-06-01';
 	}
 
 	return headers;
@@ -477,12 +477,429 @@ function hashForLogging(key: string, maxLen: number = 4): string {
 	return `key_***${hex}`;
 }
 
+/**
+ * Direct Provider Authentication Mode
+ *
+ * Forwards the incoming provider API key directly to https://api.opusmax.live
+ * without validating against Supabase user_api_keys or substituting server credentials.
+ * The provider itself authenticates the key by executing the request.
+ */
+async function handleDirectProviderRequest(
+	ctx: GatewayRequestContext,
+	clientApiKey: string
+): Promise<GatewayResponseContext> {
+	const requestId = ctx.requestId;
+	const maxRetries = await getGatewayConfig('retry_count') ?? 3;
+	const retryDelayMs = await getGatewayConfig('retry_delay_ms') ?? 1000;
+	const failoverEnabled = await getGatewayConfig('failover_enabled') ?? true;
+	const requestTimeoutMs = await getGatewayConfig('request_timeout_ms') ?? 120000;
+
+	const upstreamProvider = 'opusmax';
+	const url = buildProviderUrl(upstreamProvider, ctx.model, ctx.endpointPath);
+	const headers = buildProviderHeaders(clientApiKey, ctx.headers, ctx.endpointPath);
+	const requestBody = ctx.body ?? { model: ctx.model, messages: ctx.messages };
+	const isStreamRequested = Boolean(requestBody.stream);
+
+	console.log(`[GATEWAY] DIRECT PROVIDER FORWARDING | url=${url} model=${ctx.model} stream=${isStreamRequested} id=${requestId}`);
+
+	const startTime = Date.now();
+	let response: Response | null = null;
+	let lastError = '';
+	let retryNumber = 0;
+
+	// For network / 5xx transient failures, allow retry if failoverEnabled
+	const attempts = failoverEnabled ? Math.max(1, maxRetries) : 1;
+
+	for (let attempt = 0; attempt < attempts; attempt++) {
+		retryNumber = attempt;
+		const attemptStart = Date.now();
+
+		try {
+			const controller = new AbortController();
+			const timeoutId = setTimeout(() => controller.abort(), requestTimeoutMs);
+			if (ctx.signal) {
+				if (ctx.signal.aborted) {
+					controller.abort();
+				} else {
+					ctx.signal.addEventListener("abort", () => controller.abort(), { once: true });
+				}
+			}
+
+			response = await fetch(url, {
+				method: 'POST',
+				headers,
+				body: JSON.stringify(requestBody),
+				signal: controller.signal,
+			});
+			clearTimeout(timeoutId);
+
+			if (ctx.signal?.aborted) {
+				return {
+					requestId,
+					masterKeyId: 'provider_direct',
+					provider: upstreamProvider,
+					httpStatus: 499,
+					isSuccess: false,
+					promptTokens: 0,
+					completionTokens: 0,
+					totalTokens: 0,
+					creditsUsed: 0,
+					responseTimeMs: Date.now() - attemptStart,
+					errorMessage: "Client cancelled the request.",
+					responseBody: {
+						type: "error",
+						error: {
+							type: "client_cancelled",
+							message: "Client closed the connection before completion.",
+						},
+					},
+					retryNumber,
+				};
+			}
+
+			// Only retry on 5xx errors
+			if (response.status >= 500 && attempt < attempts - 1) {
+				console.warn(`[GATEWAY] UPSTREAM 5xx (attempt ${attempt + 1}/${attempts}) status=${response.status} id=${requestId}`);
+				await new Promise((r) => setTimeout(r, retryDelayMs));
+				continue;
+			}
+
+			break;
+		} catch (fetchErr: unknown) {
+			if (ctx.signal?.aborted) {
+				return {
+					requestId,
+					masterKeyId: 'provider_direct',
+					provider: upstreamProvider,
+					httpStatus: 499,
+					isSuccess: false,
+					promptTokens: 0,
+					completionTokens: 0,
+					totalTokens: 0,
+					creditsUsed: 0,
+					responseTimeMs: Date.now() - attemptStart,
+					errorMessage: "Client cancelled the request.",
+					responseBody: {
+						type: "error",
+						error: {
+							type: "client_cancelled",
+							message: "Client closed the connection before completion.",
+						},
+					},
+					retryNumber,
+				};
+			}
+
+			let errorMsg = fetchErr instanceof Error ? fetchErr.message : 'Network error';
+			if (fetchErr instanceof Error && fetchErr.name === 'AbortError') {
+				errorMsg = `Request timed out after ${requestTimeoutMs}ms`;
+			}
+			lastError = errorMsg;
+			console.warn(`[GATEWAY] UPSTREAM FETCH ERROR (attempt ${attempt + 1}/${attempts}): ${errorMsg} id=${requestId}`);
+
+			if (attempt < attempts - 1) {
+				await new Promise((r) => setTimeout(r, retryDelayMs));
+				continue;
+			}
+			break;
+		}
+	}
+
+	const totalResponseTimeMs = Date.now() - startTime;
+
+	if (!response) {
+		const isTimeout = lastError.includes('timed out');
+		const status = isTimeout ? 504 : 502;
+		const errorType = isTimeout ? 'timeout_error' : 'bad_gateway';
+		const errorMsg = isTimeout ? 'Gateway request timed out.' : 'Upstream provider connection failed.';
+
+		return {
+			requestId,
+			masterKeyId: 'provider_direct',
+			provider: upstreamProvider,
+			httpStatus: status,
+			isSuccess: false,
+			promptTokens: 0,
+			completionTokens: 0,
+			totalTokens: 0,
+			creditsUsed: 0,
+			responseTimeMs: totalResponseTimeMs,
+			errorMessage: errorMsg,
+			responseBody: {
+				type: "error",
+				error: {
+					type: errorType,
+					message: errorMsg,
+					status,
+					request_id: requestId,
+				},
+			},
+			retryNumber,
+		};
+	}
+
+	const contentType = response.headers.get('content-type') || '';
+
+	// 1. Streaming response
+	if (response.ok && contentType.includes('text/event-stream') && response.body) {
+		console.log(`[GATEWAY] STREAMING RESPONSE | status=${response.status} timeMs=${totalResponseTimeMs} id=${requestId}`);
+
+		const meteredStream = createMeteredStream(
+			response.body as ReadableStream<Uint8Array>,
+			ctx.messages,
+			ctx.model,
+			async (finalUsage) => {
+				await logApiRequest({
+					requestId,
+					userId: null,
+					userApiKeyId: null,
+					userApiKeyPrefix: 'provider_direct',
+					masterApiKeyId: null,
+					masterKeyPrefix: 'opusmax',
+					provider: upstreamProvider,
+					model: ctx.model,
+					...finalUsage,
+					creditsUsed: 0,
+					responseTimeMs: totalResponseTimeMs,
+					httpStatus: 200,
+					isSuccess: true,
+					ipAddress: ctx.ipAddress,
+					userAgent: ctx.userAgent,
+				});
+			}
+		);
+
+		return {
+			requestId,
+			masterKeyId: 'provider_direct',
+			provider: upstreamProvider,
+			httpStatus: 200,
+			isSuccess: true,
+			promptTokens: 0,
+			completionTokens: 0,
+			totalTokens: 0,
+			creditsUsed: 0,
+			responseTimeMs: totalResponseTimeMs,
+			isStream: true,
+			stream: meteredStream,
+			contentType: contentType || 'text/event-stream',
+			responseBody: null,
+			retryNumber,
+		};
+	}
+
+	// 2. Non-streaming response parsing
+	let responseBody: any;
+	if (contentType.includes('application/json')) {
+		responseBody = await response.json().catch(() => ({}));
+	} else {
+		const text = await response.text().catch(() => '');
+		responseBody = { error: { message: text || `HTTP ${response.status}` } };
+	}
+
+	// Detect pseudo-success auth error messages from upstream
+	// (e.g. OpusMax returning 200 OK with "⚠️ Invalid API key" or "API key is required")
+	const assistantText = (responseBody as any)?.content?.[0]?.text
+		|| (responseBody as any)?.choices?.[0]?.message?.content
+		|| '';
+	const isPseudoAuthError = typeof assistantText === 'string' && (
+		assistantText.includes('⚠️ Invalid API key') ||
+		assistantText.includes('Invalid API key') ||
+		assistantText.includes('API key is required') ||
+		assistantText.includes('API key is missing') ||
+		assistantText.includes('authentication_error')
+	);
+
+	if (response.status === 401 || isPseudoAuthError) {
+		console.log(`[GATEWAY] PROVIDER AUTH FAILED | status=401 pseudo=${isPseudoAuthError} id=${requestId}`);
+
+		return {
+			requestId,
+			masterKeyId: 'provider_direct',
+			provider: upstreamProvider,
+			httpStatus: 401,
+			isSuccess: false,
+			promptTokens: 0,
+			completionTokens: 0,
+			totalTokens: 0,
+			creditsUsed: 0,
+			responseTimeMs: totalResponseTimeMs,
+			errorMessage: "Invalid API key provided.",
+			responseBody: {
+				type: "error",
+				error: {
+					type: "authentication_error",
+					message: "Invalid API key provided.",
+					status: 401,
+					request_id: requestId,
+				},
+			},
+			retryNumber,
+		};
+	}
+
+	if (response.status === 403) {
+		console.log(`[GATEWAY] PROVIDER AUTH FORBIDDEN | status=403 id=${requestId}`);
+
+		return {
+			requestId,
+			masterKeyId: 'provider_direct',
+			provider: upstreamProvider,
+			httpStatus: 403,
+			isSuccess: false,
+			promptTokens: 0,
+			completionTokens: 0,
+			totalTokens: 0,
+			creditsUsed: 0,
+			responseTimeMs: totalResponseTimeMs,
+			errorMessage: "The provided API key does not have permissions for this resource.",
+			responseBody: {
+				type: "error",
+				error: {
+					type: "permission_error",
+					message: "The provided API key does not have permissions for this resource.",
+					status: 403,
+					request_id: requestId,
+				},
+			},
+			retryNumber,
+		};
+	}
+
+	if (response.status === 429) {
+		console.log(`[GATEWAY] PROVIDER RATE LIMITED | status=429 id=${requestId}`);
+
+		return {
+			requestId,
+			masterKeyId: 'provider_direct',
+			provider: upstreamProvider,
+			httpStatus: 429,
+			isSuccess: false,
+			promptTokens: 0,
+			completionTokens: 0,
+			totalTokens: 0,
+			creditsUsed: 0,
+			responseTimeMs: totalResponseTimeMs,
+			errorMessage: "Rate limit exceeded. Please retry after a moment.",
+			responseBody: {
+				type: "error",
+				error: {
+					type: "rate_limit_error",
+					message: "Rate limit exceeded. Please retry after a moment.",
+					status: 429,
+					request_id: requestId,
+				},
+			},
+			retryNumber,
+		};
+	}
+
+	if (response.ok) {
+		console.log(`[GATEWAY] PROVIDER SUCCESS | status=200 timeMs=${totalResponseTimeMs} id=${requestId}`);
+		const usage = extractUsage(responseBody as ChatCompletionResponse);
+
+		await logApiRequest({
+			requestId,
+			userId: null,
+			userApiKeyId: null,
+			userApiKeyPrefix: 'provider_direct',
+			masterApiKeyId: null,
+			masterKeyPrefix: 'opusmax',
+			provider: upstreamProvider,
+			model: ctx.model,
+			...usage,
+			creditsUsed: 0,
+			responseTimeMs: totalResponseTimeMs,
+			httpStatus: response.status,
+			isSuccess: true,
+			ipAddress: ctx.ipAddress,
+			userAgent: ctx.userAgent,
+		});
+
+		return {
+			requestId,
+			masterKeyId: 'provider_direct',
+			provider: upstreamProvider,
+			httpStatus: response.status,
+			isSuccess: true,
+			...usage,
+			creditsUsed: 0,
+			responseTimeMs: totalResponseTimeMs,
+			responseBody: transformResponse(upstreamProvider, responseBody, ctx.model, ctx.endpointPath),
+			retryNumber,
+		};
+	}
+
+	// Other error codes (400, 404, 500, etc.)
+	const rawError = extractErrorMessage(responseBody, response.status);
+	const sanitizedError = sanitizeErrorMessage(rawError, response.status);
+
+	await logApiRequest({
+		requestId,
+		userId: null,
+		userApiKeyId: null,
+		userApiKeyPrefix: 'provider_direct',
+		masterApiKeyId: null,
+		masterKeyPrefix: 'opusmax',
+		provider: upstreamProvider,
+		model: ctx.model,
+		promptTokens: 0,
+		completionTokens: 0,
+		totalTokens: 0,
+		creditsUsed: 0,
+		responseTimeMs: totalResponseTimeMs,
+		httpStatus: response.status,
+		isSuccess: false,
+		errorMessage: sanitizedError,
+		ipAddress: ctx.ipAddress,
+		userAgent: ctx.userAgent,
+	});
+
+	const status = response.status;
+	const errorType = (responseBody as any)?.error?.type
+		|| (status === 400 ? "invalid_request_error"
+			: status === 404 ? "not_found_error"
+			: status >= 500 ? "api_error"
+			: "api_error");
+
+	return {
+		requestId,
+		masterKeyId: 'provider_direct',
+		provider: upstreamProvider,
+		httpStatus: status,
+		isSuccess: false,
+		promptTokens: 0,
+		completionTokens: 0,
+		totalTokens: 0,
+		creditsUsed: 0,
+		responseTimeMs: totalResponseTimeMs,
+		errorMessage: sanitizedError,
+		responseBody: {
+			type: "error",
+			error: {
+				type: errorType,
+				message: sanitizedError,
+				status,
+				request_id: requestId,
+			},
+		},
+		retryNumber,
+	};
+}
+
 // ---------------------------------------------------------------------------
 // Main gateway handler with failover
 // ---------------------------------------------------------------------------
 export async function handleGatewayRequest(
 	ctx: GatewayRequestContext
 ): Promise<GatewayResponseContext> {
+	// Primary Provider Authentication:
+	// If clientApiKey is provided, forward the exact incoming provider key directly to api.opusmax.live.
+	// Supabase user_api_keys validation is completely bypassed.
+	if (ctx.clientApiKey) {
+		return handleDirectProviderRequest(ctx, ctx.clientApiKey);
+	}
+
 	const requestId = ctx.requestId;
 	const failoverEvents: FailoverEvent[] = [];
 	let retryNumber = 0;
@@ -554,7 +971,7 @@ export async function handleGatewayRequest(
 			&& (k.remaining_credits ?? 0) > 0;
 		if (!isHealthy) return false;
 
-		if (ctx.userApiKey.allowed_providers && ctx.userApiKey.allowed_providers.length > 0) {
+		if (ctx.userApiKey?.allowed_providers && ctx.userApiKey.allowed_providers.length > 0) {
 			const isAllowed = ctx.userApiKey.allowed_providers.some(ap => matchesProvider(k.provider, ap));
 			if (!isAllowed) return false;
 		}
@@ -611,7 +1028,7 @@ export async function handleGatewayRequest(
 		// All upstream requests go to opusmax regardless of key's stored provider name
 		const upstreamProvider = 'opusmax';
 		const url = buildProviderUrl(upstreamProvider, ctx.model, ctx.endpointPath);
-		const headers = buildProviderHeaders(candidate, ctx.headers, ctx.userApiKey?.api_key);
+		const headers = buildProviderHeaders(candidate.api_key, ctx.headers, ctx.endpointPath);
 		const body = transformRequestBody(upstreamProvider, {
 			...request,
 			model: ctx.model,
@@ -1038,9 +1455,9 @@ export async function handleGatewayRequest(
 
 		await logApiRequest({
 			requestId,
-			userId: ctx.userApiKey.user_id,
-			userApiKeyId: ctx.userApiKey.id,
-			userApiKeyPrefix: hashForLogging(ctx.userApiKey.api_key, 8),
+			userId: ctx.userApiKey?.user_id ?? null,
+			userApiKeyId: ctx.userApiKey?.id ?? null,
+			userApiKeyPrefix: ctx.userApiKey ? hashForLogging(ctx.userApiKey.api_key, 8) : '',
 			masterApiKeyId: candidate.id,
 			masterKeyPrefix: hashForLogging(candidate.api_key, 4),
 			provider: candidate.provider,
@@ -1082,9 +1499,9 @@ export async function handleGatewayRequest(
 	if (masterKey) {
 		await logApiRequest({
 			requestId,
-			userId: ctx.userApiKey.user_id,
-			userApiKeyId: ctx.userApiKey.id,
-			userApiKeyPrefix: hashForLogging(ctx.userApiKey.api_key, 8),
+			userId: ctx.userApiKey?.user_id ?? null,
+			userApiKeyId: ctx.userApiKey?.id ?? null,
+			userApiKeyPrefix: ctx.userApiKey ? hashForLogging(ctx.userApiKey.api_key, 8) : '',
 			masterApiKeyId: masterKey.id,
 			masterKeyPrefix: hashForLogging(masterKey.api_key, 4),
 			provider: masterKey.provider,

@@ -226,17 +226,18 @@ export interface GatewayConfigInput {
 // Gateway Request / Response Flow
 // ---------------------------------------------------------------------------
 export interface GatewayRequestContext {
- requestId: string;
- userApiKey: UserApiKeyRow;
- provider: string;
- model: string;
- messages: any[];
- ipAddress: string;
- userAgent: string;
- endpointPath?: string;
- body?: Record<string, any>;
- headers?: any;
- signal?: AbortSignal;
+	requestId: string;
+	userApiKey?: UserApiKeyRow;
+	clientApiKey?: string;
+	provider: string;
+	model: string;
+	messages: any[];
+	ipAddress: string;
+	userAgent: string;
+	endpointPath?: string;
+	body?: Record<string, any>;
+	headers?: any;
+	signal?: AbortSignal;
 }
 
 export interface GatewayResponseContext {
